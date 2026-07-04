@@ -1,14 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue"
-
-type SessionDto = {
-  campaignId: number
-  sessionId: number
-  date: string
-  title: string
-  description: string
-  tags: string[]
-}
+import { SessionListItemDto } from "@/assets/DataTransferObjects"
+import { sessionListExample } from "@/assets/exampleData"
 
 type SessionViewMode = "detail" | "new" | "edit"
 
@@ -16,35 +9,7 @@ const activeCampaignId = ref<number>(1)
 const selectedSessionId = ref<number | null>(null)
 const viewMode = ref<SessionViewMode>("detail")
 
-const sessions = ref<SessionDto[]>([
-  {
-    campaignId: 1,
-    sessionId: 1,
-    date: "2026-01-12",
-    title: "New Year, Old Trouble",
-    description:
-      "The campaign begins in Gernanti. The party wakes after a strange night, with missing time, unclear memories, and signs that someone or something has interfered with them.",
-    tags: ["opening", "Gernanti", "mystery"],
-  },
-  {
-    campaignId: 1,
-    sessionId: 2,
-    date: "2026-01-19",
-    title: "Bones Beneath the City",
-    description:
-      "The party escapes from the cave system and returns to the streets. They begin piecing together who may have drugged them and why they were taken below the city.",
-    tags: ["caves", "undead", "investigation"],
-  },
-  {
-    campaignId: 1,
-    sessionId: 3,
-    date: "2026-01-26",
-    title: "The Thieves' Hideout",
-    description:
-      "Following leads from the tavern confrontation, the party tracks the criminals to a hideout. Inside, Nalia discovers a grimoire that may be tied to deeper forces moving beneath Gernanti.",
-    tags: ["hideout", "grimoire", "Nalia"],
-  },
-])
+const sessions = ref<SessionListItemDto[]>(sessionListExample)
 
 const sessionForm = reactive({
   date: new Date().toISOString().slice(0, 10),
@@ -123,7 +88,7 @@ function createSession() {
     return
   }
 
-  const session: SessionDto = {
+  const session: SessionListItemDto = {
     campaignId: activeCampaignId.value,
     sessionId: nextSessionId.value,
     date: sessionForm.date,

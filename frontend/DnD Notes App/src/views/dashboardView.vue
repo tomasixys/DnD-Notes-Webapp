@@ -1,16 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue"
+import { CampaignsDto } from "@/assets/DataTransferObjects";
+import { campaignsExample } from "@/assets/exampleData"
 
-type CampaignDesc = {
-  id: number
-  name: string
-  playerCharacter: string
-  description: string
-  sessionCount: number
-  imageUrl: string
-}
 
-const newCampaign = reactive<CampaignDesc>({
+
+const newCampaign = reactive<CampaignsDto>({
   id: 0,
   name: "",
   playerCharacter: "",
@@ -19,17 +14,7 @@ const newCampaign = reactive<CampaignDesc>({
   imageUrl: "",
 })
 
-const campaigns = ref<CampaignDesc[]>([
-  {
-    id: 1,
-    name: "Streets of Gernanti",
-    playerCharacter: "Nalyathina Calemdor",
-    description:
-    "A street-level Pathfinder 2e campaign set in the magical free city of Gernanti, where ambition, corruption, arcane politics, and survival all collide.",
-    sessionCount: 0,
-    imageUrl: "/src/assets/banner.png",
-  },
-])
+const campaigns = ref<CampaignsDto[]>(campaignsExample)
 
 enum ViewModes {
   Current,
@@ -61,7 +46,7 @@ function showCampaignList() {
 function createCampaign() {
   const nextId = Math.max(0, ...campaigns.value.map((campaign) => campaign.id)) + 1
 
-  const campaign = <CampaignDesc>{
+  const campaign = <CampaignsDto>{
     id: nextId,
     name: newCampaign.name.trim(),
     playerCharacter: newCampaign.playerCharacter.trim(),

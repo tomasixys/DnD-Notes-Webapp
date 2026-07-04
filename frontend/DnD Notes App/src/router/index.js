@@ -16,6 +16,26 @@ const router = createRouter({
       path: '/sessions',
       name: 'Sessions',
       component: () => import('../views/sessionsView.vue')
+    },
+    {
+      path: '/people',
+      name: 'People',
+      component: () => import('../views/peopleView.vue')
+    },
+    {
+      path: "/locations",
+      name: "Locations",
+      component: () => import("../views/locationsView.vue")
+    },
+    {
+      path: "/factions",
+      name: "Factions",
+      component: () => import("../views/factionsView.vue")
+    },
+    {
+      path: "/rolls",
+      name: "Rolls",
+      component: () => import("../views/rollsView.vue")
     }
   ],
 })

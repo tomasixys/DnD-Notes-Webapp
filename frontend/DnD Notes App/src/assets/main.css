@@ -407,7 +407,7 @@ textarea {
   max-width: 60rem;
 }
 
-.form-actions {
+.resource-form-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
@@ -437,4 +437,64 @@ textarea {
   .resource-layout {
     grid-template-columns: 1fr;
   }
+}
+
+.resource-facts {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  max-width: 50rem;
+}
+
+.resource-facts div {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.resource-facts dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.resource-facts dd {
+  margin: 0;
+}
+
+.rolls-section + .rolls-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.roll-input-form {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  max-width: 24rem;
+}
+
+.roll-input-form label {
+  flex: 1;
+}
+
+.roll-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.roll-pill {
+  min-width: 2.2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.16);
+  color: var(--color-text);
+  text-align: center;
+  font-weight: 700;
 }
