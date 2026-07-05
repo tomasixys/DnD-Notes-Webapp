@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { FactionDto } from "@/assets/DataTransferObjects"
-import { factionsExample } from "@/assets/exampleData"
+import { computed, reactive, ref, onBeforeMount } from "vue"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
+import { ViewModes } from "@/types/viewTypes"
+import { FactionDto } from "@/types/DataTransferObjects"
 
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
+onBeforeMount(async () => {
+  await fetchFactions()
+})
 
-type FactionViewMode = "detail" | "new" | "edit"
-
-const activeCampaignId = ref<number>(1)
+const viewMode = ref<ViewModes>(ViewModes.Details)
 const selectedFactionId = ref<number | null>(null)
-const viewMode = ref<FactionViewMode>("detail")
-
-const factions = ref<FactionDto[]>(factionsExample)
+const factions = ref<FactionDto[]>([])
 
 const factionForm = reactive({
   name: "",
@@ -21,38 +31,19 @@ const factionForm = reactive({
   tags: "",
 })
 
-const campaignFactions = computed(() => {
-  return factions.value
-    .filter((faction) => faction.campaignId === activeCampaignId.value)
-    .sort((a, b) => a.name.localeCompare(b.name))
-})
-
-const nextFactionId = computed(() => {
-  const currentHighestFactionId = Math.max(
-    0,
-    ...factions.value
-      .filter((faction) => faction.campaignId === activeCampaignId.value)
-      .map((faction) => faction.factionId),
-  )
-
-  return currentHighestFactionId + 1
-})
 
 const selectedFaction = computed(() => {
-  if (campaignFactions.value.length === 0) {
-    return null
-  }
-
+  if (factions.value.length === 0) return null
   return (
-    campaignFactions.value.find(
-      (faction) => faction.factionId === selectedFactionId.value,
-    ) ?? campaignFactions.value[0]
+    factions.value.find(
+      (faction) => faction.id === selectedFactionId.value,
+    ) ?? factions.value[0]
   )
 })
 
 function selectFaction(factionId: number) {
   selectedFactionId.value = factionId
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function resetFactionForm() {
@@ -65,7 +56,7 @@ function resetFactionForm() {
 
 function showAddFactionForm() {
   resetFactionForm()
-  viewMode.value = "new"
+  viewMode.value = ViewModes.Create
 }
 
 function showEditFactionForm() {
@@ -79,11 +70,11 @@ function showEditFactionForm() {
   factionForm.description = selectedFaction.value.description
   factionForm.tags = selectedFaction.value.tags.join(", ")
 
-  viewMode.value = "edit"
+  viewMode.value = ViewModes.Edit
 }
 
 function cancelFactionForm() {
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function parseTags(tags: string) {
@@ -93,27 +84,48 @@ function parseTags(tags: string) {
     .filter(Boolean)
 }
 
-function createFaction() {
-  const name = factionForm.name.trim()
+async function fetchFactions() {
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/factions`)
+  if (response.success === false) {
+    console.error("Failed to fetch locations:", response.error)
+    return
+  }
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch locations: Response is not an array")
+    return
+  }
 
-  if (!name) {
+  factions.value = response
+}
+
+async function createFaction() {
+  const name = factionForm.name.trim()
+  if (!name || !selectedCampaignId.value) {
     return
   }
 
   const faction: FactionDto = {
-    campaignId: activeCampaignId.value,
-    factionId: nextFactionId.value,
-    name,
+    campaignId: selectedCampaignId.value,
+    id: 0,
+    name: name,
     type: factionForm.type.trim(),
     location: factionForm.location.trim(),
     description: factionForm.description.trim(),
     tags: parseTags(factionForm.tags),
   }
 
-  factions.value.push(faction)
-  selectedFactionId.value = faction.factionId
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/factions`, faction)
+  if (response.success === false) {
+    console.error("Failed to create faction:", response.error)
+    return
+  }
+  const createdFaction = response as FactionDto
+
+  factions.value = [...factions.value, createdFaction].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )
   resetFactionForm()
-  viewMode.value = "detail"
+  selectFaction(createdFaction.id)
 }
 
 function updateFaction() {
@@ -130,7 +142,7 @@ function updateFaction() {
   const factionIndex = factions.value.findIndex(
     (faction) =>
       faction.campaignId === selectedFaction.value?.campaignId &&
-      faction.factionId === selectedFaction.value?.factionId,
+      faction.id === selectedFaction.value?.id,
   )
 
   if (factionIndex === -1) {
@@ -147,7 +159,7 @@ function updateFaction() {
   }
 
   resetFactionForm()
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 </script>
 
@@ -168,20 +180,20 @@ function updateFaction() {
           </button>
         </div>
 
-        <ul v-if="campaignFactions.length > 0" class="resource-list">
+        <ul v-if="factions.length > 0" class="resource-list">
           <li
-            v-for="faction in campaignFactions"
-            :key="faction.factionId"
+            v-for="faction in factions"
+            :key="faction.id"
           >
             <button
               type="button"
               class="resource-list-item"
               :class="{
                 selected:
-                  viewMode === 'detail' &&
-                  selectedFaction?.factionId === faction.factionId,
+                  viewMode === ViewModes.Details &&
+                  selectedFaction?.id === faction.id,
               }"
-              @click="selectFaction(faction.factionId)"
+              @click="selectFaction(faction.id)"
             >
               <span class="resource-list-kicker">
                 {{ faction.type || "Faction" }}
@@ -204,20 +216,20 @@ function updateFaction() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === 'new' || viewMode === 'edit'">
+        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              {{ viewMode === "new" ? "New faction" : "Edit faction" }}
+              {{ viewMode === ViewModes.Create ? "New faction" : "Edit faction" }}
             </p>
 
             <h3>
-              {{ viewMode === "new" ? "Faction " + nextFactionId : selectedFaction?.name }}
+              {{ viewMode === ViewModes.Create ? "New Faction " : selectedFaction?.name }}
             </h3>
           </header>
 
           <form
             class="resource-form"
-            @submit.prevent="viewMode === 'new' ? createFaction() : updateFaction()"
+            @submit.prevent="viewMode === ViewModes.Create ? createFaction() : updateFaction()"
           >
             <label>
               Name
@@ -267,7 +279,7 @@ function updateFaction() {
 
             <div class="resource-form-actions">
               <button type="submit">
-                {{ viewMode === "new" ? "Save faction" : "Update faction" }}
+                {{ viewMode === ViewModes.Create ? "Save faction" : "Update faction" }}
               </button>
 
               <button

@@ -1,67 +1,135 @@
-export const baseUrl = import.meta.env.DEV ? "http://localhost:5173/" : "/"
+
+// import { keysToSnakeCase, keysToCamelCase } from "./DataTransferObjects";
+
+export const baseUrl = import.meta.env.DEV ? "http://localhost:8000/" : "/"
 
 const fetchTimeout = 3000;
 
+function fetchError(x) {
+    console.log(`Fetch error: ${x}`);
+    window.err = x;
+    return {"success": false, "message": `Fetch error ${x}`};
+}
+
 async function statusCodeHandler(response) {
-    switch (response.status) {
-        case 200:
-            return response.json();
-        case 400:
-            return {
-                success: false,
-                status: 400,
-                message: "Bad Request: " + (response.statusText || "The server could not understand the request."),
-            };
-        case 401:
-            return {
-                success: false,
-                status: 401,
-                message: "Unauthorized",
-            };
-        case 500:
-            return {
-                success: false,
-                status: 500,
-                message: `Internal Server Error: ${response.statusText}`,
-            };
-        default:
-            return {
-                success: false,
-                status: response.status,
-                message: `Request failed. HTTP error code: ${response.status}: ${response.statusText}`,
-            };
-    }
+  switch (response.status) {
+    case 200:
+      const data = await response.json();
+      return keysToCamelCase(data);
+    case 400:
+      return {
+        success: false,
+        status: 400,
+        message: "Bad Request: " + (response.statusText || "The server could not understand the request."),
+      };
+    case 401:
+      return {
+        success: false,
+        status: 401,
+        message: "Unauthorized",
+      };
+    case 500:
+      return {
+        success: false,
+        status: 500,
+        message: `Internal Server Error: ${response.statusText}`,
+      };
+    default:
+      return {
+        success: false,
+        status: response.status,
+        message: `Request failed. HTTP error code: ${response.status}: ${response.statusText}`,
+      };
+  }
 }
 
-export async function RunCommand(command)
+export async function GetAPI(endpoint)
 {
-    return fetch(baseUrl + "command/" + command, {
-        method: "POST",
-        signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
-    })
-    .then(statusCodeHandler)
-    .catch(fetchError);
-}
-
-export async function FetchAPI(endpoint)
-{
-    return fetch(baseUrl + "api/" + endpoint, {
-        signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
-    })
-    .then(statusCodeHandler)
-    .catch(fetchError);
+  return fetch(baseUrl + "api/" + endpoint, {
+    method: "GET",
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
+  })
+  .then(statusCodeHandler)
+  .catch(fetchError);
 }
 
 export async function PostAPI(endpoint, data, {parseResponseJson = true} = {})
 {
-    return fetch(baseUrl + "api/" + endpoint, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
-        body: JSON.stringify(data)
-    })
-    .then(x => parseResponseJson ? statusCodeHandler(x) : x)
-    .catch(fetchError);
+  return fetch(baseUrl + "api/" + endpoint, {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
+    body: JSON.stringify(keysToSnakeCase(data))
+  })
+  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .catch(fetchError);
 }
+
+export async function PutAPI(endpoint, data, {parseResponseJson = true} = {})
+{
+  return fetch(baseUrl + "api/" + endpoint, {
+    method: "PUT",
+    headers: {
+        "Content-Type": "application/json",
+    },
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
+    body: JSON.stringify(keysToSnakeCase(data))
+  })
+  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .catch(fetchError);
+}
+
+export async function DeleteAPI(endpoint, {parseResponseJson = true} = {})
+{
+  return fetch(baseUrl + "api/" + endpoint, {
+    method: "DELETE",
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
+  })
+  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .catch(fetchError);
+}
+
+
+function snakeToCamel(key) {
+  return key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+  
+export function keysToCamelCase(value) {
+  if (Array.isArray(value)) {
+    return value.map(keysToCamelCase)
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        snakeToCamel(key),
+        keysToCamelCase(nestedValue),
+      ]),
+    )
+  }
+  
+    return value
+  }
+  
+  function camelToSnake(key) {
+    return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+  }
+  
+  export function keysToSnakeCase(value) {
+    if (Array.isArray(value)) {
+      return value.map(keysToSnakeCase)
+    }
+  
+    if (value !== null && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [
+          camelToSnake(key),
+          keysToSnakeCase(nestedValue),
+        ]),
+      )
+    }
+  
+    return value
+  }

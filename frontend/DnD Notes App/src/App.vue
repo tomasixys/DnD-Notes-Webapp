@@ -2,10 +2,15 @@
 
 import { computed } from "vue"
 import { RouterLink, RouterView, useRoute } from "vue-router"
-import { CAMPAIGN_NAME } from "./assets/personalization"
-import bannerImage from "./assets/banner.png"
+import { useCampaignStore } from "@/stores/campaignStore"
+import bannerImageDefault from "./assets/banner.png"
 
 const route = useRoute()
+const campaignNameDefault = "No Campaign Selected"
+const { 
+  selectedCampaign,
+  hasSelectedCampaign,
+} = useCampaignStore()
 
 const mainLinks = [
   { label: "Dashboard", to: "/" },
@@ -39,10 +44,10 @@ const hasSubmenu = computed(() => submenuLinks.value.length > 0)
     <header id="app-header">
       <section id="banner">
       <h1>Campaign Notes</h1>
-      <p class="campaign-name">{{ CAMPAIGN_NAME }}</p>
+      <p class="campaign-name">{{ hasSelectedCampaign ? selectedCampaign.name : campaignNameDefault }}</p>
       <img 
       id="banner-graphics"
-      :src="bannerImage"
+      :src="hasSelectedCampaign ? selectedCampaign.imageUrl : bannerImageDefault"
       alt="Banner graphics"
       />
 

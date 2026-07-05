@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { SessionListItemDto } from "@/assets/DataTransferObjects"
-import { sessionListExample } from "@/assets/exampleData"
+import { computed, reactive, ref, onBeforeMount } from "vue"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
+import { ViewModes } from "@/types/viewTypes"
+import { SessionListItemDto } from "@/types/DataTransferObjects"
 
-type SessionViewMode = "detail" | "new" | "edit"
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
-const activeCampaignId = ref<number>(1)
-const selectedSessionId = ref<number | null>(null)
-const viewMode = ref<SessionViewMode>("detail")
 
-const sessions = ref<SessionListItemDto[]>(sessionListExample)
+const viewMode = ref<ViewModes>(ViewModes.Details)
+const selectedSessionNumber = ref<number | null>(null)
+const sessions = ref<SessionListItemDto[]>([])
 
 const sessionForm = reactive({
   date: new Date().toISOString().slice(0, 10),
@@ -18,38 +27,34 @@ const sessionForm = reactive({
   tags: "",
 })
 
-const campaignSessions = computed(() => {
-  return sessions.value
-    .filter((session) => session.campaignId === activeCampaignId.value)
-    .sort((a, b) => b.sessionId - a.sessionId)
+onBeforeMount(async () => {
+  await fetchSessions()
 })
 
 const nextSessionId = computed(() => {
-  const currentHighestSessionId = Math.max(
+  const currentHighestSessionNumber = Math.max(
     0,
     ...sessions.value
-      .filter((session) => session.campaignId === activeCampaignId.value)
-      .map((session) => session.sessionId),
+      .filter((session) => session.campaignId === selectedCampaignId.value)
+      .map((session) => session.sessionNumber),
   )
-
-  return currentHighestSessionId + 1
+  return currentHighestSessionNumber + 1
 })
 
 const selectedSession = computed(() => {
-  if (campaignSessions.value.length === 0) {
+  if (sessions.value.length === 0) {
     return null
   }
-
   return (
-    campaignSessions.value.find(
-      (session) => session.sessionId === selectedSessionId.value,
-    ) ?? campaignSessions.value[0]
+    sessions.value.find(
+      (session) => session.sessionNumber === selectedSessionNumber.value,
+    ) ?? sessions.value[0]
   )
 })
 
-function selectSession(sessionId: number) {
-  selectedSessionId.value = sessionId
-  viewMode.value = "detail"
+function selectSession(sessionNumber: number) {
+  selectedSessionNumber.value = sessionNumber
+  viewMode.value = ViewModes.Details
 }
 
 function resetSessionForm() {
@@ -61,7 +66,7 @@ function resetSessionForm() {
 
 function showAddSessionForm() {
   resetSessionForm()
-  viewMode.value = "new"
+  viewMode.value = ViewModes.Create
 }
 
 function showEditSessionForm() {
@@ -74,23 +79,39 @@ function showEditSessionForm() {
   sessionForm.description = selectedSession.value.description
   sessionForm.tags = selectedSession.value.tags.join(", ")
 
-  viewMode.value = "edit"
+  viewMode.value = ViewModes.Edit
 }
 
 function cancelSessionForm() {
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
-function createSession() {
+async function fetchSessions() 
+{
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
+  if (response.success === false) {
+    console.error("Failed to fetch sessions:", response.error)
+    return
+  }
+  console.log("Fetched sessions:", response)
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch sessions: Response is not an array")
+    return
+  }
+  sessions.value = response
+}
+
+async function createSession() {
   const title = sessionForm.title.trim()
 
-  if (!title) {
+  if (!title || !selectedCampaignId.value) {
     return
   }
 
   const session: SessionListItemDto = {
-    campaignId: activeCampaignId.value,
-    sessionId: nextSessionId.value,
+    id: 0,
+    campaignId: selectedCampaignId.value,
+    sessionNumber: nextSessionId.value,
     date: sessionForm.date,
     title,
     description: sessionForm.description.trim(),
@@ -99,47 +120,40 @@ function createSession() {
       .map((tag) => tag.trim())
       .filter(Boolean),
   }
-
-  sessions.value.push(session)
-  selectedSessionId.value = session.sessionId
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/sessions`, session)
+  if (response.success === false) {
+    console.error("Failed to create session:", response.message)
+    return
+  }
+  const createdSession = response as SessionListItemDto
+  sessions.value = [...sessions.value, createdSession].sort((a, b) => a.sessionNumber - b.sessionNumber)
   resetSessionForm()
-  viewMode.value = "detail"
+  selectSession(createdSession.sessionNumber)
 }
 
-function updateSession() {
-  if (!selectedSession.value) {
-    return
-  }
-
+async function updateSession() {
   const title = sessionForm.title.trim()
-
-  if (!title) {
+  if (!title || selectedSession.value?.id === undefined) {
     return
   }
-
-  const sessionIndex = sessions.value.findIndex(
-    (session) =>
-      session.campaignId === selectedSession.value?.campaignId &&
-      session.sessionId === selectedSession.value?.sessionId,
-  )
-
-  if (sessionIndex === -1) {
-    return
-  }
-
-  sessions.value[sessionIndex] = {
-    ...sessions.value[sessionIndex],
+  const data: SessionListItemDto = {
+    ...selectedSession.value,
     date: sessionForm.date,
-    title,
+    title: sessionForm.title.trim(),
     description: sessionForm.description.trim(),
     tags: sessionForm.tags
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean),
   }
-
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value?.id}`, data)
+  if (response.success === false) {
+    console.error("Failed to update session:", response.message)
+    return
+  }
+  await fetchSessions()
   resetSessionForm()
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 </script>
@@ -161,23 +175,23 @@ function updateSession() {
           </button>
         </div>
 
-        <ul v-if="campaignSessions.length > 0" class="resource-list">
+        <ul v-if="sessions.length > 0" class="resource-list">
           <li
-            v-for="session in campaignSessions"
-            :key="session.sessionId"
+            v-for="session in sessions"
+            :key="session.sessionNumber"
           >
             <button
               type="button"
               class="resource-list-item"
               :class="{
                 selected:
-                  viewMode === 'detail' &&
-                  selectedSession?.sessionId === session.sessionId,
+                  viewMode === ViewModes.Details &&
+                  selectedSession?.sessionNumber === session.sessionNumber,
               }"
-              @click="selectSession(session.sessionId)"
+              @click="selectSession(session.sessionNumber)"
             >
               <span class="resource-list-kicker">
-                Session {{ session.sessionId }}
+                Session #{{ session.sessionNumber }}
               </span>
 
               <span class="resource-list-meta">
@@ -198,20 +212,20 @@ function updateSession() {
 
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === 'new' || viewMode === 'edit'">
+        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              {{ viewMode === "new" ? "New session" : "Edit session" }}
+              {{ viewMode === ViewModes.Create ? "New session" : "Edit session" }}
             </p>
 
             <h3>
-              Session {{ viewMode === "new" ? nextSessionId : selectedSession?.sessionId }}
+              Session {{ viewMode === ViewModes.Create ? nextSessionId : selectedSession?.sessionNumber }}
             </h3>
           </header>
 
           <form
             class="resource-form"
-            @submit.prevent="viewMode === 'new' ? createSession() : updateSession()"
+            @submit.prevent="viewMode === ViewModes.Create ? createSession() : updateSession()"
           >
             <label>
               Date
@@ -252,7 +266,7 @@ function updateSession() {
 
             <div class="resource-form-actions">
               <button type="submit">
-                {{ viewMode === "new" ? "Save session" : "Update session" }}
+                {{ viewMode === ViewModes.Create ? "Save session" : "Update session" }}
               </button>
 
               <button
@@ -270,7 +284,7 @@ function updateSession() {
           <header class="resource-detail-header with-actions">
             <div>
               <p class="resource-detail-kicker">
-                Session {{ selectedSession.sessionId }} · {{ selectedSession.date }}
+                Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
               </p>
 
               <h3>{{ selectedSession.title }}</h3>

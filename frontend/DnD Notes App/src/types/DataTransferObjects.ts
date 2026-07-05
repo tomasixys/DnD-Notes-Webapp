@@ -8,8 +8,9 @@ export type CampaignsDto = {
 }
 
 export type SessionListItemDto = {
+  id: number
   campaignId: number
-  sessionId: number
+  sessionNumber: number
   date: string
   title: string
   description: string
@@ -17,8 +18,9 @@ export type SessionListItemDto = {
 }
   
 export type SessionRollDto = {
+  id: number
   campaignId: number
-  sessionId: number
+  sessionNumber: number
   rolls: number[]
   average: number
   rollLuck: number
@@ -31,9 +33,14 @@ export type CampaignRollDto = {
   rollLuck: number
 }
 
+export type RollEntryDto = {
+  sessionId: number
+  roll: number
+}
+
 export type PersonDto = {
+  id: number
   campaignId: number
-  personId: number
   name: string
   role: string
   faction: string
@@ -43,8 +50,8 @@ export type PersonDto = {
 }
 
 export type LocationDto = {
+  id: number
   campaignId: number
-  locationId: number
   name: string
   type: string
   parentLocation: string
@@ -53,11 +60,12 @@ export type LocationDto = {
 }
 
 export type FactionDto = {
+  id: number
   campaignId: number
-  factionId: number
   name: string
   type: string
   location: string
   description: string
   tags: string[]
 }
+

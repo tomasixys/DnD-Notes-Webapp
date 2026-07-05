@@ -1,15 +1,27 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { LocationDto } from "@/assets/DataTransferObjects"
-import { locationsExample } from "@/assets/exampleData"
+import { computed, reactive, ref, onBeforeMount } from "vue"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
+import { ViewModes } from "@/types/viewTypes"
+import { LocationDto } from "@/types/DataTransferObjects"
 
-type LocationViewMode = "detail" | "new" | "edit"
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
-const activeCampaignId = ref<number>(1)
+onBeforeMount(async () => {
+  await fetchLocations()
+})
+
+const viewMode = ref<ViewModes>(ViewModes.Details)
 const selectedLocationId = ref<number | null>(null)
-const viewMode = ref<LocationViewMode>("detail")
-
-const locations = ref<LocationDto[]>(locationsExample)
+const locations = ref<LocationDto[]>([])
 
 const locationForm = reactive({
   name: "",
@@ -19,38 +31,19 @@ const locationForm = reactive({
   tags: "",
 })
 
-const campaignLocations = computed(() => {
-  return locations.value
-    .filter((location) => location.campaignId === activeCampaignId.value)
-    .sort((a, b) => a.name.localeCompare(b.name))
-})
-
-const nextLocationId = computed(() => {
-  const currentHighestLocationId = Math.max(
-    0,
-    ...locations.value
-      .filter((location) => location.campaignId === activeCampaignId.value)
-      .map((location) => location.locationId),
-  )
-
-  return currentHighestLocationId + 1
-})
-
 const selectedLocation = computed(() => {
-  if (campaignLocations.value.length === 0) {
-    return null
-  }
+  if (locations.value.length === 0) return null
 
   return (
-    campaignLocations.value.find(
-      (location) => location.locationId === selectedLocationId.value,
-    ) ?? campaignLocations.value[0]
+    locations.value.find(
+      (location) => location.id === selectedLocationId.value,
+    ) ?? locations.value[0]
   )
 })
 
 function selectLocation(locationId: number) {
   selectedLocationId.value = locationId
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function resetLocationForm() {
@@ -63,7 +56,7 @@ function resetLocationForm() {
 
 function showAddLocationForm() {
   resetLocationForm()
-  viewMode.value = "new"
+  viewMode.value = ViewModes.Create
 }
 
 function showEditLocationForm() {
@@ -77,11 +70,11 @@ function showEditLocationForm() {
   locationForm.description = selectedLocation.value.description
   locationForm.tags = selectedLocation.value.tags.join(", ")
 
-  viewMode.value = "edit"
+  viewMode.value = ViewModes.Edit
 }
 
 function cancelLocationForm() {
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function parseTags(tags: string) {
@@ -91,62 +84,72 @@ function parseTags(tags: string) {
     .filter(Boolean)
 }
 
-function createLocation() {
-  const name = locationForm.name.trim()
-
-  if (!name) {
+async function fetchLocations() {
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/locations`)
+  if (response.success === false) {
+    console.error("Failed to fetch locations:", response.error)
     return
   }
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch locations: Response is not an array")
+    return
+  }
+
+  locations.value = response
+}
+
+async function createLocation() {
+  const name = locationForm.name.trim()
+  if (!name || !selectedCampaignId.value) return
 
   const location: LocationDto = {
-    campaignId: activeCampaignId.value,
-    locationId: nextLocationId.value,
-    name,
+    id: 0,
+    campaignId: selectedCampaignId.value,
+    name: name,
     type: locationForm.type.trim(),
     parentLocation: locationForm.parentLocation.trim(),
     description: locationForm.description.trim(),
     tags: parseTags(locationForm.tags),
   }
 
-  locations.value.push(location)
-  selectedLocationId.value = location.locationId
-  resetLocationForm()
-  viewMode.value = "detail"
-}
-
-function updateLocation() {
-  if (!selectedLocation.value) {
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/locations`, location)
+  if (response.success === false) {
+    console.error("Failed to create location:", response.Message)
     return
   }
+  const createdLocation = response as LocationDto
 
-  const name = locationForm.name.trim()
-
-  if (!name) {
-    return
-  }
-
-  const locationIndex = locations.value.findIndex(
-    (location) =>
-      location.campaignId === selectedLocation.value?.campaignId &&
-      location.locationId === selectedLocation.value?.locationId,
+  locations.value = [...locations.value, createdLocation].sort((a, b) =>
+    a.name.localeCompare(b.name),
   )
 
-  if (locationIndex === -1) {
-    return
-  }
+  resetLocationForm()
+  selectLocation(createdLocation.id)
+}
 
-  locations.value[locationIndex] = {
-    ...locations.value[locationIndex],
-    name,
+async function updateLocation() {
+  const name = locationForm.name.trim()
+  if (!name || !selectedLocation.value || !selectedCampaignId.value) return
+
+  const location: LocationDto = {
+    id: selectedLocation.value.id,
+    campaignId: selectedCampaignId.value,
+    name: name,
     type: locationForm.type.trim(),
     parentLocation: locationForm.parentLocation.trim(),
     description: locationForm.description.trim(),
     tags: parseTags(locationForm.tags),
   }
-
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${location.id}`, location)
+  if (response.success === false) {
+    console.error("Failed to update location:", response.Message)
+    return
+  }
+  await fetchLocations()
   resetLocationForm()
-  viewMode.value = "detail"
+  selectLocation(location.id)
 }
+
 </script>
 
 <template>
@@ -166,20 +169,20 @@ function updateLocation() {
           </button>
         </div>
 
-        <ul v-if="campaignLocations.length > 0" class="resource-list">
+        <ul v-if="locations.length > 0" class="resource-list">
           <li
-            v-for="location in campaignLocations"
-            :key="location.locationId"
+            v-for="location in locations"
+            :key="location.id"
           >
             <button
               type="button"
               class="resource-list-item"
               :class="{
                 selected:
-                  viewMode === 'detail' &&
-                  selectedLocation?.locationId === location.locationId,
+                  viewMode === ViewModes.Details &&
+                  selectedLocation?.id === location.id,
               }"
-              @click="selectLocation(location.locationId)"
+              @click="selectLocation(location.id)"
             >
               <span class="resource-list-kicker">
                 {{ location.type || "Location" }}
@@ -202,20 +205,20 @@ function updateLocation() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === 'new' || viewMode === 'edit'">
+        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              {{ viewMode === "new" ? "New location" : "Edit location" }}
+              {{ viewMode === ViewModes.Create ? "New location" : "Edit location" }}
             </p>
 
             <h3>
-              {{ viewMode === "new" ? "Location " + nextLocationId : selectedLocation?.name }}
+              {{ viewMode === ViewModes.Create ? "New Location " : selectedLocation?.name }}
             </h3>
           </header>
 
           <form
             class="resource-form"
-            @submit.prevent="viewMode === 'new' ? createLocation() : updateLocation()"
+            @submit.prevent="viewMode === ViewModes.Create ? createLocation() : updateLocation()"
           >
             <label>
               Name
@@ -265,7 +268,7 @@ function updateLocation() {
 
             <div class="resource-form-actions">
               <button type="submit">
-                {{ viewMode === "new" ? "Save location" : "Update location" }}
+                {{ viewMode === ViewModes.Create ? "Save location" : "Update location" }}
               </button>
 
               <button
