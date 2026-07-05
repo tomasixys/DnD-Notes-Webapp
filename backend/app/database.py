@@ -1,7 +1,8 @@
 from sqlmodel import SQLModel, create_engine, Session
+from app.app_paths import get_database_path
 
 sqlite_file_name = "notes.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+sqlite_url = f"sqlite:///{get_database_path()}"
 
 engine = create_engine(
     sqlite_url,

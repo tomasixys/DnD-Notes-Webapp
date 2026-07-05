@@ -4,6 +4,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import create_db_and_tables
 from app.routers import campaigns, sessions, people, locations, factions, rolls
 
+from app.app_paths import (
+    get_app_data_dir,
+    get_uploads_dir,
+    get_campaign_images_dir,
+    get_banner_images_dir,
+)
+
+def initialize_app_storage():
+    get_app_data_dir()
+    get_uploads_dir()
+    get_campaign_images_dir()
+    get_banner_images_dir()
+
 app = FastAPI(title="Campaign Notes API")
 
 app.add_middleware(
@@ -18,6 +31,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
+    initialize_app_storage()
     create_db_and_tables()
 
 app.include_router(campaigns.router)
