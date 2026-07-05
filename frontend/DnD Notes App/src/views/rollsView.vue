@@ -1,92 +1,113 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
-import { CampaignRollDto, SessionListItemDto, SessionRollDto } from "@/assets/DataTransferObjects"
-import { campaignRollStatsExample, sessionRollsExample, sessionListExample} from "@/assets/exampleData"
+import { computed, ref, onBeforeMount } from "vue"
+import { CampaignRollDto, SessionListItemDto, SessionRollDto, RollEntryDto } from "@/types/DataTransferObjects"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
 
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
-const activeCampaignId = ref<number>(1)
+onBeforeMount(async () => {
+  await fetchSessionList()
+  await fetchCampaignStats()
+  await fetchSessionRolls()
+})
+
 const selectedSessionId = ref<number | null>(null)
 const rollInput = ref<number | null>(null)
 
-const sessions = ref<SessionListItemDto[]>(sessionListExample)
-const campaignRollStats = ref<CampaignRollDto>(campaignRollStatsExample)
-const sessionRolls = ref<SessionRollDto[]>(sessionRollsExample)
 
-const campaignSessions = computed(() => {
-  return sessions.value
-    .filter((session) => session.campaignId === activeCampaignId.value)
-    .sort((a, b) => b.sessionId - a.sessionId)
+const sessions = ref<SessionListItemDto[]>([])
+const sessionRolls = ref<SessionRollDto>()
+const campaignRollStats = ref<CampaignRollDto>({
+  campaignId: selectedCampaignId.value ?? 0,
+  numRolls: 0,
+  rollAvg: 0,
+  rollLuck: 0,
 })
 
 const selectedSession = computed(() => {
-  if (campaignSessions.value.length === 0) {
-    return null
-  }
-
+  if (sessions.value.length === 0) return null
+    
   return (
-    campaignSessions.value.find(
-      (session) => session.sessionId === selectedSessionId.value,
-    ) ?? campaignSessions.value[0]
-  )
-})
-
-const selectedSessionRolls = computed(() => {
-  if (!selectedSession.value) {
-    return null
-  }
-
-  return (
-    sessionRolls.value.find(
-      (sessionRoll) =>
-        sessionRoll.campaignId === activeCampaignId.value &&
-        sessionRoll.sessionId === selectedSession.value?.sessionId,
-    ) ?? null
+    sessions.value.find(
+      (session) => session.id === selectedSessionId.value,
+    ) ?? sessions.value[0]
   )
 })
 
 function selectSession(sessionId: number) {
   selectedSessionId.value = sessionId
+  fetchSessionRolls();
 }
 
 function formatRollLuck(value: number) {
   return `${(value * 100).toFixed(1)}%`
 }
 
-function addRoll() {
-  if (!selectedSession.value || rollInput.value === null) {
+async function fetchSessionList()
+{
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
+
+  if (response.success === false) {
+    console.error("Failed to fetch session list:", response.error)
     return
   }
 
-  const roll = Number(rollInput.value)
-
-  if (roll < 1 || roll > 20 || roll % 1 !== 0) {
-  return
+  sessions.value = response as SessionListItemDto[]
+  if (sessions.value.length > 0 && selectedSessionId.value === null) {
+    selectedSessionId.value = sessions.value[0].id
+  }
 }
 
-  let sessionRoll = sessionRolls.value.find(
-    (item) =>
-      item.campaignId === activeCampaignId.value &&
-      item.sessionId === selectedSession.value?.sessionId,
-  )
+async function fetchCampaignStats()
+{
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/rolls/campaign-stats`)
 
-  if (!sessionRoll) {
-    sessionRoll = {
-      campaignId: activeCampaignId.value,
-      sessionId: selectedSession.value.sessionId,
-      rolls: [],
-      average: 0,
-      rollLuck: 0,
-    }
-
-    sessionRolls.value.push(sessionRoll)
+  if (response.success === false) {
+    console.error("Failed to fetch campaign stats:", response.error)
+    return
   }
 
-  sessionRoll.rolls.push(roll)
+  campaignRollStats.value = response as CampaignRollDto
+}
 
-  // Later:
-  // POST roll to backend
-  // Backend returns updated SessionRollDto and CampaignRollDto
-  // Replace local stats with backend response
+async function fetchSessionRolls()
+{
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSessionId.value}`)
+
+  if (response.success === false) {
+    console.error("Failed to fetch session rolls:", response.error)
+    return
+  }
+
+  sessionRolls.value = response as SessionRollDto
+}
+
+async function addRoll() {
+  if (!selectedSession.value || rollInput.value === null) return
+
+  const roll = Number(rollInput.value)
+  if (roll < 1 || roll > 20 || roll % 1 !== 0) return
+
+  const rolldto: RollEntryDto = {
+    sessionId: selectedSession.value.id,
+    roll: roll,
+  }
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/rolls`, rolldto)
+  if (response.success === false) {
+    console.error("Failed to add roll:", response.error)
+    return
+  }
+  await fetchSessionRolls();
+  await fetchCampaignStats();
 
   rollInput.value = null
 }
@@ -105,21 +126,21 @@ function addRoll() {
           <h3>Sessions</h3>
         </div>
 
-        <ul v-if="campaignSessions.length > 0" class="resource-list">
+        <ul v-if="sessions.length > 0" class="resource-list">
           <li
-            v-for="session in campaignSessions"
-            :key="session.sessionId"
+            v-for="session in sessions"
+            :key="session.sessionNumber"
           >
             <button
               type="button"
               class="resource-list-item"
               :class="{
-                selected: selectedSession?.sessionId === session.sessionId,
+                selected: selectedSession?.id === session.id,
               }"
-              @click="selectSession(session.sessionId)"
+              @click="selectSession(session.id)"
             >
               <span class="resource-list-kicker">
-                Session {{ session.sessionId }}
+                Session {{ session.sessionNumber }}
               </span>
 
               <span class="resource-list-meta">
@@ -169,26 +190,26 @@ function addRoll() {
         <section v-if="selectedSession" class="rolls-section">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              Session {{ selectedSession.sessionId }} · {{ selectedSession.date }}
+              Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
             </p>
 
             <h3>{{ selectedSession.title }}</h3>
           </header>
 
-          <dl v-if="selectedSessionRolls" class="resource-facts">
+          <dl v-if="sessionRolls" class="resource-facts">
             <div>
               <dt>Rolls</dt>
-              <dd>{{ selectedSessionRolls.rolls.length }}</dd>
+              <dd>{{ sessionRolls.rolls.length }}</dd>
             </div>
 
             <div>
               <dt>Average</dt>
-              <dd>{{ selectedSessionRolls.average.toFixed(2) }}</dd>
+              <dd>{{ sessionRolls.average.toFixed(2) }}</dd>
             </div>
 
             <div>
               <dt>Roll luck</dt>
-              <dd>{{ formatRollLuck(selectedSessionRolls.rollLuck) }}</dd>
+              <dd>{{ formatRollLuck(sessionRolls.rollLuck) }}</dd>
             </div>
           </dl>
 
@@ -215,11 +236,11 @@ function addRoll() {
           </form>
 
           <div
-            v-if="selectedSessionRolls && selectedSessionRolls.rolls.length > 0"
+            v-if="sessionRolls && sessionRolls.rolls.length > 0"
             class="roll-list"
           >
             <span
-              v-for="(roll, index) in selectedSessionRolls.rolls"
+              v-for="(roll, index) in sessionRolls.rolls"
               :key="index"
               class="roll-pill"
             >

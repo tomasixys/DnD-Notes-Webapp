@@ -1,10 +1,21 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { CampaignsDto } from "@/assets/DataTransferObjects";
-import { campaignsExample } from "@/assets/exampleData"
+import { reactive, ref, onBeforeMount } from "vue"
+import { CampaignsDto } from "@/types/DataTransferObjects";
+import { ViewModes } from "@/types/viewTypes";
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
 
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
-
+const viewMode = ref<ViewModes>(ViewModes.Current)
 const newCampaign = reactive<CampaignsDto>({
   id: 0,
   name: "",
@@ -14,22 +25,10 @@ const newCampaign = reactive<CampaignsDto>({
   imageUrl: "",
 })
 
-const campaigns = ref<CampaignsDto[]>(campaignsExample)
 
-enum ViewModes {
-  Current,
-  Create,
-  Selection,
-}
-
-const viewMode = ref<ViewModes>(ViewModes.Current)
-
-const selectedCampaignId = ref(1)
-
-const selectedCampaign = computed(() => {
-  return campaigns.value.find((campaign) => campaign.id === selectedCampaignId.value) ?? null
+onBeforeMount(async () => {
+  await fetchCampaigns();
 })
-
 
 function showCurrentCampaign() {
   viewMode.value = ViewModes.Current
@@ -43,11 +42,29 @@ function showCampaignList() {
   viewMode.value = ViewModes.Selection
 }
 
-function createCampaign() {
-  const nextId = Math.max(0, ...campaigns.value.map((campaign) => campaign.id)) + 1
+async function fetchCampaigns() {
+    const response = await GetAPI("campaigns")
 
-  const campaign = <CampaignsDto>{
-    id: nextId,
+    if (response.success === false) {
+        console.error("Failed to fetch campaigns:", response.error)
+        return
+    }
+    console.log("Fetched campaigns:", response)
+    if (!Array.isArray(response)) {
+        console.error("Failed to fetch campaigns: Response is not an array")
+        return
+    }
+    setCampaigns(response)
+}
+
+async function createCampaign() {
+
+  if (!newCampaign.name) {
+    return
+  }
+
+  let campaign = <CampaignsDto>{
+    id: 0,
     name: newCampaign.name.trim(),
     playerCharacter: newCampaign.playerCharacter.trim(),
     description: newCampaign.description.trim(),
@@ -55,12 +72,19 @@ function createCampaign() {
     imageUrl: newCampaign.imageUrl.trim(),
   }
 
-  if (!campaign.name) {
+  const response = await PostAPI("campaigns", campaign)
+  if (response.success === false) {
+    console.error("Failed to create campaign:", response.error)
+    return
+  }
+  campaign = <CampaignsDto>response;
+  if (campaign.id === 0) {
+    console.error("Failed to create campaign: Invalid campaign ID returned")
     return
   }
 
-  campaigns.value.push(campaign)
-  selectedCampaignId.value = campaign.id
+  await fetchCampaigns();
+  switchCampaign(campaign.id)
 
   newCampaign.name = ""
   newCampaign.playerCharacter = ""
@@ -70,22 +94,21 @@ function createCampaign() {
   viewMode.value = ViewModes.Current
 }
 
-function switchCampaign(campaignId) {
-  selectedCampaignId.value = campaignId
+function switchCampaign(campaignId: number) {
+  selectCampaign(campaignId)
   viewMode.value = ViewModes.Current
 }
 
-function deleteCampaign(campaignId) {
-  campaigns.value = campaigns.value.filter((campaign) => campaign.id !== campaignId)
-
-  if (selectedCampaignId.value === campaignId) {
-    selectedCampaignId.value = campaigns.value[0]?.id ?? null
+async function deleteCampaign(campaignId: number) {
+  const response = await DeleteAPI(`campaigns/${campaignId}`)
+  
+  if (response.success === false) {
+    console.error("Failed to delete campaign:", response.error)
+    return
   }
-
-  if (campaigns.value.length === 0) {
-    viewMode.value = ViewModes.Create
-  }
+  await fetchCampaigns();
 }
+
 </script>
 
 <template>

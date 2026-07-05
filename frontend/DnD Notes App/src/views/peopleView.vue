@@ -1,15 +1,28 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { PersonDto } from "@/assets/DataTransferObjects"
-import { peopleExample } from "@/assets/exampleData"
+import { computed, reactive, ref, onBeforeMount } from "vue"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { useCampaignStore } from "@/stores/campaignStore";
+import { ViewModes } from "@/types/viewTypes"
+import { PersonDto } from "@/types/DataTransferObjects"
 
-type PeopleViewMode = "detail" | "new" | "edit"
+const {
+  campaigns,
+  selectedCampaignId,
+  selectedCampaign,
+  hasSelectedCampaign,
+  setCampaigns,
+  selectCampaign,
+  clearSelectedCampaign,
+} = useCampaignStore()
 
-const activeCampaignId = ref<number>(1)
+onBeforeMount(async () => {
+  await fetchPeople()
+})
+const viewMode = ref<ViewModes>(ViewModes.Details)
+
 const selectedPersonId = ref<number | null>(null)
-const viewMode = ref<PeopleViewMode>("detail")
 
-const people = ref<PersonDto[]>(peopleExample)
+const people = ref<PersonDto[]>([])
 
 const personForm = reactive({
   name: "",
@@ -20,38 +33,18 @@ const personForm = reactive({
   tags: "",
 })
 
-const campaignPeople = computed(() => {
-  return people.value
-    .filter((person) => person.campaignId === activeCampaignId.value)
-    .sort((a, b) => a.name.localeCompare(b.name))
-})
-
-const nextPersonId = computed(() => {
-  const currentHighestPersonId = Math.max(
-    0,
-    ...people.value
-      .filter((person) => person.campaignId === activeCampaignId.value)
-      .map((person) => person.personId),
-  )
-
-  return currentHighestPersonId + 1
-})
-
 const selectedPerson = computed(() => {
-  if (campaignPeople.value.length === 0) {
-    return null
-  }
+  if (people.value.length === 0) return null
 
-  return (
-    campaignPeople.value.find(
-      (person) => person.personId === selectedPersonId.value,
-    ) ?? campaignPeople.value[0]
+  return ( people.value.find(
+      (person) => person.id === selectedPersonId.value,
+    ) ?? people.value[0]
   )
 })
 
 function selectPerson(personId: number) {
   selectedPersonId.value = personId
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function resetPersonForm() {
@@ -65,7 +58,7 @@ function resetPersonForm() {
 
 function showAddPersonForm() {
   resetPersonForm()
-  viewMode.value = "new"
+  viewMode.value = ViewModes.Create
 }
 
 function showEditPersonForm() {
@@ -80,11 +73,11 @@ function showEditPersonForm() {
   personForm.description = selectedPerson.value.description
   personForm.tags = selectedPerson.value.tags.join(", ")
 
-  viewMode.value = "edit"
+  viewMode.value = ViewModes.Edit
 }
 
 function cancelPersonForm() {
-  viewMode.value = "detail"
+  viewMode.value = ViewModes.Details
 }
 
 function parseTags(tags: string) {
@@ -94,17 +87,37 @@ function parseTags(tags: string) {
     .filter(Boolean)
 }
 
-function createPerson() {
-  const name = personForm.name.trim()
-
-  if (!name) {
+async function fetchPeople()
+{
+  if (!selectedCampaignId.value) {
+    console.error("No campaign selected. Cannot fetch people.")
     return
   }
+
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/people`)
+
+  if (response.success === false) {
+    console.error("Failed to fetch people:", response.error)
+    return
+  }
+
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch people: Response is not an array")
+    return
+  }
+
+  people.value = response
+}
+
+async function createPerson() {
+  const name = personForm.name.trim()
+  if (!name || !selectedCampaignId.value) return
+
 
   const person: PersonDto = {
-    campaignId: activeCampaignId.value,
-    personId: nextPersonId.value,
-    name,
+    id: 0,
+    campaignId: selectedCampaignId.value,
+    name: name,
     role: personForm.role.trim(),
     faction: personForm.faction.trim(),
     location: personForm.location.trim(),
@@ -112,36 +125,30 @@ function createPerson() {
     tags: parseTags(personForm.tags),
   }
 
-  people.value.push(person)
-  selectedPersonId.value = person.personId
-  resetPersonForm()
-  viewMode.value = "detail"
-}
-
-function updatePerson() {
-  if (!selectedPerson.value) {
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/people`, person)
+  if (response.success === false) {
+    console.error("Failed to create person:", response.error)
     return
   }
-
-  const name = personForm.name.trim()
-
-  if (!name) {
-    return
-  }
-
-  const personIndex = people.value.findIndex(
-    (person) =>
-      person.campaignId === selectedPerson.value?.campaignId &&
-      person.personId === selectedPerson.value?.personId,
+  const createdPerson = response as PersonDto
+  people.value = [ ...people.value, createdPerson].sort((a, b) => 
+    a.name.localeCompare(b.name),
   )
 
-  if (personIndex === -1) {
-    return
-  }
+  resetPersonForm()
+  selectPerson(createdPerson.id)
+}
 
-  people.value[personIndex] = {
-    ...people.value[personIndex],
-    name,
+async function updatePerson() {
+  if (!selectedPerson.value || !selectedCampaignId.value) return
+
+  const name = personForm.name.trim()
+  if (!name) return
+
+  const person: PersonDto = {
+    id: selectedPerson.value.id,
+    campaignId: selectedCampaignId.value,
+    name: name,
     role: personForm.role.trim(),
     faction: personForm.faction.trim(),
     location: personForm.location.trim(),
@@ -149,9 +156,15 @@ function updatePerson() {
     tags: parseTags(personForm.tags),
   }
 
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${selectedPerson.value.id}`, person)
+  if (response.success === false) {
+    console.error("Failed to update person:", response.error)
+    return
+  }
   resetPersonForm()
-  viewMode.value = "detail"
+  selectPerson(person.id)
 }
+
 </script>
 
 <template>
@@ -171,20 +184,20 @@ function updatePerson() {
           </button>
         </div>
 
-        <ul v-if="campaignPeople.length > 0" class="resource-list">
+        <ul v-if="people.length > 0" class="resource-list">
           <li
-            v-for="person in campaignPeople"
-            :key="person.personId"
+            v-for="person in people"
+            :key="person.name"
           >
             <button
               type="button"
               class="resource-list-item"
               :class="{
                 selected:
-                  viewMode === 'detail' &&
-                  selectedPerson?.personId === person.personId,
+                  viewMode === ViewModes.Details &&
+                  selectedPerson?.id === person.id,
               }"
-              @click="selectPerson(person.personId)"
+              @click="selectPerson(person.id)"
             >
               <span class="resource-list-kicker">
                 {{ person.role || "No role" }}
@@ -210,20 +223,20 @@ function updatePerson() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === 'new' || viewMode === 'edit'">
+        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              {{ viewMode === "new" ? "New person" : "Edit person" }}
+              {{ viewMode === ViewModes.Create ? "New person" : "Edit person" }}
             </p>
 
             <h3>
-              {{ viewMode === "new" ? "Person " + nextPersonId : selectedPerson?.name }}
+              {{ viewMode === ViewModes.Create ? "New Person" : selectedPerson?.name }}
             </h3>
           </header>
 
           <form
             class="resource-form"
-            @submit.prevent="viewMode === 'new' ? createPerson() : updatePerson()"
+            @submit.prevent="viewMode === ViewModes.Create ? createPerson() : updatePerson()"
           >
             <label>
               Name
@@ -282,7 +295,7 @@ function updatePerson() {
 
             <div class="resource-form-actions">
               <button type="submit">
-                {{ viewMode === "new" ? "Save person" : "Update person" }}
+                {{ viewMode === ViewModes.Create ? "Save person" : "Update person" }}
               </button>
 
               <button
