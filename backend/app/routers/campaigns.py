@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Campaign
+from app.models import Campaign, SessionNote
 
 router = APIRouter(
     prefix="/api/campaigns",
@@ -10,10 +11,39 @@ router = APIRouter(
 )
 
 
+def campaign_to_response(campaign: Campaign, session_count: int = 0):
+    return {
+        "id": campaign.id,
+        "name": campaign.name,
+        "player_character": campaign.player_character,
+        "description": campaign.description,
+        "session_count": session_count,
+        "image_url": campaign.image_url,
+    }
+
+
 @router.get("")
 def get_campaigns(db: Session = Depends(get_session)):
-    statement = select(Campaign).order_by(Campaign.id)
-    return db.exec(statement).all()
+    statement = (
+        select(Campaign, func.count(SessionNote.id))
+        .join(
+            SessionNote,
+            SessionNote.campaign_id == Campaign.id,
+            isouter=True,
+        )
+        .group_by(Campaign.id)
+        .order_by(Campaign.id)
+    )
+
+    results = db.exec(statement).all()
+
+    return [
+        campaign_to_response(
+            campaign=campaign,
+            session_count=session_count,
+        )
+        for campaign, session_count in results
+    ]
 
 
 @router.get("/{campaign_id}")
@@ -23,7 +53,17 @@ def get_campaign(campaign_id: int, db: Session = Depends(get_session)):
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    return campaign
+    statement = (
+        select(func.count(SessionNote.id))
+        .where(SessionNote.campaign_id == campaign_id)
+    )
+
+    session_count = db.exec(statement).one()
+
+    return campaign_to_response(
+        campaign=campaign,
+        session_count=session_count,
+    )
 
 
 @router.post("")
@@ -34,7 +74,7 @@ def create_campaign(campaign: Campaign, db: Session = Depends(get_session)):
     db.commit()
     db.refresh(campaign)
 
-    return campaign
+    return campaign_to_response(campaign, session_count=0)
 
 
 @router.put("/{campaign_id}")
@@ -57,7 +97,17 @@ def update_campaign(
     db.commit()
     db.refresh(campaign)
 
-    return campaign
+    statement = (
+        select(func.count(SessionNote.id))
+        .where(SessionNote.campaign_id == campaign_id)
+    )
+
+    session_count = db.exec(statement).one()
+
+    return campaign_to_response(
+        campaign=campaign,
+        session_count=session_count,
+    )
 
 
 @router.delete("/{campaign_id}")
