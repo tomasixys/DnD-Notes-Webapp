@@ -146,5 +146,6 @@ vite.config.ts.timestamp-*
 # Local database
 *.db
 
-# pycache files
+# python environment and cache
 __pycache__/
+.venv/
