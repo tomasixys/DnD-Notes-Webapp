@@ -1,5 +1,6 @@
 import { computed, ref } from "vue"
 import type { CampaignsDto } from "@/types/DataTransferObjects"
+import { apiUrl } from "@/assets/apihelpers"
 
 const SELECTED_CAMPAIGN_KEY = "selectedCampaignId"
 
@@ -27,6 +28,20 @@ const selectedCampaign = computed(() => {
 
 const hasSelectedCampaign = computed(() => {
   return selectedCampaign.value !== null
+})
+
+const selectedCampaignImageUrl = computed(() => {
+  if (!selectedCampaign.value?.imageUrl) {
+    return null
+  }
+  return apiUrl + selectedCampaign.value.imageUrl
+})
+
+const selectedCampaignBannerUrl = computed(() => {
+  if (!selectedCampaign.value?.bannerImageUrl) {
+    return null
+  }
+  return apiUrl + selectedCampaign.value.bannerImageUrl
 })
 
 function setCampaigns(newCampaigns: CampaignsDto[]) {
@@ -66,6 +81,8 @@ export function useCampaignStore() {
     campaigns,
     selectedCampaignId,
     selectedCampaign,
+    selectedCampaignImageUrl,
+    selectedCampaignBannerUrl,
     hasSelectedCampaign,
     setCampaigns,
     selectCampaign,

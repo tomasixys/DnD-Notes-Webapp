@@ -10,6 +10,8 @@ const campaignNameDefault = "No Campaign Selected"
 const { 
   selectedCampaign,
   hasSelectedCampaign,
+  selectedCampaignImageUrl,
+  selectedCampaignBannerUrl,
 } = useCampaignStore()
 
 const mainLinks = [
@@ -47,7 +49,7 @@ const hasSubmenu = computed(() => submenuLinks.value.length > 0)
       <p class="campaign-name">{{ hasSelectedCampaign ? selectedCampaign.name : campaignNameDefault }}</p>
       <img 
       id="banner-graphics"
-      :src="hasSelectedCampaign ? selectedCampaign.imageUrl : bannerImageDefault"
+      :src="selectedCampaignBannerUrl ?? bannerImageDefault"
       alt="Banner graphics"
       />
 
