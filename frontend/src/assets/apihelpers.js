@@ -1,7 +1,6 @@
 
-// import { keysToSnakeCase, keysToCamelCase } from "./DataTransferObjects";
-
 export const baseUrl = import.meta.env.DEV ? "http://localhost:8000/" : "/"
+export const apiUrl = baseUrl + "api/"
 
 const fetchTimeout = 3000;
 
@@ -45,7 +44,7 @@ async function statusCodeHandler(response) {
 
 export async function GetAPI(endpoint)
 {
-  return fetch(baseUrl + "api/" + endpoint, {
+  return fetch(apiUrl + endpoint, {
     method: "GET",
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
   })
@@ -55,13 +54,22 @@ export async function GetAPI(endpoint)
 
 export async function PostAPI(endpoint, data, {parseResponseJson = true} = {})
 {
-  return fetch(baseUrl + "api/" + endpoint, {
+  return fetch(apiUrl + endpoint, {
     method: "POST",
-    headers: {
-        "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json", },
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
     body: JSON.stringify(keysToSnakeCase(data))
+  })
+  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .catch(fetchError);
+}
+
+export async function PostFormDataAPI(endpoint, formData, {parseResponseJson = true} = {})
+{
+  return fetch(apiUrl + endpoint, {
+    method: "POST",
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
+    body: formData
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
   .catch(fetchError);
@@ -69,11 +77,9 @@ export async function PostAPI(endpoint, data, {parseResponseJson = true} = {})
 
 export async function PutAPI(endpoint, data, {parseResponseJson = true} = {})
 {
-  return fetch(baseUrl + "api/" + endpoint, {
+  return fetch(apiUrl + endpoint, {
     method: "PUT",
-    headers: {
-        "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json", },
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
     body: JSON.stringify(keysToSnakeCase(data))
   })
@@ -81,9 +87,20 @@ export async function PutAPI(endpoint, data, {parseResponseJson = true} = {})
   .catch(fetchError);
 }
 
+export async function PutFormDataAPI(endpoint, formData, {parseResponseJson = true} = {})
+{
+  return fetch(apiUrl + endpoint, {
+    method: "PUT",
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
+    body: formData
+  })
+  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .catch(fetchError);
+}
+
 export async function DeleteAPI(endpoint, {parseResponseJson = true} = {})
 {
-  return fetch(baseUrl + "api/" + endpoint, {
+  return fetch(apiUrl + endpoint, {
     method: "DELETE",
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
   })

@@ -1,29 +1,42 @@
 <script setup lang="ts">
-import { reactive, ref, onBeforeMount } from "vue"
+import { reactive, computed, ref, onBeforeMount } from "vue"
 import { CampaignsDto } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI } from "@/assets/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 
 const {
   campaigns,
-  selectedCampaignId,
-  selectedCampaign,
-  hasSelectedCampaign,
-  setCampaigns,
-  selectCampaign,
-  clearSelectedCampaign,
+    selectedCampaignId,
+    selectedCampaign,
+    selectedCampaignImageUrl,
+    selectedCampaignBannerUrl,
+    hasSelectedCampaign,
+    setCampaigns,
+    selectCampaign,
+    clearSelectedCampaign,
 } = useCampaignStore()
 
-const viewMode = ref<ViewModes>(ViewModes.Current)
-const newCampaign = reactive<CampaignsDto>({
+const defaultCampaigndto: CampaignsDto = {
   id: 0,
   name: "",
   playerCharacter: "",
   description: "",
   sessionCount: 0,
   imageUrl: "",
-})
+  bannerImageUrl: "",
+}
+
+const viewMode = ref<ViewModes>(ViewModes.Current)
+const newCampaign = reactive<CampaignsDto>({ ...defaultCampaigndto })
+const newCampaignImageFile = ref<File | null>(null)
+const newCampaignBannerFile = ref<File | null>(null)
+
+function clearNewCampaignForm() {
+  Object.assign(newCampaign, defaultCampaigndto)
+  newCampaignImageFile.value = null
+  newCampaignBannerFile.value = null
+}
 
 
 onBeforeMount(async () => {
@@ -40,6 +53,28 @@ function showNewCampaignForm() {
 
 function showCampaignList() {
   viewMode.value = ViewModes.Selection
+}
+
+function switchCampaign(campaignId: number) {
+  selectCampaign(campaignId)
+  viewMode.value = ViewModes.Current
+}
+
+function buildCampaignFormData(): FormData {
+  const formData = new FormData()
+  formData.append("name", newCampaign.name.trim())
+  formData.append("player_character", newCampaign.playerCharacter.trim())
+  formData.append("description", newCampaign.description.trim())
+
+  if (newCampaignImageFile.value) {
+    formData.append("image", newCampaignImageFile.value)
+  }
+
+  if (newCampaignBannerFile.value) {
+    formData.append("banner", newCampaignBannerFile.value)
+  }
+
+  return formData
 }
 
 async function fetchCampaigns() {
@@ -63,41 +98,43 @@ async function createCampaign() {
     return
   }
 
-  let campaign = <CampaignsDto>{
-    id: 0,
-    name: newCampaign.name.trim(),
-    playerCharacter: newCampaign.playerCharacter.trim(),
-    description: newCampaign.description.trim(),
-    sessionCount: 0,
-    imageUrl: newCampaign.imageUrl.trim(),
-  }
+  let campaign = buildCampaignFormData()
 
-  const response = await PostAPI("campaigns", campaign)
+  const response = await PostFormDataAPI("campaigns", campaign)
   if (response.success === false) {
     console.error("Failed to create campaign:", response.error)
     return
   }
-  campaign = <CampaignsDto>response;
-  if (campaign.id === 0) {
+  const created = response as CampaignsDto;
+  if (created.id === 0) {
     console.error("Failed to create campaign: Invalid campaign ID returned")
     return
   }
 
   await fetchCampaigns();
-  switchCampaign(campaign.id)
+  switchCampaign(created.id)
 
-  newCampaign.name = ""
-  newCampaign.playerCharacter = ""
-  newCampaign.description = ""
-  newCampaign.imageUrl = ""
-
-  viewMode.value = ViewModes.Current
+  clearNewCampaignForm()
 }
 
-function switchCampaign(campaignId: number) {
-  selectCampaign(campaignId)
-  viewMode.value = ViewModes.Current
+async function updateCampaign(campaignId: number) {
+  if (!newCampaign.name) {
+    return
+  }
+  const campaign = buildCampaignFormData()
+
+  const response = await PutFormDataAPI(`/campaigns/${campaignId}`, campaign)
+  if (response.success === false) {
+    console.error("Failed to update campaign:", response.error)
+    return
+  }
+  const updatedCampaign = response as CampaignsDto;
+  await fetchCampaigns();
+  switchCampaign(updatedCampaign.id)
+
+  clearNewCampaignForm()
 }
+
 
 async function deleteCampaign(campaignId: number) {
   const response = await DeleteAPI(`campaigns/${campaignId}`)
@@ -108,6 +145,32 @@ async function deleteCampaign(campaignId: number) {
   }
   await fetchCampaigns();
 }
+
+function onCampaignImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  newCampaignImageFile.value = input.files?.[0] ?? null
+}
+
+function onCampaignBannerSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  newCampaignBannerFile.value = input.files?.[0] ?? null
+}
+
+const campaignImagePreviewUrl = computed(() => {
+  if (newCampaignImageFile.value) {
+    return URL.createObjectURL(newCampaignImageFile.value)
+  }
+
+  return selectedCampaignImageUrl.value ?? ""
+})
+
+const campaignBannerPreviewUrl = computed(() => {
+  if (newCampaignBannerFile.value) {
+    return URL.createObjectURL(newCampaignBannerFile.value)
+  }
+
+  return selectedCampaignBannerUrl.value ?? ""
+})
 
 </script>
 
@@ -122,9 +185,9 @@ async function deleteCampaign(campaignId: number) {
       <template v-if="selectedCampaign">
         <div class="campaign-summary">
           <img
-            v-if="selectedCampaign.imageUrl"
+            v-if="selectedCampaignImageUrl"
             class="campaign-image"
-            :src="selectedCampaign.imageUrl"
+            :src="selectedCampaignImageUrl"
             :alt="selectedCampaign.name"
           />
 
@@ -208,9 +271,17 @@ async function deleteCampaign(campaignId: number) {
         <label>
           Campaign image URL
           <input
-            v-model="newCampaign.imageUrl"
-            type="text"
-            placeholder="/src/assets/banner.png"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            @change="onCampaignImageSelected"
+          />
+        </label>
+        <label>
+          Campaign banner URL
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            @change="onCampaignBannerSelected"
           />
         </label>
 

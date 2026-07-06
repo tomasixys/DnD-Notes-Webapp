@@ -5,6 +5,7 @@ export type CampaignsDto = {
   description: string
   sessionCount: number
   imageUrl: string
+  bannerImageUrl: string
 }
 
 export type SessionListItemDto = {
