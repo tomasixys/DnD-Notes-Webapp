@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi import staticfiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import create_db_and_tables
@@ -28,6 +29,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount(
+    "/api/uploads", 
+    staticfiles.StaticFiles(directory=get_uploads_dir()), 
+    name="uploads")
 
 @app.on_event("startup")
 def on_startup():

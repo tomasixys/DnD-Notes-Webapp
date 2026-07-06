@@ -10,7 +10,9 @@ class Campaign(SQLModel, table=True):
     name: str
     player_character: str = ""
     description: str = ""
-    image_url: str = ""
+    
+    image_path: str = ""
+    banner_image_path: str = ""
 
 
 class SessionNote(SQLModel, table=True):
