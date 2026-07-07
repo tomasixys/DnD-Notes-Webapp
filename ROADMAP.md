@@ -1,10 +1,10 @@
-1. App storage foundation
+1. App storage foundation        (Completed)
    - AppData folders
    - uploads directory
    - relative file paths
    - stable image serving
 
-2. Image upload for campaigns
+2. Image upload for campaigns    (Completed)
    - campaign image
    - campaign banner
    - image preview/edit/delete
