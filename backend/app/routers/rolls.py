@@ -36,18 +36,20 @@ class RollCreateResponse(SQLModel):
     session_stats: SessionRollStats
 
 
-def ensure_campaign_exists(campaign_id: int, db: Session) -> None:
+def verify_campaign(campaign_id: int, db: Session) -> None:
     campaign = db.get(Campaign, campaign_id)
 
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
 
-def ensure_session_belongs_to_campaign(
+def verify_campaign_and_session(
     campaign_id: int,
     session_id: int,
     db: Session,
 ) -> None:
+    verify_campaign(campaign_id, db)
+
     session_note = db.get(SessionNote, session_id)
 
     if session_note is None:
@@ -84,42 +86,20 @@ def calculate_roll_luck(rolls: list[int], die_sides: int = 20) -> float:
 
     z_value = (rolled_total - expected_total) / standard_deviation
 
-    return norm.cdf(z_value)
-
-
-def get_roll_entries_for_campaign(
-    campaign_id: int,
-    db: Session,
-) -> list[RollEntry]:
-    statement = (
-        select(RollEntry)
-        .where(RollEntry.campaign_id == campaign_id)
-        .order_by(RollEntry.id)
-    )
-
-    return list(db.exec(statement).all())
-
-
-def get_roll_entries_for_session(
-    campaign_id: int,
-    session_id: int,
-    db: Session,
-) -> list[RollEntry]:
-    statement = (
-        select(RollEntry)
-        .where(RollEntry.campaign_id == campaign_id)
-        .where(RollEntry.session_id == session_id)
-        .order_by(RollEntry.id)
-    )
-
-    return list(db.exec(statement).all())
+    return float(norm.cdf(z_value))
 
 
 def build_campaign_roll_stats(
     campaign_id: int,
     db: Session,
 ) -> CampaignRollStats:
-    roll_entries = get_roll_entries_for_campaign(campaign_id, db)
+    
+    statement = (
+        select(RollEntry)
+        .join(SessionNote, RollEntry.session_id == SessionNote.id)
+        .where(SessionNote.campaign_id == campaign_id)
+    )
+    roll_entries = list(db.exec(statement).all())
     rolls = [entry.roll for entry in roll_entries]
 
     return CampaignRollStats(
@@ -129,18 +109,20 @@ def build_campaign_roll_stats(
         roll_luck=calculate_roll_luck(rolls),
     )
 
+def get_session_roll_entries(session_id: int, db: Session) -> list[RollEntry]:
+    statement = (
+        select(RollEntry)
+        .where(RollEntry.session_id == session_id)
+    )
+    return list(db.exec(statement).all())
 
 def build_session_roll_stats(
     campaign_id: int,
     session_id: int,
     db: Session,
 ) -> SessionRollStats:
-    roll_entries = get_roll_entries_for_session(
-        campaign_id=campaign_id,
-        session_id=session_id,
-        db=db,
-    )
-
+    
+    roll_entries = get_session_roll_entries(session_id, db)
     rolls = [entry.roll for entry in roll_entries]
 
     return SessionRollStats(
@@ -157,8 +139,7 @@ def get_campaign_roll_stats(
     campaign_id: int,
     db: Session = Depends(get_session),
 ) -> CampaignRollStats:
-    ensure_campaign_exists(campaign_id, db)
-
+    verify_campaign(campaign_id, db)
     return build_campaign_roll_stats(campaign_id, db)
 
 
@@ -168,14 +149,8 @@ def get_session_roll_stats(
     session_id: int,
     db: Session = Depends(get_session),
 ) -> SessionRollStats:
-    ensure_campaign_exists(campaign_id, db)
-    ensure_session_belongs_to_campaign(campaign_id, session_id, db)
-
-    return build_session_roll_stats(
-        campaign_id=campaign_id,
-        session_id=session_id,
-        db=db,
-    )
+    verify_campaign_and_session(campaign_id, session_id, db)
+    return build_session_roll_stats(campaign_id, session_id, db)
 
 
 @router.post("")
@@ -184,12 +159,7 @@ def create_roll(
     roll_create: RollCreate,
     db: Session = Depends(get_session),
 ) -> RollCreateResponse:
-    ensure_campaign_exists(campaign_id, db)
-    ensure_session_belongs_to_campaign(
-        campaign_id=campaign_id,
-        session_id=roll_create.session_id,
-        db=db,
-    )
+    verify_campaign_and_session(campaign_id, roll_create.session_id, db)
 
     if roll_create.roll < 1 or roll_create.roll > 20:
         raise HTTPException(
@@ -198,7 +168,6 @@ def create_roll(
         )
 
     roll_entry = RollEntry(
-        campaign_id=campaign_id,
         session_id=roll_create.session_id,
         roll=roll_create.roll,
     )
@@ -218,25 +187,14 @@ def create_roll(
 
 
 @router.delete("/sessions/{session_id}")
-def delete_roll(
+def delete_session_rolls(
     campaign_id: int,
     session_id: int,
     db: Session = Depends(get_session),
 ) -> dict[str, bool]:
-    ensure_campaign_exists(campaign_id, db)
-
-    statement = (
-        select(RollEntry)
-        .where(RollEntry.campaign_id == campaign_id)
-        .where(RollEntry.session_id == session_id)
-        .order_by(RollEntry.id)
-    )
-
-    rollEntries = list(db.exec(statement).all())
-
-    for entry in rollEntries:
-        if entry is None or entry.campaign_id != campaign_id:
-            raise HTTPException(status_code=404, detail="Roll not found")
+    verify_campaign_and_session(campaign_id, session_id, db)
+ 
+    for entry in get_session_roll_entries(session_id, db):
         db.delete(entry)
 
     db.commit()
