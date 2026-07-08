@@ -217,20 +217,28 @@ def create_roll(
     )
 
 
-@router.delete("/{roll_id}")
+@router.delete("/sessions/{session_id}")
 def delete_roll(
     campaign_id: int,
-    roll_id: int,
+    session_id: int,
     db: Session = Depends(get_session),
 ) -> dict[str, bool]:
     ensure_campaign_exists(campaign_id, db)
 
-    roll_entry = db.get(RollEntry, roll_id)
+    statement = (
+        select(RollEntry)
+        .where(RollEntry.campaign_id == campaign_id)
+        .where(RollEntry.session_id == session_id)
+        .order_by(RollEntry.id)
+    )
 
-    if roll_entry is None or roll_entry.campaign_id != campaign_id:
-        raise HTTPException(status_code=404, detail="Roll not found")
+    rollEntries = list(db.exec(statement).all())
 
-    db.delete(roll_entry)
+    for entry in rollEntries:
+        if entry is None or entry.campaign_id != campaign_id:
+            raise HTTPException(status_code=404, detail="Roll not found")
+        db.delete(entry)
+
     db.commit()
 
     return {"deleted": True}
