@@ -389,9 +389,22 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  width: 100%;
 }
 
-.resource-detail-header.with-actions button {
+.resource-detail-title {
+  min-width: 0;
+}
+
+.resource-detail-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.resource-detail-actions button {
   flex-shrink: 0;
 }
 

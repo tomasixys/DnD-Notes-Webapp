@@ -29,6 +29,7 @@ const sessionForm = reactive({
 
 onBeforeMount(async () => {
   await fetchSessions()
+  selectSession()
 })
 
 const nextSessionId = computed(() => {
@@ -52,8 +53,12 @@ const selectedSession = computed(() => {
   )
 })
 
-function selectSession(sessionNumber: number) {
-  selectedSessionNumber.value = sessionNumber
+function selectSession(sessionNumber: number | null = null) {
+  if (sessionNumber === null && sessions.value.length > 0) {
+    selectedSessionNumber.value = sessions.value[0].sessionNumber
+  } else {
+    selectedSessionNumber.value = sessionNumber
+  }
   viewMode.value = ViewModes.Details
 }
 
@@ -86,19 +91,18 @@ function cancelSessionForm() {
   viewMode.value = ViewModes.Details
 }
 
-async function fetchSessions() 
-{
+async function fetchSessions() {
+  if (!selectedCampaignId.value) {
+    console.error("No selected campaign to fetch sessions for.")
+    return
+  }
+
   const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
-  if (response.success === false) {
-    console.error("Failed to fetch sessions:", response.error)
+  if (response.success === false || !Array.isArray(response)) {
+    console.error("Failed to fetch sessions:", response.error ?? "Response is not an array")
     return
   }
-  console.log("Fetched sessions:", response)
-  if (!Array.isArray(response)) {
-    console.error("Failed to fetch sessions: Response is not an array")
-    return
-  }
-  sessions.value = response
+  sessions.value = response as SessionListItemDto[]
 }
 
 async function createSession() {
@@ -153,7 +157,20 @@ async function updateSession() {
   }
   await fetchSessions()
   resetSessionForm()
-  viewMode.value = ViewModes.Details
+  selectSession(selectedSession.value?.sessionNumber)
+}
+
+async function deleteSession() {
+  if (!selectedSession.value?.id) {
+    return
+  }
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value.id}`)
+  if (response.success === false) {
+    console.error("Failed to delete session:", response.message)
+    return
+  }
+  await fetchSessions()
+  selectSession()
 }
 
 </script>
@@ -282,7 +299,7 @@ async function updateSession() {
 
         <template v-else-if="selectedSession">
           <header class="resource-detail-header with-actions">
-            <div>
+            <div class="resource-detail-title">
               <p class="resource-detail-kicker">
                 Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
               </p>
@@ -290,13 +307,23 @@ async function updateSession() {
               <h3>{{ selectedSession.title }}</h3>
             </div>
 
-            <button
-              type="button"
-              class="secondary"
-              @click="showEditSessionForm"
-            >
-              Edit
-            </button>
+            <div class="resource-detail-actions">
+              <button
+                type="button"
+                class="secondary"
+                @click="showEditSessionForm"
+              >
+                Edit
+              </button>
+
+              <button
+                type="button"
+                class="danger"
+                @click="deleteSession()"
+              >
+                Delete
+              </button>
+            </div>
           </header>
 
           <p class="resource-description">

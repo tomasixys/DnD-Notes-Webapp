@@ -41,8 +41,12 @@ const selectedLocation = computed(() => {
   )
 })
 
-function selectLocation(locationId: number) {
-  selectedLocationId.value = locationId
+function selectLocation(locationId: number | null = null) {
+  if (locationId === null && locations.value.length > 0) {
+    selectedLocationId.value = locations.value[0].id
+  } else {
+    selectedLocationId.value = locationId
+  }
   viewMode.value = ViewModes.Details
 }
 
@@ -85,17 +89,16 @@ function parseTags(tags: string) {
 }
 
 async function fetchLocations() {
+  if (!selectedCampaignId.value) {
+    console.error("No campaign selected. Cannot fetch locations.")
+    return
+  }
   const response = await GetAPI(`campaigns/${selectedCampaignId.value}/locations`)
-  if (response.success === false) {
-    console.error("Failed to fetch locations:", response.error)
+  if (response.success === false || !Array.isArray(response)) {
+    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
     return
   }
-  if (!Array.isArray(response)) {
-    console.error("Failed to fetch locations: Response is not an array")
-    return
-  }
-
-  locations.value = response
+  locations.value = response as LocationDto[]
 }
 
 async function createLocation() {
@@ -148,6 +151,18 @@ async function updateLocation() {
   await fetchLocations()
   resetLocationForm()
   selectLocation(location.id)
+}
+
+async function deleteLocation() {
+  if (!selectedCampaignId.value || !selectedLocationId.value) return
+
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedLocationId.value}`)
+  if (response.success === false) {
+    console.error("Failed to delete location:", response.Message)
+    return
+  }
+  await fetchLocations()
+  selectLocation()
 }
 
 </script>
@@ -284,7 +299,7 @@ async function updateLocation() {
 
         <template v-else-if="selectedLocation">
           <header class="resource-detail-header with-actions">
-            <div>
+            <div class="resource-detail-title">
               <p class="resource-detail-kicker">
                 {{ selectedLocation.type || "Location" }}
               </p>
@@ -292,13 +307,24 @@ async function updateLocation() {
               <h3>{{ selectedLocation.name }}</h3>
             </div>
 
-            <button
-              type="button"
-              class="secondary"
-              @click="showEditLocationForm"
-            >
-              Edit
-            </button>
+            <div class="resource-detail-actions">
+              <button
+                type="button"
+                class="secondary"
+                @click="showEditLocationForm"
+              >
+                Edit
+              </button>
+
+              <button
+                type="button"
+                class="danger"
+                @click="deleteLocation"
+              >
+                Delete
+              </button>
+            </div>
+            
           </header>
 
           <dl class="resource-facts">

@@ -17,6 +17,7 @@ const {
 
 onBeforeMount(async () => {
   await fetchFactions()
+  selectFaction()
 })
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
@@ -41,8 +42,12 @@ const selectedFaction = computed(() => {
   )
 })
 
-function selectFaction(factionId: number) {
-  selectedFactionId.value = factionId
+function selectFaction(factionId: number | null = null) {
+  if (factionId === null && factions.value.length > 0) {
+    selectedFactionId.value = factions.value[0].id
+  } else {
+    selectedFactionId.value = factionId
+  }
   viewMode.value = ViewModes.Details
 }
 
@@ -85,17 +90,17 @@ function parseTags(tags: string) {
 }
 
 async function fetchFactions() {
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/factions`)
-  if (response.success === false) {
-    console.error("Failed to fetch locations:", response.error)
-    return
-  }
-  if (!Array.isArray(response)) {
-    console.error("Failed to fetch locations: Response is not an array")
+  if (!selectedCampaignId.value) {
+    console.error("No campaign selected. Cannot fetch factions.")
     return
   }
 
-  factions.value = response
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/factions`)
+  if (response.success === false || !Array.isArray(response)) {
+    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
+    return
+  } 
+  factions.value = response as FactionDto[]
 }
 
 async function createFaction() {
@@ -128,39 +133,49 @@ async function createFaction() {
   selectFaction(createdFaction.id)
 }
 
-function updateFaction() {
-  if (!selectedFaction.value) {
-    return
-  }
-
+async function updateFaction() {
   const name = factionForm.name.trim()
 
-  if (!name) {
+  if (!name || !selectedFaction.value) {
     return
   }
 
-  const factionIndex = factions.value.findIndex(
-    (faction) =>
-      faction.campaignId === selectedFaction.value?.campaignId &&
-      faction.id === selectedFaction.value?.id,
-  )
-
-  if (factionIndex === -1) {
-    return
-  }
-
-  factions.value[factionIndex] = {
-    ...factions.value[factionIndex],
-    name,
+  const updatedFaction: FactionDto = {
+    ...selectedFaction.value,
+    name: name,
     type: factionForm.type.trim(),
     location: factionForm.location.trim(),
     description: factionForm.description.trim(),
     tags: parseTags(factionForm.tags),
   }
 
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/factions/${updatedFaction.id}`, updatedFaction)
+  if (response.success === false) {
+    console.error("Failed to update faction:", response.error)
+    return
+  }
+
+  await fetchFactions()
   resetFactionForm()
-  viewMode.value = ViewModes.Details
+  selectFaction(updatedFaction.id)
 }
+
+async function deleteFaction(factionId: number) {
+  if (!selectedCampaignId.value) {
+    console.error("No campaign selected. Cannot delete faction.")
+    return
+  }
+
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/factions/${factionId}`)
+  if (response.success === false) {
+    console.error("Failed to delete faction:", response.error)
+    return
+  }
+
+  await fetchFactions()
+  selectFaction()
+}
+
 </script>
 
 <template>
@@ -295,7 +310,7 @@ function updateFaction() {
 
         <template v-else-if="selectedFaction">
           <header class="resource-detail-header with-actions">
-            <div>
+            <div class="resource-detail-title">
               <p class="resource-detail-kicker">
                 {{ selectedFaction.type || "Faction" }}
               </p>
@@ -303,13 +318,22 @@ function updateFaction() {
               <h3>{{ selectedFaction.name }}</h3>
             </div>
 
-            <button
-              type="button"
-              class="secondary"
-              @click="showEditFactionForm"
-            >
-              Edit
-            </button>
+            <div class="resource-detail-actions">
+              <button
+                type="button"
+                class="secondary"
+                @click="showEditFactionForm"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="danger"
+                @click="deleteFaction(selectedFaction.id)"
+              >
+                Delete
+              </button>
+            </div>
           </header>
 
           <dl class="resource-facts">
