@@ -25,8 +25,3 @@ def get_campaign_images_dir() -> Path:
     path = get_uploads_dir() / "campaigns"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
-def get_banner_images_dir() -> Path:
-    path = get_uploads_dir() / "banners"
-    path.mkdir(parents=True, exist_ok=True)
-    return path

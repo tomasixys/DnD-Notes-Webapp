@@ -9,10 +9,10 @@
    - campaign banner | DONE
    - image preview/edit/delete | DONE
 
-3. Delete support
+3. Delete support                (Completed)
    - delete every entry type | DONE
-   - cascade campaign delete
-   - uploaded file cleanup
+   - cascade campaign delete | DONE
+   - uploaded file cleanup | DONE
 
 4. Campaign backup/import/export
    - zip export
