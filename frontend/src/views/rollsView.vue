@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onBeforeMount } from "vue"
 import { CampaignRollDto, SessionListItemDto, SessionRollDto, RollEntryDto } from "@/types/DataTransferObjects"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/assets/apihelpers";
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 
 const {

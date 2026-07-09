@@ -1,6 +1,6 @@
 import { computed, ref } from "vue"
 import type { CampaignsDto } from "@/types/DataTransferObjects"
-import { apiUrl } from "@/assets/apihelpers"
+import { apiUrl } from "@/apihelpers"
 
 const SELECTED_CAMPAIGN_KEY = "selectedCampaignId"
 

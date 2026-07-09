@@ -2,7 +2,7 @@
 import { reactive, computed, ref, onBeforeMount } from "vue"
 import { CampaignsDto } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI } from "@/assets/apihelpers";
+import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 
 const {
