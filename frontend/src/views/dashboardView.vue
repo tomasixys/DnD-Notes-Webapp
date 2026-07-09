@@ -4,6 +4,7 @@ import { CampaignsDto } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
 import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
+import ConfirmationPopup from "../components/ConfirmationPopup.vue";
 
 const {
   campaigns,
@@ -30,8 +31,11 @@ const defaultCampaigndto: CampaignsDto = {
 const viewMode = ref<ViewModes>(ViewModes.Current)
 const newCampaign = reactive<CampaignsDto>({ ...defaultCampaigndto })
 const editingCampaignId = ref<number | null>(null)
+
 const newCampaignImageFile = ref<File | null>(null)
 const newCampaignBannerFile = ref<File | null>(null)
+
+const showDeleteCampaignPopup = ref(false)
 
 function clearNewCampaignForm() {
   Object.assign(newCampaign, defaultCampaigndto)
@@ -165,6 +169,7 @@ async function updateCampaign(campaignId: number) {
 }
 
 
+
 async function deleteCampaign(campaignId: number) {
   const response = await DeleteAPI(`campaigns/${campaignId}`)
   
@@ -174,6 +179,8 @@ async function deleteCampaign(campaignId: number) {
   }
   await fetchCampaigns();
 }
+
+
 
 function onCampaignImageSelected(event: Event) {
   const input = event.target as HTMLInputElement
@@ -266,7 +273,7 @@ const campaignBannerPreviewUrl = computed(() => {
     </article>
 
     <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
-      <h3>Start new campaign</h3>
+      <h3>{{ viewMode === ViewModes.Create ? "Start new campaign" : "Edit campaign" }}</h3>
 
       <form class="campaign-form" @submit.prevent="submitCampaign">
         <label>
@@ -372,7 +379,7 @@ const campaignBannerPreviewUrl = computed(() => {
             <button
               type="button"
               class="danger"
-              @click="deleteCampaign(campaign.id)"
+              @click="showDeleteCampaignPopup = true; selectCampaign(campaign.id)"
             >
               Delete
             </button>
@@ -399,6 +406,16 @@ const campaignBannerPreviewUrl = computed(() => {
         </button>
       </div>
     </article>
+
+    <ConfirmationPopup
+      v-if="showDeleteCampaignPopup && selectedCampaign"
+      title="Delete session?"
+      :message="`Delete campaign ${selectedCampaign.name} and all associated entries? This cannot be undone.`"
+      confirm-text="Delete session"
+      @cancel="showDeleteCampaignPopup = false"
+      @confirm="deleteCampaign(selectedCampaign.id); showDeleteCampaignPopup = false"
+    />
+
   </section>
 </template>
 
