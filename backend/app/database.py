@@ -1,7 +1,8 @@
+from sqlalchemy import event
 from sqlmodel import SQLModel, create_engine, Session
+
 from app.app_paths import get_database_path
 
-sqlite_file_name = "notes.db"
 sqlite_url = f"sqlite:///{get_database_path()}"
 
 engine = create_engine(
@@ -9,6 +10,12 @@ engine = create_engine(
     echo=True,
     connect_args={"check_same_thread": False},
 )
+
+@event.listens_for(engine, "connect")
+def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
