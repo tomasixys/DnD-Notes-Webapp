@@ -17,7 +17,7 @@ const {
 onBeforeMount(async () => {
   await fetchSessionList()
   await fetchCampaignStats()
-  await fetchSessionRolls()
+  selectSession()
 })
 
 const selectedSessionId = ref<number | null>(null)
@@ -43,8 +43,12 @@ const selectedSession = computed(() => {
   )
 })
 
-function selectSession(sessionId: number) {
-  selectedSessionId.value = sessionId
+function selectSession(sessionId: number | null = null) {
+  if (sessionId === null && sessions.value.length > 0) {
+    selectedSessionId.value = sessions.value[0].id
+  } else {
+    selectedSessionId.value = sessionId
+  }
   fetchSessionRolls();
 }
 
@@ -52,19 +56,18 @@ function formatRollLuck(value: number) {
   return `${(value * 100).toFixed(1)}%`
 }
 
-async function fetchSessionList()
-{
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
+async function fetchSessionList() {
+  if (!selectedCampaignId.value) {
+    console.error("No campaign selected. Cannot fetch session list.")
+    return
+  }
 
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
   if (response.success === false) {
     console.error("Failed to fetch session list:", response.error)
     return
   }
-
   sessions.value = response as SessionListItemDto[]
-  if (sessions.value.length > 0 && selectedSessionId.value === null) {
-    selectedSessionId.value = sessions.value[0].id
-  }
 }
 
 async function fetchCampaignStats()
@@ -104,6 +107,20 @@ async function addRoll() {
   const response = await PostAPI(`campaigns/${selectedCampaignId.value}/rolls`, rolldto)
   if (response.success === false) {
     console.error("Failed to add roll:", response.error)
+    return
+  }
+  await fetchSessionRolls();
+  await fetchCampaignStats();
+
+  rollInput.value = null
+}
+
+async function deleteRolls() {
+  if (!selectedSession.value || (sessionRolls.value?.rolls.length ?? 0) < 1) return 
+
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`)
+  if (response.success === false) {
+    console.error("Failed to delete roll:", response.error)
     return
   }
   await fetchSessionRolls();
@@ -232,6 +249,14 @@ async function addRoll() {
 
             <button type="submit">
               Add roll
+            </button>
+            <button
+              v-if="sessionRolls && sessionRolls.rolls.length > 0"
+              type="button"
+              class="danger"
+              @click="deleteRolls"
+            >
+              Delete rolls
             </button>
           </form>
 

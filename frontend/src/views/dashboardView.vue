@@ -29,6 +29,7 @@ const defaultCampaigndto: CampaignsDto = {
 
 const viewMode = ref<ViewModes>(ViewModes.Current)
 const newCampaign = reactive<CampaignsDto>({ ...defaultCampaigndto })
+const editingCampaignId = ref<number | null>(null)
 const newCampaignImageFile = ref<File | null>(null)
 const newCampaignBannerFile = ref<File | null>(null)
 
@@ -47,17 +48,48 @@ function showCurrentCampaign() {
   viewMode.value = ViewModes.Current
 }
 
+function showCampaignList() {
+  viewMode.value = ViewModes.Selection
+}
+
 function showNewCampaignForm() {
+  clearNewCampaignForm()
+  editingCampaignId.value = null
   viewMode.value = ViewModes.Create
 }
 
-function showCampaignList() {
-  viewMode.value = ViewModes.Selection
+function showEditCampaignForm(campaignId: number) {
+  selectCampaign(campaignId)
+
+  editingCampaignId.value = campaignId
+
+  newCampaign.name = selectedCampaign.value?.name ?? ""
+  newCampaign.playerCharacter = selectedCampaign.value?.playerCharacter ?? ""
+  newCampaign.description = selectedCampaign.value?.description ?? ""
+  newCampaignImageFile.value = null
+  newCampaignBannerFile.value = null
+
+  viewMode.value = ViewModes.Edit
 }
 
 function switchCampaign(campaignId: number) {
   selectCampaign(campaignId)
   viewMode.value = ViewModes.Current
+}
+
+
+
+async function submitCampaign() {
+  if (viewMode.value === ViewModes.Create) {
+    await createCampaign()
+    return
+  } else if (viewMode.value === ViewModes.Edit) {
+    if (editingCampaignId.value === null) {
+      console.error("Cannot update campaign: no campaign is being edited")
+      return
+    }
+    await updateCampaign(editingCampaignId.value)
+  }
 }
 
 function buildCampaignFormData(): FormData {
@@ -94,9 +126,7 @@ async function fetchCampaigns() {
 
 async function createCampaign() {
 
-  if (!newCampaign.name) {
-    return
-  }
+  if (!newCampaign.name.trim()) return
 
   let campaign = buildCampaignFormData()
 
@@ -118,12 +148,11 @@ async function createCampaign() {
 }
 
 async function updateCampaign(campaignId: number) {
-  if (!newCampaign.name) {
-    return
-  }
+  if (!newCampaign.name.trim()) return
+
   const campaign = buildCampaignFormData()
 
-  const response = await PutFormDataAPI(`/campaigns/${campaignId}`, campaign)
+  const response = await PutFormDataAPI(`campaigns/${campaignId}`, campaign)
   if (response.success === false) {
     console.error("Failed to update campaign:", response.error)
     return
@@ -236,10 +265,10 @@ const campaignBannerPreviewUrl = computed(() => {
       </template>
     </article>
 
-    <article v-else-if="viewMode === ViewModes.Create" class="dashboard-card">
+    <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
       <h3>Start new campaign</h3>
 
-      <form class="campaign-form" @submit.prevent="createCampaign">
+      <form class="campaign-form" @submit.prevent="submitCampaign">
         <label>
           Campaign name
           <input
@@ -286,11 +315,16 @@ const campaignBannerPreviewUrl = computed(() => {
         </label>
 
         <div class="dashboard-actions">
+
           <button type="submit">
-            Create campaign
+           {{ viewMode === ViewModes.Create ?  "Create campaign" : "Update campaign" }}
           </button>
 
-          <button type="button" class="secondary" @click="showCurrentCampaign">
+          <button 
+            type="button" 
+            class="secondary" 
+            @click="showCurrentCampaign"
+          >
             Cancel
           </button>
         </div>
@@ -320,8 +354,19 @@ const campaignBannerPreviewUrl = computed(() => {
           </div>
 
           <div class="campaign-list-actions">
-            <button type="button" @click="switchCampaign(campaign.id)">
-              Switch to campaign
+            <button 
+              type="button" 
+              @click="switchCampaign(campaign.id)"
+            >
+              Select Campaign
+            </button>
+
+            <button
+              type="button"
+              class="secondary"
+              @click="showEditCampaignForm(campaign.id)"
+            >
+              Edit
             </button>
 
             <button
@@ -329,7 +374,7 @@ const campaignBannerPreviewUrl = computed(() => {
               class="danger"
               @click="deleteCampaign(campaign.id)"
             >
-              Delete campaign
+              Delete
             </button>
           </div>
         </li>
@@ -338,11 +383,18 @@ const campaignBannerPreviewUrl = computed(() => {
       <p v-else>No campaigns have been created yet.</p>
 
       <div class="dashboard-actions">
-        <button type="button" @click="showNewCampaignForm">
+        <button 
+          type="button" 
+          @click="showNewCampaignForm"
+        >
           Start new campaign
         </button>
 
-        <button type="button" class="secondary" @click="showCurrentCampaign">
+        <button 
+          type="button" 
+          class="secondary" 
+          @click="showCurrentCampaign"
+        >
           Back
         </button>
       </div>
@@ -398,6 +450,10 @@ const campaignBannerPreviewUrl = computed(() => {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+.campaign-list-actions button {
+  max-height: 3rem;
 }
 
 .dashboard-actions {

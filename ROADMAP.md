@@ -1,18 +1,18 @@
-1. App storage foundation
-   - AppData folders
-   - uploads directory
-   - relative file paths
-   - stable image serving
+1. App storage foundation        (Completed)
+   - AppData folders | DONE
+   - uploads directory | DONE
+   - relative file paths | DONE
+   - stable image serving | DONE
 
-2. Image upload for campaigns
-   - campaign image
-   - campaign banner
-   - image preview/edit/delete
+2. Image upload for campaigns    (Completed)
+   - campaign image | DONE
+   - campaign banner | DONE
+   - image preview/edit/delete | DONE
 
-3. Delete support
-   - delete every entry type
-   - cascade campaign delete
-   - uploaded file cleanup
+3. Delete support                (Completed)
+   - delete every entry type | DONE
+   - cascade campaign delete | DONE
+   - uploaded file cleanup | DONE
 
 4. Campaign backup/import/export
    - zip export

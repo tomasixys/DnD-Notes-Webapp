@@ -9,14 +9,12 @@ from app.app_paths import (
     get_app_data_dir,
     get_uploads_dir,
     get_campaign_images_dir,
-    get_banner_images_dir,
 )
 
 def initialize_app_storage():
     get_app_data_dir()
     get_uploads_dir()
     get_campaign_images_dir()
-    get_banner_images_dir()
 
 app = FastAPI(title="Campaign Notes API")
 

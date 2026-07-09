@@ -17,6 +17,7 @@ const {
 
 onBeforeMount(async () => {
   await fetchPeople()
+  selectPerson()
 })
 const viewMode = ref<ViewModes>(ViewModes.Details)
 
@@ -42,8 +43,12 @@ const selectedPerson = computed(() => {
   )
 })
 
-function selectPerson(personId: number) {
-  selectedPersonId.value = personId
+function selectPerson(personId: number | null = null) {
+  if (personId === null && people.value.length > 0) {
+    selectedPersonId.value  = people.value[0].id
+  } else {
+    selectedPersonId.value = personId
+  }
   viewMode.value = ViewModes.Details
 }
 
@@ -87,15 +92,13 @@ function parseTags(tags: string) {
     .filter(Boolean)
 }
 
-async function fetchPeople()
-{
+async function fetchPeople() {
   if (!selectedCampaignId.value) {
     console.error("No campaign selected. Cannot fetch people.")
     return
   }
 
   const response = await GetAPI(`campaigns/${selectedCampaignId.value}/people`)
-
   if (response.success === false) {
     console.error("Failed to fetch people:", response.error)
     return
@@ -105,8 +108,7 @@ async function fetchPeople()
     console.error("Failed to fetch people: Response is not an array")
     return
   }
-
-  people.value = response
+  people.value = response as PersonDto[]
 }
 
 async function createPerson() {
@@ -163,6 +165,18 @@ async function updatePerson() {
   }
   resetPersonForm()
   selectPerson(person.id)
+}
+
+async function deletePerson() {
+  if (!selectedPerson.value || !selectedCampaignId.value) return
+
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/people/${selectedPerson.value.id}`)
+  if (response.success === false) {
+    console.error("Failed to delete person:", response.error)
+    return
+  }
+  await fetchPeople()
+  selectPerson()
 }
 
 </script>
@@ -310,22 +324,33 @@ async function updatePerson() {
         </template>
 
         <template v-else-if="selectedPerson">
+          
           <header class="resource-detail-header with-actions">
-            <div>
+            <div class="resource-detail-title">
               <p class="resource-detail-kicker">
                 {{ selectedPerson.role || "Person of interest" }}
               </p>
 
               <h3>{{ selectedPerson.name }}</h3>
             </div>
+            
+            <div class="resource-detail-actions">
+              <button
+                type="button"
+                class="secondary"
+                @click="showEditPersonForm"
+              >
+                Edit
+              </button>
 
-            <button
-              type="button"
-              class="secondary"
-              @click="showEditPersonForm"
-            >
-              Edit
-            </button>
+              <button
+                type="button"
+                class="danger"
+                @click="deletePerson()"
+              >
+                Delete
+              </button>
+            </div>
           </header>
 
           <dl class="resource-facts">

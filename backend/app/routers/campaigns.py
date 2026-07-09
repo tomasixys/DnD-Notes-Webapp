@@ -202,13 +202,25 @@ def update_campaign(
 
 
 @router.delete("/{campaign_id}")
-def delete_campaign(campaign_id: int, db: Session = Depends(get_session)):
+def delete_campaign(
+    campaign_id: int, 
+    db: Session = Depends(get_session)
+):
     campaign = db.get(Campaign, campaign_id)
 
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    image_path = campaign.image_path
+    banner_path = campaign.banner_image_path
+
     db.delete(campaign)
     db.commit()
+
+    if image_path:
+        delete_uploaded_file(image_path)
+
+    if banner_path and banner_path != image_path:
+        delete_uploaded_file(banner_path)
 
     return {"deleted": True}

@@ -1,6 +1,7 @@
 <!-- # ${workspaceFolder}\\.vscode\\tasks.json  -->
 <!-- Setup:  Run Task: 'Dev: initialize environment' -->
 <!-- Launch: Run task: 'Dev: Start frontend and backend' -->
+<!-- NB: if bash is default shell, then edit paths => '.replace("\\", "/")' -->
 
 {
   "version": "2.0.0",
@@ -108,9 +109,6 @@
       "args": [
         "run",
         "dev",
-        "--",
-        "--host",
-        "127.0.0.1"
       ],
       "options": {
         "cwd": "${workspaceFolder}\\frontend"
