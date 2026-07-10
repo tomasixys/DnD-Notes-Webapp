@@ -1,10 +1,17 @@
+import json, io
+from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+
 from sqlalchemy import func
-from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
+from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
-from app.models import Campaign, SessionNote
-from app.file_storage import build_upload_url, save_campaign_image, delete_uploaded_file
+from app.models import *
+# from app.app_paths import get_uploads_dir
+from app.file_storage import *
 
 router = APIRouter(
     prefix="/api/campaigns",
@@ -25,6 +32,13 @@ def campaign_to_response(campaign: Campaign, session_count: int = 0):
         "image_url": image_url,
         "banner_image_url": banner_image_url,
     }
+
+def sqlmodel_to_dict(model: SQLModel):
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+
+    return model.dict()
+
 
 
 @router.get("")
@@ -96,14 +110,14 @@ def create_campaign(
 
     try:
         if image is not None and image.filename:
-            saved_image_relative_path = save_campaign_image(
+            saved_image_relative_path = save_image_from_uploadfile(
                 campaign_id=campaign.id,
                 file=image,
             )
             campaign.image_path = saved_image_relative_path
         
         if banner is not None and banner.filename:
-            saved_banner_relative_path = save_campaign_image(
+            saved_banner_relative_path = save_image_from_uploadfile(
                 campaign_id=campaign.id,
                 file=banner,
             )
@@ -153,7 +167,7 @@ def update_campaign(
     try:
         if image is not None and image.filename:
             old_image_path = campaign.image_path
-            saved_image_path = save_campaign_image(
+            saved_image_path = save_image_from_uploadfile(
                 campaign_id=campaign.id,
                 file=image,
             )
@@ -161,7 +175,7 @@ def update_campaign(
 
         if banner is not None and banner.filename:
             old_banner_path = campaign.banner_image_path
-            saved_banner_path = save_campaign_image(
+            saved_banner_path = save_image_from_uploadfile(
                 campaign_id=campaign.id,
                 file=banner,
             )
@@ -224,3 +238,250 @@ def delete_campaign(
         delete_uploaded_file(banner_path)
 
     return {"deleted": True}
+
+
+
+@router.get("/{campaign_id}/backup/export")
+def export_campaign_backup(
+    campaign_id: int,
+    db: Session = Depends(get_session),
+):
+    statement = (
+        select(Campaign)
+        .where(Campaign.id == campaign_id)
+        .options(
+            selectinload(Campaign.sessions).selectinload(SessionNote.rolls),
+            selectinload(Campaign.people),
+            selectinload(Campaign.locations),
+            selectinload(Campaign.factions),
+        )
+    )
+
+    campaign = db.exec(statement).one_or_none()
+
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    
+    archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
+    image_archive_path = ""
+    banner_archive_path = ""
+
+    with ZipFile(archive_absolute_path, "w", compression=ZIP_DEFLATED) as archive:
+        if campaign.image_path:
+            source_path = get_uploaded_file_path(campaign.image_path)
+
+            if source_path and source_path.exists():
+                image_archive_path = f"assets/campaign-image{source_path.suffix.lower()}"
+                archive.write(source_path, image_archive_path)
+
+        if campaign.banner_image_path:
+            source_path = get_uploaded_file_path(campaign.banner_image_path)
+
+            if source_path and source_path.exists():
+                banner_archive_path = f"assets/campaign-banner{source_path.suffix.lower()}"
+                archive.write(source_path, banner_archive_path)
+
+        backup = CampaignBackup(
+            schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
+            campaign=CampaignBackupCampaign(
+                name=campaign.name,
+                player_character=campaign.player_character,
+                description=campaign.description,
+                image_archive_path=image_archive_path,
+                banner_archive_path=banner_archive_path,
+            ),
+            sessions=[
+                CampaignBackupSession(
+                    date=session.date,
+                    title=session.title,
+                    description=session.description,
+                    session_number=session.session_number,
+                    tags=session.tags,
+                    rolls=[
+                        roll_entry.roll
+                        for roll_entry in sorted(
+                            session.rolls,
+                            key=lambda roll_entry: roll_entry.id or 0,
+                        )
+                    ],
+                )
+                for session in sorted(
+                    campaign.sessions,
+                    key=lambda session: session.session_number,
+                )
+            ],
+            people=[
+                CampaignBackupPerson(
+                    name=person.name,
+                    role=person.role,
+                    faction=person.faction,
+                    location=person.location,
+                    description=person.description,
+                    tags=person.tags,
+                )
+                for person in sorted(campaign.people, key=lambda person: person.name.lower())
+            ],
+            locations=[
+                CampaignBackupLocation(
+                    name=location.name,
+                    type=location.type,
+                    parent_location=location.parent_location,
+                    description=location.description,
+                    tags=location.tags,
+                )
+                for location in sorted(campaign.locations, key=lambda location: location.name.lower())
+            ],
+            factions=[
+                CampaignBackupFaction(
+                    name=faction.name,
+                    type=faction.type,
+                    location=faction.location,
+                    description=faction.description,
+                    tags=faction.tags,
+                )
+                for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
+            ],
+        )
+
+        archive.writestr(
+            "backup.json",
+            json.dumps(sqlmodel_to_dict(backup), ensure_ascii=False, indent=2),
+        )
+
+    return {
+        "backup_url": build_upload_url(archive_relative_path),
+        "filename": archive_absolute_path.name,
+    }
+
+@router.post("/backup/import")
+async def import_campaign_backup(
+    backup: UploadFile = File(...),
+    db: Session = Depends(get_session),
+):
+    try:
+        raw_data = await backup.read()
+
+        with ZipFile(io.BytesIO(raw_data), "r") as archive:
+            backup_json = archive.read("backup.json")
+            parsed_json = json.loads(backup_json.decode("utf-8"))
+            cb = CampaignBackup(**parsed_json)
+
+            if cb.schema_version != CAMPAIGN_BACKUP_SCHEMA_VERSION:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported backup schema version: {cb.schema_version}",
+                )
+
+            campaign = Campaign(
+                name=cb.campaign.name,
+                player_character=cb.campaign.player_character,
+                description=cb.campaign.description,
+                image_path="",
+                banner_image_path="",
+            )
+
+            saved_asset_paths: list[str] = []
+
+            try:
+                db.add(campaign)
+                db.flush()
+
+                original_path = Path(cb.campaign.image_archive_path)
+                if original_path != "":
+                    image_data = read_archive_member(archive, original_path)
+                    image_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), image_data)
+                    saved_asset_paths.append(image_path)
+                    campaign.image_path = image_path
+
+                original_path = Path(cb.campaign.banner_archive_path)
+                if original_path != "":
+                    banner_data = read_archive_member(archive, original_path)
+                    banner_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), banner_data)
+                    saved_asset_paths.append(banner_path)
+                    campaign.banner_image_path = banner_path
+
+                db.add(campaign)
+
+                for person_backup in cb.people:
+                    db.add(
+                        Person(
+                            campaign_id=campaign.id,
+                            name=person_backup.name,
+                            role=person_backup.role,
+                            faction=person_backup.faction,
+                            location=person_backup.location,
+                            description=person_backup.description,
+                            tags=person_backup.tags,
+                        )
+                    )
+
+                for location_backup in cb.locations:
+                    db.add(
+                        Location(
+                            campaign_id=campaign.id,
+                            name=location_backup.name,
+                            type=location_backup.type,
+                            parent_location=location_backup.parent_location,
+                            description=location_backup.description,
+                            tags=location_backup.tags,
+                        )
+                    )
+
+                for faction_backup in cb.factions:
+                    db.add(
+                        Faction(
+                            campaign_id=campaign.id,
+                            name=faction_backup.name,
+                            type=faction_backup.type,
+                            location=faction_backup.location,
+                            description=faction_backup.description,
+                            tags=faction_backup.tags,
+                        )
+                    )
+
+                for session_backup in cb.sessions:
+                    session_note = SessionNote(
+                        campaign_id=campaign.id,
+                        date=session_backup.date,
+                        title=session_backup.title,
+                        description=session_backup.description,
+                        session_number=session_backup.session_number,
+                        tags=session_backup.tags,
+                    )
+
+                    db.add(session_note)
+                    db.flush()
+
+                    for roll in session_backup.rolls:
+                        db.add(
+                            RollEntry(
+                                session_id=session_note.id,
+                                roll=roll,
+                            )
+                        )
+
+                db.commit()
+                db.refresh(campaign)
+
+            except Exception:
+                db.rollback()
+
+                for asset_path in saved_asset_paths:
+                    delete_uploaded_file(asset_path)
+
+                raise
+
+    except BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid backup archive")
+
+    except KeyError:
+        raise HTTPException(status_code=400, detail="Backup archive is missing backup.json")
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid backup JSON")
+
+    return campaign_to_response(
+        campaign=campaign,
+        session_count=len(cb.sessions),
+    )
+
