@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { reactive, computed, ref, onBeforeMount } from "vue"
-import { CampaignsDto } from "@/types/DataTransferObjects";
+import { CampaignsDto, ExportResponse } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI } from "@/apihelpers";
+import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import ConfirmationPopup from "../components/ConfirmationPopup.vue";
 
@@ -168,8 +168,6 @@ async function updateCampaign(campaignId: number) {
   clearNewCampaignForm()
 }
 
-
-
 async function deleteCampaign(campaignId: number) {
   const response = await DeleteAPI(`campaigns/${campaignId}`)
   
@@ -180,7 +178,44 @@ async function deleteCampaign(campaignId: number) {
   await fetchCampaigns();
 }
 
+async function exportCampaign(campaignId: number) {
+  const response = await GetAPI(`campaigns/${campaignId}/backup/export`)
+  if (response.success === false) {
+    console.error("Failed to export campaign:", response.error)
+    return
+  }
+  console.log("Exported campaign:", response)
+  const exportResponse = response as ExportResponse
 
+  const downloadResponse = await DownloadAPI(exportResponse.backupUrl)
+  if (!downloadResponse.success) {
+    console.error("Failed to download campaign backup:", downloadResponse.error)
+    return
+  }
+}
+
+async function importCampaign() {
+  const input = document.createElement("input")
+  input.type = "file"
+  input.accept = ".backup"
+  input.onchange = async (event: Event) => {
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append("backup", file)
+
+    const response = await PostFormDataAPI("campaigns/backup/import", formData)
+    if (response.success === false) {
+      console.error("Failed to import campaign:", response.error)
+      return
+    }
+    console.log("Imported campaign:", response)
+    await fetchCampaigns();
+  }
+  input.click()
+}
 
 function onCampaignImageSelected(event: Event) {
   const input = event.target as HTMLInputElement
@@ -378,6 +413,14 @@ const campaignBannerPreviewUrl = computed(() => {
 
             <button
               type="button"
+              class="secondary"
+              @click="exportCampaign(campaign.id)"
+            >
+              Export
+            </button>
+
+            <button
+              type="button"
               class="danger"
               @click="showDeleteCampaignPopup = true; selectCampaign(campaign.id)"
             >
@@ -395,6 +438,14 @@ const campaignBannerPreviewUrl = computed(() => {
           @click="showNewCampaignForm"
         >
           Start new campaign
+        </button>
+
+        <button 
+          type="button" 
+          class="secondary" 
+          @click="importCampaign"
+        >
+          Import
         </button>
 
         <button 

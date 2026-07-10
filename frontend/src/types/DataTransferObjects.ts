@@ -70,3 +70,7 @@ export type FactionDto = {
   tags: string[]
 }
 
+export type ExportResponse = {
+  backupUrl: string
+  filename: string
+}

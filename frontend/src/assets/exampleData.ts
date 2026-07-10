@@ -1,10 +1,11 @@
-import * as dto from "@/assets/DataTransferObjects"
+import * as dto from "@/types/DataTransferObjects"
 
 
 export const sessionListExample: dto.SessionListItemDto[] = [
   {
+    id: 1,
     campaignId: 1,
-    sessionId: 1,
+    sessionNumber: 1,
     date: "2026-01-12",
     title: "New Year, Old Trouble",
     description:
@@ -12,8 +13,9 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     tags: ["opening", "Gernanti", "mystery"],
   },
   {
+    id: 2,
     campaignId: 1,
-    sessionId: 2,
+    sessionNumber: 2,
     date: "2026-01-19",
     title: "Bones Beneath the City",
     description:
@@ -21,8 +23,9 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     tags: ["caves", "undead", "investigation"],
   },
   {
+    id: 3,
     campaignId: 1,
-    sessionId: 3,
+    sessionNumber: 3,
     date: "2026-01-26",
     title: "The Thieves' Hideout",
     description:
@@ -40,22 +43,25 @@ export const campaignRollStatsExample: dto.CampaignRollDto = {
 
 export const sessionRollsExample: dto.SessionRollDto[] = [
   {
+    id: 1,
     campaignId: 1,
-    sessionId: 1,
+    sessionNumber: 1,
     rolls: [12, 4, 16, 7, 11],
     average: 10,
     rollLuck: 0.5,
   },
   {
+    id: 2,
     campaignId: 1,
-    sessionId: 2,
+    sessionNumber: 2,
     rolls: [3, 8, 14, 19, 9, 6],
     average: 9.83,
     rollLuck: 0.42,
   },
   {
+    id: 3,
     campaignId: 1,
-    sessionId: 3,
+    sessionNumber: 3,
     rolls: [18, 15, 2, 13, 11, 20, 5],
     average: 12,
     rollLuck: 0.66,
@@ -64,8 +70,8 @@ export const sessionRollsExample: dto.SessionRollDto[] = [
 
 export const peopleExample: dto.PersonDto[] = [
   {
+    id: 1,
     campaignId: 1,
-    personId: 1,
     name: "Skiv Whistler",
     role: "Lookout and street contact",
     faction: "Beggars",
@@ -75,8 +81,8 @@ export const peopleExample: dto.PersonDto[] = [
     tags: ["contact", "street", "lookout"],
   },
   {
+    id: 2,
     campaignId: 1,
-    personId: 2,
     name: "Eryn Marrowell",
     role: "Assistant librarian",
     faction: "Talmira's Church",
@@ -86,8 +92,8 @@ export const peopleExample: dto.PersonDto[] = [
     tags: ["ally", "academy", "library"],
   },
   {
+    id: 3,
     campaignId: 1,
-    personId: 3,
     name: "Velcor Thanes",
     role: "Professor of magical history",
     faction: "Dragon Order",
@@ -100,8 +106,8 @@ export const peopleExample: dto.PersonDto[] = [
 
 export const locationsExample: dto.LocationDto[] = [
   {
+    id: 1,
     campaignId: 1,
-    locationId: 1,
     name: "Gernanti",
     type: "City",
     parentLocation: "",
@@ -110,8 +116,8 @@ export const locationsExample: dto.LocationDto[] = [
     tags: ["city", "magic", "campaign-hub"],
   },
   {
+    id: 2,
     campaignId: 1,
-    locationId: 2,
     name: "Gernanti Mainland",
     type: "District",
     parentLocation: "Gernanti",
@@ -120,8 +126,8 @@ export const locationsExample: dto.LocationDto[] = [
     tags: ["district", "street-level", "lower-city"],
   },
   {
+    id: 3,
     campaignId: 1,
-    locationId: 3,
     name: "Nalia and Elira's Lodging House",
     type: "Building",
     parentLocation: "Gernanti Mainland",
@@ -133,8 +139,8 @@ export const locationsExample: dto.LocationDto[] = [
 
 export const factionsExample: dto.FactionDto[] = [
   {
+    id: 1,
     campaignId: 1,
-    factionId: 1,
     name: "The Dragon Order",
     type: "Arcane order",
     location: "Gernanti Magic Academy",
@@ -143,8 +149,8 @@ export const factionsExample: dto.FactionDto[] = [
     tags: ["academy", "dragons", "magic", "political"],
   },
   {
+    id: 2,
     campaignId: 1,
-    factionId: 2,
     name: "Talmira's Church",
     type: "Temple institution",
     location: "Gernanti Magic Academy",
@@ -153,8 +159,8 @@ export const factionsExample: dto.FactionDto[] = [
     tags: ["religion", "knowledge", "library", "academy"],
   },
   {
+    id: 3,
     campaignId: 1,
-    factionId: 3,
     name: "The Beggars",
     type: "Street faction",
     location: "Gernanti Mainland",
@@ -173,5 +179,6 @@ export const campaignsExample: dto.CampaignsDto[] = [
     "A street-level Pathfinder 2e campaign set in the magical free city of Gernanti, where ambition, corruption, arcane politics, and survival all collide.",
     sessionCount: 0,
     imageUrl: "/src/assets/banner.png",
+    bannerImageUrl: "/src/assets/banner.png",
   },
 ]
