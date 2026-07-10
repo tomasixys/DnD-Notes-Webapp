@@ -42,6 +42,32 @@ async function statusCodeHandler(response) {
   }
 }
 
+export async function DownloadAPI(endpoint, filename = null)
+{
+  return fetch(apiUrl + endpoint, {
+    method: "GET",
+    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
+  })
+  .then(async response => {
+    if (!response.ok) {
+      return statusCodeHandler(response);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob)
+
+    const link = Object.assign(document.createElement("a"), {
+      href: objectUrl,
+      download: filename ?? (endpoint.split("/").pop() || endpoint)
+    })
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+    return { success: true, message: "File downloaded successfully." };
+  })
+  .catch(fetchError);
+}
+
 export async function GetAPI(endpoint)
 {
   return fetch(apiUrl + endpoint, {

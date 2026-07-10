@@ -14,11 +14,11 @@
    - cascade campaign delete | DONE
    - uploaded file cleanup | DONE
 
-4. Campaign backup/import/export
-   - zip export
-   - JSON data
-   - image files included
-   - import with ID remapping
+4. Campaign backup/import/export (Completed)
+   - zip export | DONE
+   - JSON data | DONE
+   - image files included | DONE
+   - import with ID remapping | DONE
 
 5. Character view
    - notes, backstory, appearance
