@@ -149,3 +149,9 @@ vite.config.ts.timestamp-*
 # python environment and cache
 __pycache__/
 .venv/
+
+# app compiler dirs
+.build-venv/
+build/
+dist/
+*.spec

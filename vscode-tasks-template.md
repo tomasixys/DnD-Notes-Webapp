@@ -87,10 +87,6 @@
         "uvicorn",
         "app.main:app",
         "--reload",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8000"
       ],
       "options": {
         "cwd": "${workspaceFolder}\\backend"
@@ -128,10 +124,48 @@
       ],
       "dependsOrder": "parallel",
       "problemMatcher": [],
+    },
+    {
+      "label": "Build: package application",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "build.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "build",
+        "clear": true
+      },
+      "problemMatcher": [],
       "group": {
         "kind": "build",
         "isDefault": true
       }
+    },
+    {
+      "label": "Build: package application as single executable",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "build.py",
+        "--onefile"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "build",
+        "clear": true
+      },
+      "problemMatcher": [],
+      "group": "build"
     }
   ]
 }
