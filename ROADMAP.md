@@ -20,6 +20,11 @@
    - image files included | DONE
    - import with ID remapping | DONE
 
+4.5. Application compiler script (Completed)
+   - script for building frontend | DONE
+   - serve webapp from backend server | DONE
+   - use pyinstall for executable application | DONE
+
 5. Character view
    - notes, backstory, appearance
    - image
