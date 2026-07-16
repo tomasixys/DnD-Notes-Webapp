@@ -1,9 +1,28 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onBeforeMount } from "vue"
+import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import { FactionDto } from "@/types/DataTransferObjects"
+import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+
+
+const viewMode = ref<ViewModes>(ViewModes.Details)
+const factions = ref<FactionDto[]>([])
+
+const {
+  entryIdFromUrl,
+  selectedEntry,
+  openEntry,
+  ensureDefaultEntry,
+  replaceWithFirstEntry,
+} = useRouteEntrySelection({
+  entries: factions,
+  routeName: "Factions",
+  onRouteEntryChange: () => {
+    viewMode.value = ViewModes.Details
+  },
+})
 
 const {
   campaigns,
@@ -15,14 +34,12 @@ const {
   clearSelectedCampaign,
 } = useCampaignStore()
 
+
 onBeforeMount(async () => {
   await fetchFactions()
-  selectFaction()
+  await ensureDefaultEntry()
 })
 
-const viewMode = ref<ViewModes>(ViewModes.Details)
-const selectedFactionId = ref<number | null>(null)
-const factions = ref<FactionDto[]>([])
 
 const factionForm = reactive({
   name: "",
@@ -33,23 +50,6 @@ const factionForm = reactive({
 })
 
 
-const selectedFaction = computed(() => {
-  if (factions.value.length === 0) return null
-  return (
-    factions.value.find(
-      (faction) => faction.id === selectedFactionId.value,
-    ) ?? factions.value[0]
-  )
-})
-
-function selectFaction(factionId: number | null = null) {
-  if (factionId === null && factions.value.length > 0) {
-    selectedFactionId.value = factions.value[0].id
-  } else {
-    selectedFactionId.value = factionId
-  }
-  viewMode.value = ViewModes.Details
-}
 
 function resetFactionForm() {
   factionForm.name = ""
@@ -65,15 +65,15 @@ function showAddFactionForm() {
 }
 
 function showEditFactionForm() {
-  if (!selectedFaction.value) {
+  if (!selectedEntry.value) {
     return
   }
 
-  factionForm.name = selectedFaction.value.name
-  factionForm.type = selectedFaction.value.type
-  factionForm.location = selectedFaction.value.location
-  factionForm.description = selectedFaction.value.description
-  factionForm.tags = selectedFaction.value.tags.join(", ")
+  factionForm.name = selectedEntry.value.name
+  factionForm.type = selectedEntry.value.type
+  factionForm.location = selectedEntry.value.location
+  factionForm.description = selectedEntry.value.description
+  factionForm.tags = selectedEntry.value.tags.join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -89,6 +89,7 @@ function parseTags(tags: string) {
     .filter(Boolean)
 }
 
+
 async function fetchFactions() {
   if (!selectedCampaignId.value) {
     console.error("No campaign selected. Cannot fetch factions.")
@@ -102,6 +103,7 @@ async function fetchFactions() {
   } 
   factions.value = response as FactionDto[]
 }
+
 
 async function createFaction() {
   const name = factionForm.name.trim()
@@ -126,22 +128,21 @@ async function createFaction() {
   }
   const createdFaction = response as FactionDto
 
-  factions.value = [...factions.value, createdFaction].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  )
+  await fetchFactions()
   resetFactionForm()
-  selectFaction(createdFaction.id)
+  await openEntry(createdFaction.id)
 }
+
 
 async function updateFaction() {
   const name = factionForm.name.trim()
 
-  if (!name || !selectedFaction.value) {
+  if (!name || !selectedEntry.value) {
     return
   }
 
   const updatedFaction: FactionDto = {
-    ...selectedFaction.value,
+    ...selectedEntry.value,
     name: name,
     type: factionForm.type.trim(),
     location: factionForm.location.trim(),
@@ -157,8 +158,9 @@ async function updateFaction() {
 
   await fetchFactions()
   resetFactionForm()
-  selectFaction(updatedFaction.id)
+  viewMode.value = ViewModes.Details
 }
+
 
 async function deleteFaction(factionId: number) {
   if (!selectedCampaignId.value) {
@@ -173,8 +175,9 @@ async function deleteFaction(factionId: number) {
   }
 
   await fetchFactions()
-  selectFaction()
+  await replaceWithFirstEntry()
 }
+
 
 </script>
 
@@ -206,9 +209,9 @@ async function deleteFaction(factionId: number) {
               :class="{
                 selected:
                   viewMode === ViewModes.Details &&
-                  selectedFaction?.id === faction.id,
+                  selectedEntry?.id === faction.id,
               }"
-              @click="selectFaction(faction.id)"
+              @click="openEntry(faction.id)"
             >
               <span class="resource-list-kicker">
                 {{ faction.type || "Faction" }}
@@ -238,7 +241,7 @@ async function deleteFaction(factionId: number) {
             </p>
 
             <h3>
-              {{ viewMode === ViewModes.Create ? "New Faction " : selectedFaction?.name }}
+              {{ viewMode === ViewModes.Create ? "New Faction " : selectedEntry?.name }}
             </h3>
           </header>
 
@@ -308,14 +311,14 @@ async function deleteFaction(factionId: number) {
           </form>
         </template>
 
-        <template v-else-if="selectedFaction">
+        <template v-else-if="selectedEntry">
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
-                {{ selectedFaction.type || "Faction" }}
+                {{ selectedEntry.type || "Faction" }}
               </p>
 
-              <h3>{{ selectedFaction.name }}</h3>
+              <h3>{{ selectedEntry.name }}</h3>
             </div>
 
             <div class="resource-detail-actions">
@@ -329,7 +332,7 @@ async function deleteFaction(factionId: number) {
               <button
                 type="button"
                 class="danger"
-                @click="deleteFaction(selectedFaction.id)"
+                @click="deleteFaction(selectedEntry.id)"
               >
                 Delete
               </button>
@@ -339,25 +342,25 @@ async function deleteFaction(factionId: number) {
           <dl class="resource-facts">
             <div>
               <dt>Type</dt>
-              <dd>{{ selectedFaction.type || "None registered" }}</dd>
+              <dd>{{ selectedEntry.type || "None registered" }}</dd>
             </div>
 
             <div>
               <dt>Location</dt>
-              <dd>{{ selectedFaction.location || "None registered" }}</dd>
+              <dd>{{ selectedEntry.location || "None registered" }}</dd>
             </div>
           </dl>
 
           <p class="resource-description">
-            {{ selectedFaction.description || "No description has been added yet." }}
+            {{ selectedEntry.description || "No description has been added yet." }}
           </p>
 
           <div
-            v-if="selectedFaction.tags.length > 0"
+            v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
             <span
-              v-for="tag in selectedFaction.tags"
+              v-for="tag in selectedEntry.tags"
               :key="tag"
               class="tag"
             >

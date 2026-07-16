@@ -13,27 +13,27 @@ const router = createRouter({
       component: () => import('../views/dashboardView.vue')
     },
     {
-      path: '/sessions',
+      path: '/sessions/:id?',
       name: 'Sessions',
       component: () => import('../views/sessionsView.vue')
     },
     {
-      path: '/people',
+      path: '/people/:id?',
       name: 'People',
       component: () => import('../views/peopleView.vue')
     },
     {
-      path: "/locations",
+      path: "/locations/:id?",
       name: "Locations",
       component: () => import("../views/locationsView.vue")
     },
     {
-      path: "/factions",
+      path: "/factions/:id?",
       name: "Factions",
       component: () => import("../views/factionsView.vue")
     },
     {
-      path: "/rolls",
+      path: "/rolls/:id?",
       name: "Rolls",
       component: () => import("../views/rollsView.vue")
     }

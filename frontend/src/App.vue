@@ -44,19 +44,18 @@ const hasSubmenu = computed(() => submenuLinks.value.length > 0)
 <template>
   <div id="app-shell">
     <header id="app-header">
-      <section id="banner">
-      <h1>Campaign Notes</h1>
-      <p class="campaign-name">{{ hasSelectedCampaign ? selectedCampaign.name : campaignNameDefault }}</p>
-      <img 
-      id="banner-graphics"
-      :src="selectedCampaignBannerUrl ?? bannerImageDefault"
-      alt="Banner graphics"
-      />
 
+      <section id="banner">
+        <h1>Campaign Notes</h1>
+        <p class="campaign-name">{{ hasSelectedCampaign ? selectedCampaign.name : campaignNameDefault }}</p>
+        <img 
+        id="banner-graphics"
+        :src="selectedCampaignBannerUrl ?? bannerImageDefault"
+        alt="Banner graphics"
+        />
       </section>
 
       <div>
-
         <nav id="main-nav" aria-label="Main navigation">
           <RouterLink
           v-for="link in mainLinks"
@@ -68,6 +67,7 @@ const hasSubmenu = computed(() => submenuLinks.value.length > 0)
           </RouterLink>
         </nav>
       </div>
+
     </header>
 
     <div id="main" :class="{ 'without-submenu': !hasSubmenu }">

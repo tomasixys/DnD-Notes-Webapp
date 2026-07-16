@@ -1,9 +1,28 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onBeforeMount } from "vue"
+import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import { LocationDto } from "@/types/DataTransferObjects"
+import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+
+
+const viewMode = ref<ViewModes>(ViewModes.Details)
+const locations = ref<LocationDto[]>([])
+
+const {
+  entryIdFromUrl,
+  selectedEntry,
+  openEntry,
+  ensureDefaultEntry,
+  replaceWithFirstEntry,
+} = useRouteEntrySelection({
+  entries: locations,
+  routeName: "Locations",
+  onRouteEntryChange: () => {
+    viewMode.value = ViewModes.Details
+  },
+})
 
 const {
   campaigns,
@@ -17,11 +36,8 @@ const {
 
 onBeforeMount(async () => {
   await fetchLocations()
+  await ensureDefaultEntry()
 })
-
-const viewMode = ref<ViewModes>(ViewModes.Details)
-const selectedLocationId = ref<number | null>(null)
-const locations = ref<LocationDto[]>([])
 
 const locationForm = reactive({
   name: "",
@@ -30,25 +46,6 @@ const locationForm = reactive({
   description: "",
   tags: "",
 })
-
-const selectedLocation = computed(() => {
-  if (locations.value.length === 0) return null
-
-  return (
-    locations.value.find(
-      (location) => location.id === selectedLocationId.value,
-    ) ?? locations.value[0]
-  )
-})
-
-function selectLocation(locationId: number | null = null) {
-  if (locationId === null && locations.value.length > 0) {
-    selectedLocationId.value = locations.value[0].id
-  } else {
-    selectedLocationId.value = locationId
-  }
-  viewMode.value = ViewModes.Details
-}
 
 function resetLocationForm() {
   locationForm.name = ""
@@ -64,15 +61,15 @@ function showAddLocationForm() {
 }
 
 function showEditLocationForm() {
-  if (!selectedLocation.value) {
+  if (!selectedEntry.value) {
     return
   }
 
-  locationForm.name = selectedLocation.value.name
-  locationForm.type = selectedLocation.value.type
-  locationForm.parentLocation = selectedLocation.value.parentLocation
-  locationForm.description = selectedLocation.value.description
-  locationForm.tags = selectedLocation.value.tags.join(", ")
+  locationForm.name = selectedEntry.value.name
+  locationForm.type = selectedEntry.value.type
+  locationForm.parentLocation = selectedEntry.value.parentLocation
+  locationForm.description = selectedEntry.value.description
+  locationForm.tags = selectedEntry.value.tags.join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -122,20 +119,18 @@ async function createLocation() {
   }
   const createdLocation = response as LocationDto
 
-  locations.value = [...locations.value, createdLocation].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  )
+  await fetchLocations()
 
   resetLocationForm()
-  selectLocation(createdLocation.id)
+  await openEntry(createdLocation.id)
 }
 
 async function updateLocation() {
   const name = locationForm.name.trim()
-  if (!name || !selectedLocation.value || !selectedCampaignId.value) return
+  if (!name || !selectedEntry.value || !selectedCampaignId.value) return
 
   const location: LocationDto = {
-    id: selectedLocation.value.id,
+    id: selectedEntry.value.id,
     campaignId: selectedCampaignId.value,
     name: name,
     type: locationForm.type.trim(),
@@ -150,19 +145,19 @@ async function updateLocation() {
   }
   await fetchLocations()
   resetLocationForm()
-  selectLocation(location.id)
+  await openEntry(location.id)
 }
 
 async function deleteLocation() {
-  if (!selectedCampaignId.value || !selectedLocationId.value) return
+  if (!selectedCampaignId.value || !selectedEntry.value) return
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedLocationId.value}`)
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value}`)
   if (response.success === false) {
     console.error("Failed to delete location:", response.Message)
     return
   }
   await fetchLocations()
-  selectLocation()
+  await replaceWithFirstEntry()
 }
 
 </script>
@@ -195,9 +190,9 @@ async function deleteLocation() {
               :class="{
                 selected:
                   viewMode === ViewModes.Details &&
-                  selectedLocation?.id === location.id,
+                  selectedEntry?.id === location.id,
               }"
-              @click="selectLocation(location.id)"
+              @click="openEntry(location.id)"
             >
               <span class="resource-list-kicker">
                 {{ location.type || "Location" }}
@@ -227,7 +222,7 @@ async function deleteLocation() {
             </p>
 
             <h3>
-              {{ viewMode === ViewModes.Create ? "New Location " : selectedLocation?.name }}
+              {{ viewMode === ViewModes.Create ? "New Location " : selectedEntry?.name }}
             </h3>
           </header>
 
@@ -297,14 +292,14 @@ async function deleteLocation() {
           </form>
         </template>
 
-        <template v-else-if="selectedLocation">
+        <template v-else-if="selectedEntry">
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
-                {{ selectedLocation.type || "Location" }}
+                {{ selectedEntry.type || "Location" }}
               </p>
 
-              <h3>{{ selectedLocation.name }}</h3>
+              <h3>{{ selectedEntry.name }}</h3>
             </div>
 
             <div class="resource-detail-actions">
@@ -330,25 +325,25 @@ async function deleteLocation() {
           <dl class="resource-facts">
             <div>
               <dt>Type</dt>
-              <dd>{{ selectedLocation.type || "None registered" }}</dd>
+              <dd>{{ selectedEntry.type || "None registered" }}</dd>
             </div>
 
             <div>
               <dt>Located in</dt>
-              <dd>{{ selectedLocation.parentLocation || "None registered" }}</dd>
+              <dd>{{ selectedEntry.parentLocation || "None registered" }}</dd>
             </div>
           </dl>
 
           <p class="resource-description">
-            {{ selectedLocation.description || "No description has been added yet." }}
+            {{ selectedEntry.description || "No description has been added yet." }}
           </p>
 
           <div
-            v-if="selectedLocation.tags.length > 0"
+            v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
             <span
-              v-for="tag in selectedLocation.tags"
+              v-for="tag in selectedEntry.tags"
               :key="tag"
               class="tag"
             >

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, onBeforeMount } from "vue"
+import { ref, onBeforeMount } from "vue"
 import { CampaignRollDto, SessionListItemDto, SessionRollDto, RollEntryDto } from "@/types/DataTransferObjects"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
+import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
 
 const {
   campaigns,
@@ -14,17 +15,10 @@ const {
   clearSelectedCampaign,
 } = useCampaignStore()
 
-onBeforeMount(async () => {
-  await fetchSessionList()
-  await fetchCampaignStats()
-  selectSession()
-})
-
-const selectedSessionId = ref<number | null>(null)
-const rollInput = ref<number | null>(null)
-
 
 const sessions = ref<SessionListItemDto[]>([])
+const rollInput = ref<number | null>(null)
+
 const sessionRolls = ref<SessionRollDto>()
 const campaignRollStats = ref<CampaignRollDto>({
   campaignId: selectedCampaignId.value ?? 0,
@@ -33,24 +27,27 @@ const campaignRollStats = ref<CampaignRollDto>({
   rollLuck: 0,
 })
 
-const selectedSession = computed(() => {
-  if (sessions.value.length === 0) return null
-    
-  return (
-    sessions.value.find(
-      (session) => session.id === selectedSessionId.value,
-    ) ?? sessions.value[0]
-  )
+const {
+  entryIdFromUrl,
+  selectedEntry,
+  openEntry,
+  ensureDefaultEntry,
+  replaceWithFirstEntry,
+} = useRouteEntrySelection({
+  entries: sessions,
+  routeName: "Rolls",
+  onRouteEntryChange: () => { fetchSessionRolls()},
 })
 
-function selectSession(sessionId: number | null = null) {
-  if (sessionId === null && sessions.value.length > 0) {
-    selectedSessionId.value = sessions.value[0].id
-  } else {
-    selectedSessionId.value = sessionId
-  }
-  fetchSessionRolls();
-}
+
+onBeforeMount(async () => {
+  await fetchSessionList()
+  await fetchCampaignStats()
+  await ensureDefaultEntry()
+})
+
+
+
 
 function formatRollLuck(value: number) {
   return `${(value * 100).toFixed(1)}%`
@@ -84,7 +81,7 @@ async function fetchCampaignStats()
 
 async function fetchSessionRolls()
 {
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSessionId.value}`)
+  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${entryIdFromUrl.value}`)
 
   if (response.success === false) {
     console.error("Failed to fetch session rolls:", response.error)
@@ -95,13 +92,13 @@ async function fetchSessionRolls()
 }
 
 async function addRoll() {
-  if (!selectedSession.value || rollInput.value === null) return
+  if (!selectedEntry.value || rollInput.value === null) return
 
   const roll = Number(rollInput.value)
   if (roll < 1 || roll > 20 || roll % 1 !== 0) return
 
   const rolldto: RollEntryDto = {
-    sessionId: selectedSession.value.id,
+    sessionId: selectedEntry.value.id,
     roll: roll,
   }
   const response = await PostAPI(`campaigns/${selectedCampaignId.value}/rolls`, rolldto)
@@ -116,9 +113,9 @@ async function addRoll() {
 }
 
 async function deleteRolls() {
-  if (!selectedSession.value || (sessionRolls.value?.rolls.length ?? 0) < 1) return 
+  if (!selectedEntry.value || (sessionRolls.value?.rolls.length ?? 0) < 1) return 
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`)
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedEntry.value.id}`)
   if (response.success === false) {
     console.error("Failed to delete roll:", response.error)
     return
@@ -152,9 +149,9 @@ async function deleteRolls() {
               type="button"
               class="resource-list-item"
               :class="{
-                selected: selectedSession?.id === session.id,
+                selected: selectedEntry?.id === session.id,
               }"
-              @click="selectSession(session.id)"
+              @click="openEntry(session.id)"
             >
               <span class="resource-list-kicker">
                 Session {{ session.sessionNumber }}
@@ -204,13 +201,13 @@ async function deleteRolls() {
           </dl>
         </section>
 
-        <section v-if="selectedSession" class="rolls-section">
+        <section v-if="selectedEntry" class="rolls-section">
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
-              Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
+              Session {{ selectedEntry.sessionNumber }} · {{ selectedEntry.date }}
             </p>
 
-            <h3>{{ selectedSession.title }}</h3>
+            <h3>{{ selectedEntry.title }}</h3>
           </header>
 
           <dl v-if="sessionRolls" class="resource-facts">
