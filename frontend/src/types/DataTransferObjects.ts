@@ -74,3 +74,32 @@ export type ExportResponse = {
   backupUrl: string
   filename: string
 }
+
+export type SearchResourceType =
+  | "session"
+  | "person"
+  | "location"
+  | "faction"
+
+export type SearchQueryDto = {
+  query: string
+  resourceTypes: SearchResourceType[]
+}
+
+export type SearchResultDto = {
+  campaignId: number
+  resourceType: SearchResourceType
+  resourceId: number
+  title: string
+  context: string
+  snippet: string
+  matchedFields: string[]
+  relevance: number
+}
+
+export type SearchResponseDto = {
+  query: string
+  searchedResourceTypes: SearchResourceType[]
+  totalCount: number
+  results: SearchResultDto[]
+}
