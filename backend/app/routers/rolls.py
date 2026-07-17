@@ -4,6 +4,7 @@ from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
 from app.models import Campaign, RollEntry, SessionNote
+from app.routers.campaigns import verify_campaign
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/rolls",
@@ -36,30 +37,19 @@ class RollCreateResponse(SQLModel):
     session_stats: SessionRollStats
 
 
-def verify_campaign(campaign_id: int, db: Session) -> None:
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-
 def verify_campaign_and_session(
     campaign_id: int,
     session_id: int,
     db: Session,
 ) -> None:
     verify_campaign(campaign_id, db)
-
     session_note = db.get(SessionNote, session_id)
 
     if session_note is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
     if session_note.campaign_id != campaign_id:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found for this campaign",
-        )
+        raise HTTPException(status_code=404, detail="Session not found for this campaign")
 
 
 def calculate_average(rolls: list[int]) -> float:
@@ -93,7 +83,7 @@ def build_campaign_roll_stats(
     campaign_id: int,
     db: Session,
 ) -> CampaignRollStats:
-    
+    verify_campaign(campaign_id, db)
     statement = (
         select(RollEntry)
         .join(SessionNote, RollEntry.session_id == SessionNote.id)
@@ -109,20 +99,13 @@ def build_campaign_roll_stats(
         roll_luck=calculate_roll_luck(rolls),
     )
 
-def get_session_roll_entries(session_id: int, db: Session) -> list[RollEntry]:
-    statement = (
-        select(RollEntry)
-        .where(RollEntry.session_id == session_id)
-    )
-    return list(db.exec(statement).all())
 
 def build_session_roll_stats(
     campaign_id: int,
     session_id: int,
     db: Session,
 ) -> SessionRollStats:
-    
-    roll_entries = get_session_roll_entries(session_id, db)
+    roll_entries = get_session_roll_entries(campaign_id, session_id, db)
     rolls = [entry.roll for entry in roll_entries]
 
     return SessionRollStats(
@@ -134,12 +117,21 @@ def build_session_roll_stats(
     )
 
 
+def get_session_roll_entries(campaign_id: int, session_id: int, db: Session) -> list[RollEntry]:
+    verify_campaign_and_session(campaign_id, session_id, db)
+    statement = (
+        select(RollEntry)
+        .where(RollEntry.session_id == session_id)
+    )
+    return list(db.exec(statement).all())
+
+
+
 @router.get("/campaign-stats")
 def get_campaign_roll_stats(
     campaign_id: int,
     db: Session = Depends(get_session),
 ) -> CampaignRollStats:
-    verify_campaign(campaign_id, db)
     return build_campaign_roll_stats(campaign_id, db)
 
 
@@ -149,7 +141,6 @@ def get_session_roll_stats(
     session_id: int,
     db: Session = Depends(get_session),
 ) -> SessionRollStats:
-    verify_campaign_and_session(campaign_id, session_id, db)
     return build_session_roll_stats(campaign_id, session_id, db)
 
 
@@ -192,11 +183,8 @@ def delete_session_rolls(
     session_id: int,
     db: Session = Depends(get_session),
 ) -> dict[str, bool]:
-    verify_campaign_and_session(campaign_id, session_id, db)
- 
-    for entry in get_session_roll_entries(session_id, db):
+    for entry in get_session_roll_entries(campaign_id, session_id, db):
         db.delete(entry)
 
     db.commit()
-
     return {"deleted": True}

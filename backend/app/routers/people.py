@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Campaign, Person
+from app.routers.campaigns import verify_campaign
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/people",
@@ -10,43 +11,34 @@ router = APIRouter(
 )
 
 
-def ensure_campaign_exists(campaign_id: int, db: Session) -> None:
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-
 def get_person_by_id(
     campaign_id: int,
     person_id: int,
     db: Session,
 ) -> Person | None:
+    verify_campaign(campaign_id, db)
     person = db.get(Person, person_id)
 
-    if person is None:
-        return None
-
-    if person.campaign_id != campaign_id:
-        return None
+    if person is None or person.campaign_id != campaign_id:
+        raise HTTPException(status_code=404, detail="Person not found")
 
     return person
 
+def get_all_people_for_campaign(campaign_id: int, db: Session) -> list[Person]:
+    verify_campaign(campaign_id, db)
+    statement = (
+        select(Person)
+        .where(Person.campaign_id == campaign_id)
+        .order_by(Person.name)
+    )
+    return db.exec(statement).all()
 
 @router.get("")
 def get_people_for_campaign(
     campaign_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    statement = (
-        select(Person)
-        .where(Person.campaign_id == campaign_id)
-        .order_by(Person.name)
-    )
-
-    return db.exec(statement).all()
+    return get_all_people_for_campaign(campaign_id, db)
 
 
 @router.get("/{person_id}")
@@ -55,18 +47,7 @@ def get_person(
     person_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    person = get_person_by_id(
-        campaign_id=campaign_id,
-        person_id=person_id,
-        db=db,
-    )
-
-    if person is None:
-        raise HTTPException(status_code=404, detail="Person not found")
-
-    return person
+    return get_person_by_id(campaign_id, person_id, db)
 
 
 @router.post("")
@@ -75,7 +56,7 @@ def create_person(
     person: Person,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
+    verify_campaign(campaign_id, db)
 
     person.id = None
     person.campaign_id = campaign_id
@@ -94,16 +75,7 @@ def update_person(
     updated_person: Person,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    person = get_person_by_id(
-        campaign_id=campaign_id,
-        person_id=person_id,
-        db=db,
-    )
-
-    if person is None:
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = get_person_by_id(campaign_id, person_id, db)
 
     person.name = updated_person.name
     person.role = updated_person.role
@@ -125,16 +97,7 @@ def delete_person(
     person_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    person = get_person_by_id(
-        campaign_id=campaign_id,
-        person_id=person_id,
-        db=db,
-    )
-
-    if person is None:
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = get_person_by_id(campaign_id, person_id, db)
 
     db.delete(person)
     db.commit()
