@@ -4,6 +4,24 @@ import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import { SessionListItemDto } from "@/types/DataTransferObjects"
+import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+
+const viewMode = ref<ViewModes>(ViewModes.Details)
+const sessions = ref<SessionListItemDto[]>([])
+
+const {
+  entryIdFromUrl,
+  selectedEntry,
+  openEntry,
+  ensureDefaultEntry,
+  replaceWithFirstEntry,
+} = useRouteEntrySelection({
+  entries: sessions,
+  routeName: "Sessions",
+  onRouteEntryChange: () => {
+    viewMode.value = ViewModes.Details
+  },
+})
 
 const {
   campaigns,
@@ -16,10 +34,6 @@ const {
 } = useCampaignStore()
 
 
-const viewMode = ref<ViewModes>(ViewModes.Details)
-const selectedSessionNumber = ref<number | null>(null)
-const sessions = ref<SessionListItemDto[]>([])
-
 const sessionForm = reactive({
   date: new Date().toISOString().slice(0, 10),
   title: "",
@@ -29,7 +43,7 @@ const sessionForm = reactive({
 
 onBeforeMount(async () => {
   await fetchSessions()
-  selectSession()
+  await ensureDefaultEntry()
 })
 
 const nextSessionId = computed(() => {
@@ -42,25 +56,6 @@ const nextSessionId = computed(() => {
   return currentHighestSessionNumber + 1
 })
 
-const selectedSession = computed(() => {
-  if (sessions.value.length === 0) {
-    return null
-  }
-  return (
-    sessions.value.find(
-      (session) => session.sessionNumber === selectedSessionNumber.value,
-    ) ?? sessions.value[0]
-  )
-})
-
-function selectSession(sessionNumber: number | null = null) {
-  if (sessionNumber === null && sessions.value.length > 0) {
-    selectedSessionNumber.value = sessions.value[0].sessionNumber
-  } else {
-    selectedSessionNumber.value = sessionNumber
-  }
-  viewMode.value = ViewModes.Details
-}
 
 function resetSessionForm() {
   sessionForm.date = new Date().toISOString().slice(0, 10)
@@ -75,14 +70,14 @@ function showAddSessionForm() {
 }
 
 function showEditSessionForm() {
-  if (!selectedSession.value) {
+  if (!selectedEntry.value) {
     return
   }
 
-  sessionForm.date = selectedSession.value.date
-  sessionForm.title = selectedSession.value.title
-  sessionForm.description = selectedSession.value.description
-  sessionForm.tags = selectedSession.value.tags.join(", ")
+  sessionForm.date = selectedEntry.value.date
+  sessionForm.title = selectedEntry.value.title
+  sessionForm.description = selectedEntry.value.description
+  sessionForm.tags = selectedEntry.value.tags.join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -132,16 +127,16 @@ async function createSession() {
   const createdSession = response as SessionListItemDto
   sessions.value = [...sessions.value, createdSession].sort((a, b) => a.sessionNumber - b.sessionNumber)
   resetSessionForm()
-  selectSession(createdSession.sessionNumber)
+  openEntry(createdSession.sessionNumber)
 }
 
 async function updateSession() {
   const title = sessionForm.title.trim()
-  if (!title || selectedSession.value?.id === undefined) {
+  if (!title || selectedEntry.value?.id === undefined) {
     return
   }
   const data: SessionListItemDto = {
-    ...selectedSession.value,
+    ...selectedEntry.value,
     date: sessionForm.date,
     title: sessionForm.title.trim(),
     description: sessionForm.description.trim(),
@@ -150,27 +145,27 @@ async function updateSession() {
       .map((tag) => tag.trim())
       .filter(Boolean),
   }
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value?.id}`, data)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedEntry.value?.id}`, data)
   if (response.success === false) {
     console.error("Failed to update session:", response.message)
     return
   }
   await fetchSessions()
   resetSessionForm()
-  selectSession(selectedSession.value?.sessionNumber)
+  openEntry(selectedEntry.value?.sessionNumber)
 }
 
 async function deleteSession() {
-  if (!selectedSession.value?.id) {
+  if (!selectedEntry.value?.id) {
     return
   }
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value.id}`)
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedEntry.value.id}`)
   if (response.success === false) {
     console.error("Failed to delete session:", response.message)
     return
   }
   await fetchSessions()
-  selectSession()
+  await replaceWithFirstEntry()
 }
 
 </script>
@@ -203,9 +198,9 @@ async function deleteSession() {
               :class="{
                 selected:
                   viewMode === ViewModes.Details &&
-                  selectedSession?.sessionNumber === session.sessionNumber,
+                  selectedEntry?.sessionNumber === session.sessionNumber,
               }"
-              @click="selectSession(session.sessionNumber)"
+              @click="openEntry(session.sessionNumber)"
             >
               <span class="resource-list-kicker">
                 Session #{{ session.sessionNumber }}
@@ -236,7 +231,7 @@ async function deleteSession() {
             </p>
 
             <h3>
-              Session {{ viewMode === ViewModes.Create ? nextSessionId : selectedSession?.sessionNumber }}
+              Session {{ viewMode === ViewModes.Create ? nextSessionId : selectedEntry?.sessionNumber }}
             </h3>
           </header>
 
@@ -297,14 +292,14 @@ async function deleteSession() {
           </form>
         </template>
 
-        <template v-else-if="selectedSession">
+        <template v-else-if="selectedEntry">
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
-                Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
+                Session {{ selectedEntry.sessionNumber }} · {{ selectedEntry.date }}
               </p>
 
-              <h3>{{ selectedSession.title }}</h3>
+              <h3>{{ selectedEntry.title }}</h3>
             </div>
 
             <div class="resource-detail-actions">
@@ -327,15 +322,15 @@ async function deleteSession() {
           </header>
 
           <p class="resource-description">
-            {{ selectedSession.description }}
+            {{ selectedEntry.description }}
           </p>
 
           <div
-            v-if="selectedSession.tags.length > 0"
+            v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
             <span
-              v-for="tag in selectedSession.tags"
+              v-for="tag in selectedEntry.tags"
               :key="tag"
               class="tag"
             >

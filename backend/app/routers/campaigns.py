@@ -18,6 +18,13 @@ router = APIRouter(
     tags=["campaigns"],
 )
 
+def verify_campaign(campaign_id: int, db: Session) -> Campaign:
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    return campaign
+
 
 def campaign_to_response(campaign: Campaign, session_count: int = 0):
     image_url = build_upload_url(campaign.image_path) if campaign.image_path else ""
@@ -67,22 +74,14 @@ def get_campaigns(db: Session = Depends(get_session)):
 
 @router.get("/{campaign_id}")
 def get_campaign(campaign_id: int, db: Session = Depends(get_session)):
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign = verify_campaign(campaign_id, db)
 
     statement = (
         select(func.count(SessionNote.id))
         .where(SessionNote.campaign_id == campaign_id)
     )
-
     session_count = db.exec(statement).one()
-
-    return campaign_to_response(
-        campaign=campaign,
-        session_count=session_count,
-    )
+    return campaign_to_response(campaign=campaign, session_count=session_count)
 
 
 @router.post("")
@@ -115,7 +114,7 @@ def create_campaign(
                 file=image,
             )
             campaign.image_path = saved_image_relative_path
-        
+
         if banner is not None and banner.filename:
             saved_banner_relative_path = save_image_from_uploadfile(
                 campaign_id=campaign.id,
@@ -150,10 +149,7 @@ def update_campaign(
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
 ):
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign = verify_campaign(campaign_id, db)
 
     campaign.name = name
     campaign.player_character = player_character
@@ -217,13 +213,10 @@ def update_campaign(
 
 @router.delete("/{campaign_id}")
 def delete_campaign(
-    campaign_id: int, 
+    campaign_id: int,
     db: Session = Depends(get_session)
 ):
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign = verify_campaign(campaign_id, db)
 
     image_path = campaign.image_path
     banner_path = campaign.banner_image_path
@@ -261,7 +254,7 @@ def export_campaign_backup(
 
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    
+
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
     banner_archive_path = ""
@@ -480,8 +473,5 @@ async def import_campaign_backup(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid backup JSON")
 
-    return campaign_to_response(
-        campaign=campaign,
-        session_count=len(cb.sessions),
-    )
+    return campaign_to_response(campaign=campaign, session_count=len(cb.sessions))
 

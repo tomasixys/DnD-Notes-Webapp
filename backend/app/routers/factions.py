@@ -3,50 +3,41 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Campaign, Faction
+from app.routers.campaigns import verify_campaign
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/factions",
     tags=["factions"],
 )
 
-
-def ensure_campaign_exists(campaign_id: int, db: Session) -> None:
-    campaign = db.get(Campaign, campaign_id)
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-
 def get_faction_by_id(
     campaign_id: int,
     faction_id: int,
     db: Session,
 ) -> Faction | None:
+    verify_campaign(campaign_id, db)
     faction = db.get(Faction, faction_id)
 
-    if faction is None:
-        return None
-
-    if faction.campaign_id != campaign_id:
-        return None
+    if faction is None or faction.campaign_id != campaign_id:
+        raise HTTPException(status_code=404, detail="Faction not found")
 
     return faction
 
+def get_all_factions_for_campaign(campaign_id: int, db: Session) -> list[Faction]:
+    verify_campaign(campaign_id, db)
+    statement = (
+        select(Faction)
+        .where(Faction.campaign_id == campaign_id)
+        .order_by(Faction.name)
+    )
+    return db.exec(statement).all()
 
 @router.get("")
 def get_factions_for_campaign(
     campaign_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    statement = (
-        select(Faction)
-        .where(Faction.campaign_id == campaign_id)
-        .order_by(Faction.name)
-    )
-
-    return db.exec(statement).all()
+    return get_all_factions_for_campaign(campaign_id, db)
 
 
 @router.get("/{faction_id}")
@@ -55,18 +46,7 @@ def get_faction(
     faction_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    faction = get_faction_by_id(
-        campaign_id=campaign_id,
-        faction_id=faction_id,
-        db=db,
-    )
-
-    if faction is None:
-        raise HTTPException(status_code=404, detail="Faction not found")
-
-    return faction
+    return get_faction_by_id(campaign_id, faction_id, db)
 
 
 @router.post("")
@@ -75,7 +55,7 @@ def create_faction(
     faction: Faction,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
+    verify_campaign(campaign_id, db)
 
     faction.id = None
     faction.campaign_id = campaign_id
@@ -94,16 +74,7 @@ def update_faction(
     updated_faction: Faction,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    faction = get_faction_by_id(
-        campaign_id=campaign_id,
-        faction_id=faction_id,
-        db=db,
-    )
-
-    if faction is None:
-        raise HTTPException(status_code=404, detail="Faction not found")
+    faction = get_faction_by_id(campaign_id, faction_id, db)
 
     faction.name = updated_faction.name
     faction.type = updated_faction.type
@@ -124,16 +95,7 @@ def delete_faction(
     faction_id: int,
     db: Session = Depends(get_session),
 ):
-    ensure_campaign_exists(campaign_id, db)
-
-    faction = get_faction_by_id(
-        campaign_id=campaign_id,
-        faction_id=faction_id,
-        db=db,
-    )
-
-    if faction is None:
-        raise HTTPException(status_code=404, detail="Faction not found")
+    faction = get_faction_by_id(campaign_id, faction_id, db)
 
     db.delete(faction)
     db.commit()

@@ -1,9 +1,12 @@
+from enum import Enum
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel, Relationship
+
 
 ###############################################################
 #############  Database table Models  #########################
 ###############################################################
+# These are database tables. They describe the database schema and are used to create the database tables.
 
 class Campaign(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -106,7 +109,7 @@ class Location(SQLModel, table=True):
 
 class Faction(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    
+
     campaign: "Campaign" = Relationship(back_populates="factions")
     campaign_id: int = Field(
         foreign_key="campaign.id",
@@ -135,6 +138,9 @@ class RollEntry(SQLModel, table=True):
 
     roll: int
 
+###############################################################
+###############################################################
+
 
 ###############################################################
 ############# Backup Models for Export/Import #################
@@ -143,7 +149,7 @@ class RollEntry(SQLModel, table=True):
 # These are not database tables. They describe the JSON backup format.
 
 CAMPAIGN_BACKUP_SCHEMA_VERSION = 1
-    
+
 class CampaignBackupCampaign(SQLModel):
     name: str
     player_character: str = ""
@@ -193,3 +199,41 @@ class CampaignBackup(SQLModel):
     people: list[CampaignBackupPerson] = Field(default_factory=list)
     locations: list[CampaignBackupLocation] = Field(default_factory=list)
     factions: list[CampaignBackupFaction] = Field(default_factory=list)
+
+###############################################################
+###############################################################
+
+
+
+###############################################################
+###############  Search Models  ###############################
+###############################################################
+# These are not database tables. They describe the search request and response format.
+class SearchResourceType(str, Enum):
+    SESSION = "session"
+    PERSON = "person"
+    LOCATION = "location"
+    FACTION = "faction"
+
+class SearchQueryDto(SQLModel):
+    query: str
+    resource_types: list[str] = Field(default_factory=list)
+
+class SearchResultDto(SQLModel):
+    campaign_id: int
+    resource_type: str
+    resource_id: int
+    title: str
+    context: str
+    snippet: str
+    matched_fields: list[str] = Field(default_factory=list)
+    relevance: float
+
+class SearchResponseDto(SQLModel):
+    query: str
+    searched_resource_types: list[str] = Field(default_factory=list)
+    total_count: int
+    results: list[SearchResultDto] = Field(default_factory=list)
+
+###############################################################
+###############################################################

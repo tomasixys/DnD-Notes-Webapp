@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onBeforeMount } from "vue"
+import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import { PersonDto } from "@/types/DataTransferObjects"
+import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+
+const viewMode = ref<ViewModes>(ViewModes.Details)
+const people = ref<PersonDto[]>([])
+
+const {
+  entryIdFromUrl,
+  selectedEntry,
+  openEntry,
+  ensureDefaultEntry,
+  replaceWithFirstEntry,
+} = useRouteEntrySelection({
+  entries: people,
+  routeName: "People",
+  onRouteEntryChange: () => {
+    viewMode.value = ViewModes.Details
+  },
+})
 
 const {
   campaigns,
@@ -17,13 +35,9 @@ const {
 
 onBeforeMount(async () => {
   await fetchPeople()
-  selectPerson()
+  await ensureDefaultEntry()
 })
-const viewMode = ref<ViewModes>(ViewModes.Details)
 
-const selectedPersonId = ref<number | null>(null)
-
-const people = ref<PersonDto[]>([])
 
 const personForm = reactive({
   name: "",
@@ -33,24 +47,6 @@ const personForm = reactive({
   description: "",
   tags: "",
 })
-
-const selectedPerson = computed(() => {
-  if (people.value.length === 0) return null
-
-  return ( people.value.find(
-      (person) => person.id === selectedPersonId.value,
-    ) ?? people.value[0]
-  )
-})
-
-function selectPerson(personId: number | null = null) {
-  if (personId === null && people.value.length > 0) {
-    selectedPersonId.value  = people.value[0].id
-  } else {
-    selectedPersonId.value = personId
-  }
-  viewMode.value = ViewModes.Details
-}
 
 function resetPersonForm() {
   personForm.name = ""
@@ -67,16 +63,16 @@ function showAddPersonForm() {
 }
 
 function showEditPersonForm() {
-  if (!selectedPerson.value) {
+  if (!selectedEntry.value) {
     return
   }
 
-  personForm.name = selectedPerson.value.name
-  personForm.role = selectedPerson.value.role
-  personForm.faction = selectedPerson.value.faction
-  personForm.location = selectedPerson.value.location
-  personForm.description = selectedPerson.value.description
-  personForm.tags = selectedPerson.value.tags.join(", ")
+  personForm.name = selectedEntry.value.name
+  personForm.role = selectedEntry.value.role
+  personForm.faction = selectedEntry.value.faction
+  personForm.location = selectedEntry.value.location
+  personForm.description = selectedEntry.value.description
+  personForm.tags = selectedEntry.value.tags.join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -133,22 +129,19 @@ async function createPerson() {
     return
   }
   const createdPerson = response as PersonDto
-  people.value = [ ...people.value, createdPerson].sort((a, b) => 
-    a.name.localeCompare(b.name),
-  )
-
+  await fetchPeople()
   resetPersonForm()
-  selectPerson(createdPerson.id)
+  await openEntry(createdPerson.id)
 }
 
 async function updatePerson() {
-  if (!selectedPerson.value || !selectedCampaignId.value) return
+  if (!selectedEntry.value || !selectedCampaignId.value) return
 
   const name = personForm.name.trim()
   if (!name) return
 
   const person: PersonDto = {
-    id: selectedPerson.value.id,
+    id: selectedEntry.value.id,
     campaignId: selectedCampaignId.value,
     name: name,
     role: personForm.role.trim(),
@@ -158,25 +151,25 @@ async function updatePerson() {
     tags: parseTags(personForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${selectedPerson.value.id}`, person)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${selectedEntry.value.id}`, person)
   if (response.success === false) {
     console.error("Failed to update person:", response.error)
     return
   }
   resetPersonForm()
-  selectPerson(person.id)
+  await openEntry(person.id)
 }
 
 async function deletePerson() {
-  if (!selectedPerson.value || !selectedCampaignId.value) return
+  if (!selectedEntry.value || !selectedCampaignId.value) return
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/people/${selectedPerson.value.id}`)
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/people/${selectedEntry.value.id}`)
   if (response.success === false) {
     console.error("Failed to delete person:", response.error)
     return
   }
   await fetchPeople()
-  selectPerson()
+  await replaceWithFirstEntry()
 }
 
 </script>
@@ -209,9 +202,9 @@ async function deletePerson() {
               :class="{
                 selected:
                   viewMode === ViewModes.Details &&
-                  selectedPerson?.id === person.id,
+                  selectedEntry?.id === person.id,
               }"
-              @click="selectPerson(person.id)"
+              @click="openEntry(person.id)"
             >
               <span class="resource-list-kicker">
                 {{ person.role || "No role" }}
@@ -244,7 +237,7 @@ async function deletePerson() {
             </p>
 
             <h3>
-              {{ viewMode === ViewModes.Create ? "New Person" : selectedPerson?.name }}
+              {{ viewMode === ViewModes.Create ? "New Person" : selectedEntry?.name }}
             </h3>
           </header>
 
@@ -323,15 +316,15 @@ async function deletePerson() {
           </form>
         </template>
 
-        <template v-else-if="selectedPerson">
+        <template v-else-if="selectedEntry">
           
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
-                {{ selectedPerson.role || "Person of interest" }}
+                {{ selectedEntry.role || "Person of interest" }}
               </p>
 
-              <h3>{{ selectedPerson.name }}</h3>
+              <h3>{{ selectedEntry.name }}</h3>
             </div>
             
             <div class="resource-detail-actions">
@@ -356,25 +349,25 @@ async function deletePerson() {
           <dl class="resource-facts">
             <div>
               <dt>Faction</dt>
-              <dd>{{ selectedPerson.faction || "None registered" }}</dd>
+              <dd>{{ selectedEntry.faction || "None registered" }}</dd>
             </div>
 
             <div>
               <dt>Location</dt>
-              <dd>{{ selectedPerson.location || "None registered" }}</dd>
+              <dd>{{ selectedEntry.location || "None registered" }}</dd>
             </div>
           </dl>
 
           <p class="resource-description">
-            {{ selectedPerson.description || "No description has been added yet." }}
+            {{ selectedEntry.description || "No description has been added yet." }}
           </p>
 
           <div
-            v-if="selectedPerson.tags.length > 0"
+            v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
             <span
-              v-for="tag in selectedPerson.tags"
+              v-for="tag in selectedEntry.tags"
               :key="tag"
               class="tag"
             >
