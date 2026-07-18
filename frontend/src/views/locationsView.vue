@@ -164,19 +164,21 @@ async function deleteLocation() {
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>Locations</h2>
-      <p>Track cities, districts, buildings, rooms, wilderness sites, and other campaign places.</p>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>Locations</h2>
+        <p>Track cities, districts, buildings, rooms, wilderness sites, and other campaign places.</p>
+      </div>
+
+      <button type="button" @click="showAddLocationForm">
+        Add location
+      </button>
     </header>
 
     <div class="resource-layout">
       <aside class="resource-list-panel">
         <div class="resource-list-header">
           <h3>Location list</h3>
-
-          <button type="button" @click="showAddLocationForm">
-            Add location
-          </button>
         </div>
 
         <ul v-if="locations.length > 0" class="resource-list">

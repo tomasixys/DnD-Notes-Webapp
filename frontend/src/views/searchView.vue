@@ -174,16 +174,18 @@ watch(
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>Search</h2>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>Search</h2>
 
-      <p v-if="queryFromUrl">
-        Results for “{{ queryFromUrl }}”
-      </p>
+        <p v-if="queryFromUrl">
+          Results for “{{ queryFromUrl }}”
+        </p>
 
-      <p v-else>
-        Search the active campaign.
-      </p>
+        <p v-else>
+          Search the active campaign.
+        </p>
+      </div>
     </header>
 
     <article class="resource-detail-panel search-panel">
@@ -258,7 +260,6 @@ watch(
           >
             <header class="search-group-header">
               <h3>{{ group.label }}</h3>
-
               <span>{{ group.results.length }}</span>
             </header>
 
@@ -351,12 +352,20 @@ watch(
 .search-group-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
+  /* justify-content: space-between; */
   margin-bottom: 0.4rem;
 }
 
 .search-group-header h3 {
   margin: 0;
+}
+
+.search-group-header h3::after {
+  content: "\00b7";
+  margin-left: 0.6rem;
+  color: var(--color-accent);
+  font-weight: 400;
 }
 
 .search-group-header span {

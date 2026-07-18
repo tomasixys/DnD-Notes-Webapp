@@ -172,19 +172,21 @@ async function deleteSession() {
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>Sessions</h2>
-      <p>Review session notes for the active campaign.</p>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>Sessions</h2>
+        <p>Review session notes for the active campaign.</p>
+      </div>
+
+      <button type="button" @click="showAddSessionForm">
+        Add session
+      </button>
     </header>
 
     <div class="resource-layout">
       <aside class="resource-list-panel">
         <div class="resource-list-header">
           <h3>Session list</h3>
-
-          <button type="button" @click="showAddSessionForm">
-            Add session
-          </button>
         </div>
 
         <ul v-if="sessions.length > 0" class="resource-list">

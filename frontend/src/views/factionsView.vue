@@ -183,19 +183,21 @@ async function deleteFaction(factionId: number) {
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>Factions</h2>
-      <p>Track organizations, noble houses, churches, guilds, cults, gangs, and other power groups.</p>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>Factions</h2>
+        <p>Track organizations, noble houses, churches, guilds, cults, gangs, and other power groups.</p>
+      </div>
+
+      <button type="button" @click="showAddFactionForm">
+        Add faction
+      </button>
     </header>
 
     <div class="resource-layout">
       <aside class="resource-list-panel">
         <div class="resource-list-header">
           <h3>Faction list</h3>
-
-          <button type="button" @click="showAddFactionForm">
-            Add faction
-          </button>
         </div>
 
         <ul v-if="factions.length > 0" class="resource-list">
