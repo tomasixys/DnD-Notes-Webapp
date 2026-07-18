@@ -3,8 +3,9 @@ import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import { FactionDto } from "@/types/DataTransferObjects"
+import type { FactionDataDto, FactionDto } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import ResourceTag from "@/components/ResourceTag.vue"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
@@ -73,7 +74,9 @@ function showEditFactionForm() {
   factionForm.type = selectedEntry.value.type
   factionForm.location = selectedEntry.value.location
   factionForm.description = selectedEntry.value.description
-  factionForm.tags = selectedEntry.value.tags.join(", ")
+  factionForm.tags = selectedEntry.value.tags
+    .map((tag) => tag.value)
+    .join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -111,9 +114,7 @@ async function createFaction() {
     return
   }
 
-  const faction: FactionDto = {
-    campaignId: selectedCampaignId.value,
-    id: 0,
+  const faction: FactionDataDto = {
     name: name,
     type: factionForm.type.trim(),
     location: factionForm.location.trim(),
@@ -141,8 +142,7 @@ async function updateFaction() {
     return
   }
 
-  const updatedFaction: FactionDto = {
-    ...selectedEntry.value,
+  const updatedFaction: FactionDataDto = {
     name: name,
     type: factionForm.type.trim(),
     location: factionForm.location.trim(),
@@ -150,7 +150,7 @@ async function updateFaction() {
     tags: parseTags(factionForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/factions/${updatedFaction.id}`, updatedFaction)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`, updatedFaction)
   if (response.success === false) {
     console.error("Failed to update faction:", response.error)
     return
@@ -361,13 +361,11 @@ async function deleteFaction(factionId: number) {
             v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
-            <span
+            <ResourceTag
               v-for="tag in selectedEntry.tags"
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </span>
+              :key="tag.value"
+              :tag="tag"
+            />
           </div>
         </template>
 

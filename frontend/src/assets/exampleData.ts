@@ -1,5 +1,15 @@
 import * as dto from "@/types/DataTransferObjects"
 
+function passiveTags(...values: string[]): dto.ResourceTagDto[] {
+  return values.map((value) => ({
+    value,
+    label: value,
+    referenceType: null,
+    referenceId: null,
+    resolutionState: "passive",
+  }))
+}
+
 
 export const sessionListExample: dto.SessionListItemDto[] = [
   {
@@ -10,7 +20,7 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     title: "New Year, Old Trouble",
     description:
       "The campaign begins in Gernanti. The party wakes after a strange night, with missing time, unclear memories, and signs that someone or something has interfered with them.",
-    tags: ["opening", "Gernanti", "mystery"],
+    tags: passiveTags("opening", "Gernanti", "mystery"),
   },
   {
     id: 2,
@@ -20,7 +30,7 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     title: "Bones Beneath the City",
     description:
       "The party escapes from the cave system and returns to the streets. They begin piecing together who may have drugged them and why they were taken below the city.",
-    tags: ["caves", "undead", "investigation"],
+    tags: passiveTags("caves", "undead", "investigation"),
   },
   {
     id: 3,
@@ -30,7 +40,7 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     title: "The Thieves' Hideout",
     description:
       "Following leads from the tavern confrontation, the party tracks the criminals to a hideout. Inside, Nalia discovers a grimoire that may be tied to deeper forces moving beneath Gernanti.",
-    tags: ["hideout", "grimoire", "Nalia"],
+    tags: passiveTags("hideout", "grimoire", "Nalia"),
   },
 ]
 
@@ -78,7 +88,7 @@ export const peopleExample: dto.PersonDto[] = [
     location: "Gernanti mainland",
     description:
       "A street-level contact who warns Nalia and Elira about patrols, trouble, and useful rumors. Paid through coin, favors, or by being worked into their scams as a supposed recipient of charity.",
-    tags: ["contact", "street", "lookout"],
+    tags: passiveTags("contact", "street", "lookout"),
   },
   {
     id: 2,
@@ -89,7 +99,7 @@ export const peopleExample: dto.PersonDto[] = [
     location: "Gernanti magic academy",
     description:
       "One of the few people at the academy who believed Nalia during the scandal. Eryn did not have enough influence to protect her, but may still be a useful contact for books, rumors, and restricted academic information.",
-    tags: ["ally", "academy", "library"],
+    tags: passiveTags("ally", "academy", "library"),
   },
   {
     id: 3,
@@ -100,7 +110,7 @@ export const peopleExample: dto.PersonDto[] = [
     location: "Gernanti magic academy",
     description:
       "The professor who discredited Nalia after she uncovered favoritism and corruption. Still active, still protected, and still a problem.",
-    tags: ["enemy", "academic", "corrupt"],
+    tags: passiveTags("enemy", "academic", "corrupt"),
   },
 ]
 
@@ -113,7 +123,7 @@ export const locationsExample: dto.LocationDto[] = [
     parentLocation: "",
     description:
       "A magical free city built across islands and mainland districts, governed through the academy, noble houses, and arcane factions.",
-    tags: ["city", "magic", "campaign-hub"],
+    tags: passiveTags("city", "magic", "campaign-hub"),
   },
   {
     id: 2,
@@ -123,7 +133,7 @@ export const locationsExample: dto.LocationDto[] = [
     parentLocation: "Gernanti",
     description:
       "The mainland part of Gernanti, where many poorer residents, lodgings, markets, and street-level contacts are found.",
-    tags: ["district", "street-level", "lower-city"],
+    tags: passiveTags("district", "street-level", "lower-city"),
   },
   {
     id: 3,
@@ -133,7 +143,7 @@ export const locationsExample: dto.LocationDto[] = [
     parentLocation: "Gernanti Mainland",
     description:
       "A modest lodging house where Nalia and Elira live at the start of the campaign. Safer than the street, but not truly safe.",
-    tags: ["home", "lodging", "safe-ish"],
+    tags: passiveTags("home", "lodging", "safe-ish"),
   },
 ]
 
@@ -146,7 +156,7 @@ export const factionsExample: dto.FactionDto[] = [
     location: "Gernanti Magic Academy",
     description:
       "A powerful academic order studying dragons, draconic magic, and how to reproduce or exploit that power through wizardry.",
-    tags: ["academy", "dragons", "magic", "political"],
+    tags: passiveTags("academy", "dragons", "magic", "political"),
   },
   {
     id: 2,
@@ -156,7 +166,7 @@ export const factionsExample: dto.FactionDto[] = [
     location: "Gernanti Magic Academy",
     description:
       "The main religious institution in Gernanti, tied closely to knowledge, discipline, study, and the academy library.",
-    tags: ["religion", "knowledge", "library", "academy"],
+    tags: passiveTags("religion", "knowledge", "library", "academy"),
   },
   {
     id: 3,
@@ -166,7 +176,7 @@ export const factionsExample: dto.FactionDto[] = [
     location: "Gernanti Mainland",
     description:
       "A loose but guarded street-level faction made up of beggars, informants, and people pushed to the margins by magical experiments and city politics.",
-    tags: ["street", "informants", "poor", "contacts"],
+    tags: passiveTags("street", "informants", "poor", "contacts"),
   },
 ]
 

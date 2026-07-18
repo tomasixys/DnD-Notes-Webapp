@@ -3,8 +3,9 @@ import { computed, reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import { SessionListItemDto } from "@/types/DataTransferObjects"
+import type { SessionDataDto, SessionListItemDto } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import ResourceTag from "@/components/ResourceTag.vue"
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const sessions = ref<SessionListItemDto[]>([])
@@ -77,7 +78,9 @@ function showEditSessionForm() {
   sessionForm.date = selectedEntry.value.date
   sessionForm.title = selectedEntry.value.title
   sessionForm.description = selectedEntry.value.description
-  sessionForm.tags = selectedEntry.value.tags.join(", ")
+  sessionForm.tags = selectedEntry.value.tags
+    .map((tag) => tag.value)
+    .join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -107,9 +110,7 @@ async function createSession() {
     return
   }
 
-  const session: SessionListItemDto = {
-    id: 0,
-    campaignId: selectedCampaignId.value,
+  const session: SessionDataDto = {
     sessionNumber: nextSessionId.value,
     date: sessionForm.date,
     title,
@@ -127,7 +128,7 @@ async function createSession() {
   const createdSession = response as SessionListItemDto
   sessions.value = [...sessions.value, createdSession].sort((a, b) => a.sessionNumber - b.sessionNumber)
   resetSessionForm()
-  openEntry(createdSession.sessionNumber)
+  await openEntry(createdSession.id)
 }
 
 async function updateSession() {
@@ -135,8 +136,9 @@ async function updateSession() {
   if (!title || selectedEntry.value?.id === undefined) {
     return
   }
-  const data: SessionListItemDto = {
-    ...selectedEntry.value,
+  const sessionId = selectedEntry.value.id
+  const data: SessionDataDto = {
+    sessionNumber: selectedEntry.value.sessionNumber,
     date: sessionForm.date,
     title: sessionForm.title.trim(),
     description: sessionForm.description.trim(),
@@ -145,14 +147,14 @@ async function updateSession() {
       .map((tag) => tag.trim())
       .filter(Boolean),
   }
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedEntry.value?.id}`, data)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${sessionId}`, data)
   if (response.success === false) {
     console.error("Failed to update session:", response.message)
     return
   }
   await fetchSessions()
   resetSessionForm()
-  openEntry(selectedEntry.value?.sessionNumber)
+  await openEntry(sessionId)
 }
 
 async function deleteSession() {
@@ -202,7 +204,7 @@ async function deleteSession() {
                   viewMode === ViewModes.Details &&
                   selectedEntry?.sessionNumber === session.sessionNumber,
               }"
-              @click="openEntry(session.sessionNumber)"
+              @click="openEntry(session.id)"
             >
               <span class="resource-list-kicker">
                 Session #{{ session.sessionNumber }}
@@ -331,13 +333,11 @@ async function deleteSession() {
             v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
-            <span
+            <ResourceTag
               v-for="tag in selectedEntry.tags"
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </span>
+              :key="tag.value"
+              :tag="tag"
+            />
           </div>
         </template>
 

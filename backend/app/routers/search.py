@@ -5,8 +5,9 @@ from sqlmodel import Session, select
 from sqlalchemy import String, cast, or_
 
 from app.database import get_session
-from app.models import Person, Faction, Location, SessionNote, SearchResultDto, SearchResponseDto, SearchQueryDto, SearchResourceType
+from app.models import Person, Faction, Location, ResourceType, SessionNote, SearchResultDto, SearchResponseDto, SearchQueryDto, SearchResourceType
 from app.routers.campaigns import verify_campaign
+from app.tag_handler import get_resource_tags, get_tag_matching_owner_ids
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/search",
@@ -52,106 +53,122 @@ def create_like_pattern(query: str) -> str:
 
 
 def get_people_matches(campaign_id: int, pattern: str, db: Session) -> list[Person]:
+    tag_owner_ids = get_tag_matching_owner_ids(
+        db, campaign_id, ResourceType.PERSON, pattern
+    )
+    conditions = [
+        Person.name.ilike(pattern, escape="\\"),
+        Person.role.ilike(pattern, escape="\\"),
+        Person.faction.ilike(pattern, escape="\\"),
+        Person.location.ilike(pattern, escape="\\"),
+        Person.description.ilike(pattern, escape="\\"),
+    ]
+    if tag_owner_ids:
+        conditions.append(Person.id.in_(tag_owner_ids))
+
     statement = (
         select(Person)
         .where(Person.campaign_id == campaign_id)
-        .where(
-            or_(
-                Person.name.ilike(pattern, escape="\\"),
-                Person.role.ilike(pattern, escape="\\"),
-                Person.faction.ilike(pattern, escape="\\"),
-                Person.location.ilike(pattern, escape="\\"),
-                Person.description.ilike(pattern, escape="\\"),
-                cast(Person.tags, String).ilike(pattern, escape="\\"),
-            )
-        )
+        .where(or_(*conditions))
     )
     return db.exec(statement).all()
 
 def get_faction_matches(campaign_id: int, pattern: str, db: Session) -> list[Faction]:
+    tag_owner_ids = get_tag_matching_owner_ids(
+        db, campaign_id, ResourceType.FACTION, pattern
+    )
+    conditions = [
+        Faction.name.ilike(pattern, escape="\\"),
+        Faction.type.ilike(pattern, escape="\\"),
+        Faction.location.ilike(pattern, escape="\\"),
+        Faction.description.ilike(pattern, escape="\\"),
+    ]
+    if tag_owner_ids:
+        conditions.append(Faction.id.in_(tag_owner_ids))
+
     statement = (
         select(Faction)
         .where(Faction.campaign_id == campaign_id)
-        .where(
-            or_(
-                Faction.name.ilike(pattern, escape="\\"),
-                Faction.type.ilike(pattern, escape="\\"),
-                Faction.location.ilike(pattern, escape="\\"),
-                Faction.description.ilike(pattern, escape="\\"),
-                cast(Faction.tags, String).ilike(pattern, escape="\\"),
-            )
-        )
+        .where(or_(*conditions))
     )
     return db.exec(statement).all()
 
 def get_location_matches(campaign_id: int, pattern: str, db: Session) -> list[Location]:
+    tag_owner_ids = get_tag_matching_owner_ids(
+        db, campaign_id, ResourceType.LOCATION, pattern
+    )
+    conditions = [
+        Location.name.ilike(pattern, escape="\\"),
+        Location.type.ilike(pattern, escape="\\"),
+        Location.parent_location.ilike(pattern, escape="\\"),
+        Location.description.ilike(pattern, escape="\\"),
+    ]
+    if tag_owner_ids:
+        conditions.append(Location.id.in_(tag_owner_ids))
+
     statement = (
         select(Location)
         .where(Location.campaign_id == campaign_id)
-        .where(
-            or_(
-                Location.name.ilike(pattern, escape="\\"),
-                Location.type.ilike(pattern, escape="\\"),
-                Location.parent_location.ilike(pattern, escape="\\"),
-                Location.description.ilike(pattern, escape="\\"),
-                cast(Location.tags, String).ilike(pattern, escape="\\"),
-            )
-        )
+        .where(or_(*conditions))
     )
     return db.exec(statement).all()
 
 def get_session_matches(campaign_id: int, pattern: str, db: Session) -> list[SessionNote]:
+    tag_owner_ids = get_tag_matching_owner_ids(
+        db, campaign_id, ResourceType.SESSION, pattern
+    )
+    conditions = [
+        SessionNote.title.ilike(pattern, escape="\\"),
+        SessionNote.date.ilike(pattern, escape="\\"),
+        cast(SessionNote.session_number, String).ilike(pattern, escape="\\"),
+        SessionNote.description.ilike(pattern, escape="\\"),
+    ]
+    if tag_owner_ids:
+        conditions.append(SessionNote.id.in_(tag_owner_ids))
+
     statement = (
         select(SessionNote)
         .where(SessionNote.campaign_id == campaign_id)
-        .where(
-            or_(
-                SessionNote.title.ilike(pattern, escape="\\"),
-                SessionNote.date.ilike(pattern, escape="\\"),
-                cast(SessionNote.session_number, String).ilike(pattern, escape="\\"),
-                SessionNote.description.ilike(pattern, escape="\\"),
-                cast(SessionNote.tags, String).ilike(pattern, escape="\\"),
-            )
-        )
+        .where(or_(*conditions))
     )
     return db.exec(statement).all()
 
 
 
-def get_faction_search_fields(faction: Faction) -> list[SearchField]:
+def get_faction_search_fields(faction: Faction, db: Session) -> list[SearchField]:
     return [
         SearchField("name", faction.name, 1.0),
         SearchField("type", faction.type, 0.7),
         SearchField("location", faction.location, 0.7),
-        SearchField("tags", " ".join(faction.tags), 0.85),
+        SearchField("tags", " ".join(get_resource_tags(db, ResourceType.FACTION, faction.id)), 0.85),
         SearchField("description", faction.description, 0.55),
     ]
 
-def get_location_search_fields(location: Location) -> list[SearchField]:
+def get_location_search_fields(location: Location, db: Session) -> list[SearchField]:
     return [
         SearchField("name", location.name, 1.0),
         SearchField("type", location.type, 0.7),
-        SearchField("tags", " ".join(location.tags), 0.85),
+        SearchField("tags", " ".join(get_resource_tags(db, ResourceType.LOCATION, location.id)), 0.85),
         SearchField("description", location.description, 0.55),
         SearchField("parent_location", location.parent_location, 0.7),
     ]
 
-def get_session_search_fields(session: SessionNote) -> list[SearchField]:
+def get_session_search_fields(session: SessionNote, db: Session) -> list[SearchField]:
     return [
         SearchField("title", session.title, 1.0),
         SearchField("date", session.date, 0.65),
-        SearchField("tags", " ".join(session.tags), 0.85),
+        SearchField("tags", " ".join(get_resource_tags(db, ResourceType.SESSION, session.id)), 0.85),
         SearchField("description", session.description, 0.55),
         SearchField("session_number", str(session.session_number), 0.65),
     ]
 
-def get_person_search_fields(person: Person) -> list[SearchField]:
+def get_person_search_fields(person: Person, db: Session) -> list[SearchField]:
     return [
         SearchField( name="name", value=person.name, weight=1.0, ),
         SearchField( name="role", value=person.role, weight=0.7, ),
         SearchField( name="faction", value=person.faction, weight=0.7, ),
         SearchField( name="location", value=person.location, weight=0.7, ),
-        SearchField( name="tags", value=" ".join(person.tags), weight=0.85, ),
+        SearchField( name="tags", value=" ".join(get_resource_tags(db, ResourceType.PERSON, person.id)), weight=0.85, ),
         SearchField( name="description", value=person.description, weight=0.55, ),
     ]
 
@@ -228,7 +245,7 @@ def search_campaign(
     for person in matching_people:
         matched_fields, relevance = evaluate_search_fields(
             query,
-            get_person_search_fields(person),
+            get_person_search_fields(person, db),
         )
         results.append(
             SearchResultDto(
@@ -245,7 +262,7 @@ def search_campaign(
     for faction in matching_factions:
         matched_fields, relevance = evaluate_search_fields(
             query,
-            get_faction_search_fields(faction),
+            get_faction_search_fields(faction, db),
         )
         results.append(
             SearchResultDto(
@@ -262,7 +279,7 @@ def search_campaign(
     for location in matching_locations:
         matched_fields, relevance = evaluate_search_fields(
             query,
-            get_location_search_fields(location),
+            get_location_search_fields(location, db),
         )
         results.append(
             SearchResultDto(
@@ -279,7 +296,7 @@ def search_campaign(
     for session in matching_sessions:
         matched_fields, relevance = evaluate_search_fields(
             query,
-            get_session_search_fields(session),
+            get_session_search_fields(session, db),
         )
         results.append(
             SearchResultDto(

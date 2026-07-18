@@ -2,6 +2,10 @@ from sqlalchemy import event
 from sqlmodel import SQLModel, create_engine, Session
 
 from app.app_paths import get_database_path
+from app.migrations import (
+    backup_database_before_migration,
+    run_database_migrations,
+)
 
 sqlite_url = f"sqlite:///{get_database_path()}"
 
@@ -18,7 +22,9 @@ def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
     cursor.close()
 
 def create_db_and_tables():
+    backup_database_before_migration(get_database_path())
     SQLModel.metadata.create_all(engine)
+    run_database_migrations(engine)
 
 def get_session():
     with Session(engine) as session:

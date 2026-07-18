@@ -3,8 +3,9 @@ import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import { PersonDto } from "@/types/DataTransferObjects"
+import type { PersonDataDto, PersonDto } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import ResourceTag from "@/components/ResourceTag.vue"
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const people = ref<PersonDto[]>([])
@@ -72,7 +73,9 @@ function showEditPersonForm() {
   personForm.faction = selectedEntry.value.faction
   personForm.location = selectedEntry.value.location
   personForm.description = selectedEntry.value.description
-  personForm.tags = selectedEntry.value.tags.join(", ")
+  personForm.tags = selectedEntry.value.tags
+    .map((tag) => tag.value)
+    .join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -112,9 +115,7 @@ async function createPerson() {
   if (!name || !selectedCampaignId.value) return
 
 
-  const person: PersonDto = {
-    id: 0,
-    campaignId: selectedCampaignId.value,
+  const person: PersonDataDto = {
     name: name,
     role: personForm.role.trim(),
     faction: personForm.faction.trim(),
@@ -140,9 +141,7 @@ async function updatePerson() {
   const name = personForm.name.trim()
   if (!name) return
 
-  const person: PersonDto = {
-    id: selectedEntry.value.id,
-    campaignId: selectedCampaignId.value,
+  const person: PersonDataDto = {
     name: name,
     role: personForm.role.trim(),
     faction: personForm.faction.trim(),
@@ -157,7 +156,7 @@ async function updatePerson() {
     return
   }
   resetPersonForm()
-  await openEntry(person.id)
+  await openEntry(selectedEntry.value.id)
 }
 
 async function deletePerson() {
@@ -368,13 +367,11 @@ async function deletePerson() {
             v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
-            <span
+            <ResourceTag
               v-for="tag in selectedEntry.tags"
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </span>
+              :key="tag.value"
+              :tag="tag"
+            />
           </div>
         </template>
 
