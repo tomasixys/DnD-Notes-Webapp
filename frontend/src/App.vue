@@ -56,6 +56,13 @@ const canSearch = computed(() => {
 watch(
   () => [route.name, route.query.q],
   ([routeName, queryValue]) => {
+
+    if (!hasSelectedCampaign.value && routeName !== "Dashboard") {
+      searchPhrase.value = ""
+      router.push({name: "Dashboard" })
+      return
+    }
+
     if (routeName !== "Search") {
       return
     }
@@ -84,18 +91,13 @@ async function submitSearch() {
    * from the search page. Searches from other views start
    * with all resource types.
    */
-  const existingTypes =
-    route.name === "Search"
-      ? route.query.types
-      : undefined
+  const existingTypes = route.name === "Search" ? route.query.types : undefined
 
   await router.push({
     name: "Search",
     query: {
       q: query,
-      ...(existingTypes
-        ? { types: existingTypes }
-        : {}),
+      ...(existingTypes ? { types: existingTypes } : {}),
     },
   })
 }
