@@ -151,7 +151,7 @@ async function updateLocation() {
 async function deleteLocation() {
   if (!selectedCampaignId.value || !selectedEntry.value) return
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value}`)
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`)
   if (response.success === false) {
     console.error("Failed to delete location:", response.Message)
     return
@@ -321,7 +321,7 @@ async function deleteLocation() {
                 Delete
               </button>
             </div>
-            
+
           </header>
 
           <dl class="resource-facts">
