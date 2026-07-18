@@ -113,7 +113,7 @@ async function addRoll() {
 }
 
 async function deleteRolls() {
-  if (!selectedEntry.value || (sessionRolls.value?.rolls.length ?? 0) < 1) return 
+  if (!selectedEntry.value || (sessionRolls.value?.rolls.length ?? 0) < 1) return
 
   const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedEntry.value.id}`)
   if (response.success === false) {
@@ -129,9 +129,11 @@ async function deleteRolls() {
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>Rolls</h2>
-      <p>Track simple d20 rolls for the active player character.</p>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>Rolls</h2>
+        <p>Track simple d20 rolls for the active player character.</p>
+      </div>
     </header>
 
     <div class="resource-layout">
@@ -174,39 +176,14 @@ async function deleteRolls() {
       </aside>
 
       <article class="resource-detail-panel">
-        <section class="rolls-section">
-          <header class="resource-detail-header">
-            <p class="resource-detail-kicker">
-              Overall statistics
-            </p>
 
-            <h3>Campaign rolls</h3>
-          </header>
-
-          <dl class="resource-facts">
-            <div>
-              <dt>Total rolls</dt>
-              <dd>{{ campaignRollStats.numRolls }}</dd>
-            </div>
-
-            <div>
-              <dt>Average</dt>
-              <dd>{{ campaignRollStats.rollAvg.toFixed(2) }}</dd>
-            </div>
-
-            <div>
-              <dt>Roll luck</dt>
-              <dd>{{ formatRollLuck(campaignRollStats.rollLuck) }}</dd>
-            </div>
-          </dl>
-        </section>
 
         <section v-if="selectedEntry" class="rolls-section">
+
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               Session {{ selectedEntry.sessionNumber }} · {{ selectedEntry.date }}
             </p>
-
             <h3>{{ selectedEntry.title }}</h3>
           </header>
 
@@ -274,6 +251,34 @@ async function deleteRolls() {
         <p v-else class="empty-text">
           Select a session to view and register rolls.
         </p>
+
+        <section class="rolls-section">
+          <header class="resource-detail-header">
+            <p class="resource-detail-kicker">
+              Overall statistics
+            </p>
+
+            <h3>Campaign rolls</h3>
+          </header>
+
+          <dl class="resource-facts">
+            <div>
+              <dt>Total rolls</dt>
+              <dd>{{ campaignRollStats.numRolls }}</dd>
+            </div>
+
+            <div>
+              <dt>Average</dt>
+              <dd>{{ campaignRollStats.rollAvg.toFixed(2) }}</dd>
+            </div>
+
+            <div>
+              <dt>Roll luck</dt>
+              <dd>{{ formatRollLuck(campaignRollStats.rollLuck) }}</dd>
+            </div>
+          </dl>
+        </section>
+
       </article>
     </div>
   </section>
