@@ -95,6 +95,11 @@ button {
   border-bottom: 3px solid transparent;
 }
 
+.main-nav-link-home {
+  font-weight: 700;
+  font-size: large;
+}
+
 .main-nav-link:first-child {
   max-width: min(18rem, 22vw);
   overflow: hidden;

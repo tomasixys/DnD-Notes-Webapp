@@ -113,10 +113,11 @@ async function submitSearch() {
         <nav id="main-nav" aria-label="Main navigation">
           <div class="main-nav-links">
             <RouterLink
-              v-for="link in mainLinks"
+              v-for="(link, index) in mainLinks"
               :key="link.to"
               :to="link.to"
               class="main-nav-link"
+              :class="{ 'main-nav-link-home': index === 0 }"
             >
               {{ link.label }}
             </RouterLink>
