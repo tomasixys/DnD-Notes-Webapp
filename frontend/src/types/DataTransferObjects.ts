@@ -8,6 +8,26 @@ export type CampaignsDto = {
   bannerImageUrl: string
 }
 
+export type ResourceType =
+  | "session"
+  | "person"
+  | "location"
+  | "faction"
+
+export type TagResolutionState =
+  | "passive"
+  | "resolved"
+  | "unresolved"
+  | "ambiguous"
+
+export type ResourceTagDto = {
+  value: string
+  label: string
+  referenceType: ResourceType | null
+  referenceId: number | null
+  resolutionState: TagResolutionState
+}
+
 export type SessionListItemDto = {
   id: number
   campaignId: number
@@ -15,6 +35,13 @@ export type SessionListItemDto = {
   date: string
   title: string
   description: string
+  tags: ResourceTagDto[]
+}
+
+export type SessionDataDto = Omit<
+  SessionListItemDto,
+  "id" | "campaignId" | "tags"
+> & {
   tags: string[]
 }
   
@@ -47,6 +74,10 @@ export type PersonDto = {
   faction: string
   location: string
   description: string
+  tags: ResourceTagDto[]
+}
+
+export type PersonDataDto = Omit<PersonDto, "id" | "campaignId" | "tags"> & {
   tags: string[]
 }
 
@@ -57,6 +88,13 @@ export type LocationDto = {
   type: string
   parentLocation: string
   description: string
+  tags: ResourceTagDto[]
+}
+
+export type LocationDataDto = Omit<
+  LocationDto,
+  "id" | "campaignId" | "tags"
+> & {
   tags: string[]
 }
 
@@ -67,6 +105,13 @@ export type FactionDto = {
   type: string
   location: string
   description: string
+  tags: ResourceTagDto[]
+}
+
+export type FactionDataDto = Omit<
+  FactionDto,
+  "id" | "campaignId" | "tags"
+> & {
   tags: string[]
 }
 
@@ -75,11 +120,7 @@ export type ExportResponse = {
   filename: string
 }
 
-export type SearchResourceType =
-  | "session"
-  | "person"
-  | "location"
-  | "faction"
+export type SearchResourceType = ResourceType
 
 export type SearchQueryDto = {
   query: string

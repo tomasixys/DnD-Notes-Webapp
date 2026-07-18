@@ -3,8 +3,9 @@ import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import { LocationDto } from "@/types/DataTransferObjects"
+import type { LocationDataDto, LocationDto } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import ResourceTag from "@/components/ResourceTag.vue"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
@@ -69,7 +70,9 @@ function showEditLocationForm() {
   locationForm.type = selectedEntry.value.type
   locationForm.parentLocation = selectedEntry.value.parentLocation
   locationForm.description = selectedEntry.value.description
-  locationForm.tags = selectedEntry.value.tags.join(", ")
+  locationForm.tags = selectedEntry.value.tags
+    .map((tag) => tag.value)
+    .join(", ")
 
   viewMode.value = ViewModes.Edit
 }
@@ -102,9 +105,7 @@ async function createLocation() {
   const name = locationForm.name.trim()
   if (!name || !selectedCampaignId.value) return
 
-  const location: LocationDto = {
-    id: 0,
-    campaignId: selectedCampaignId.value,
+  const location: LocationDataDto = {
     name: name,
     type: locationForm.type.trim(),
     parentLocation: locationForm.parentLocation.trim(),
@@ -129,23 +130,22 @@ async function updateLocation() {
   const name = locationForm.name.trim()
   if (!name || !selectedEntry.value || !selectedCampaignId.value) return
 
-  const location: LocationDto = {
-    id: selectedEntry.value.id,
-    campaignId: selectedCampaignId.value,
+  const location: LocationDataDto = {
     name: name,
     type: locationForm.type.trim(),
     parentLocation: locationForm.parentLocation.trim(),
     description: locationForm.description.trim(),
     tags: parseTags(locationForm.tags),
   }
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${location.id}`, location)
+  const locationId = selectedEntry.value.id
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${locationId}`, location)
   if (response.success === false) {
     console.error("Failed to update location:", response.Message)
     return
   }
   await fetchLocations()
   resetLocationForm()
-  await openEntry(location.id)
+  await openEntry(locationId)
 }
 
 async function deleteLocation() {
@@ -344,13 +344,11 @@ async function deleteLocation() {
             v-if="selectedEntry.tags.length > 0"
             class="tag-list"
           >
-            <span
+            <ResourceTag
               v-for="tag in selectedEntry.tags"
-              :key="tag"
-              class="tag"
-            >
-              {{ tag }}
-            </span>
+              :key="tag.value"
+              :tag="tag"
+            />
           </div>
         </template>
 

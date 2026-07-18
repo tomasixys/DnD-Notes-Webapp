@@ -35,16 +35,16 @@
    - optional owner/location
    - tags
 
-7. Campaign search view
-   - basic search first
-   - grouped by entry type
-   - later SQLite FTS
+7. Campaign search view (Completed)
+   - basic search first | DONE
+   - grouped by entry type | DONE
+   - later SQLite FTS | POSTPONED
 
-8. Interactive tags
-   - free tags
-   - typed tags
-   - linked entry tags
-   - clickable relationships
+8. Interactive tags (Completed)
+   - free tags | DONE
+   - typed tags | DONE
+   - linked entry tags | DONE
+   - clickable relationships | DONE
 
 9. Hosted multi-user mode
    - auth
