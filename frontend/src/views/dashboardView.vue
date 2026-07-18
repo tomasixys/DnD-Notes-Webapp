@@ -170,7 +170,7 @@ async function updateCampaign(campaignId: number) {
 
 async function deleteCampaign(campaignId: number) {
   const response = await DeleteAPI(`campaigns/${campaignId}`)
-  
+
   if (response.success === false) {
     console.error("Failed to delete campaign:", response.error)
     return
@@ -248,8 +248,13 @@ const campaignBannerPreviewUrl = computed(() => {
 <template>
   <section class="dashboard-view">
     <header class="view-header">
-      <h2>Dashboard</h2>
-      <p>Choose the active campaign or create a new one.</p>
+      <h2>Campaign Dashboard</h2>
+      <p>
+        {{ selectedCampaign
+          ? "Manage your campaign or switch to a different."
+          : "Choose a campaign or start a new one."
+        }}
+      </p>
     </header>
 
     <article v-if="viewMode === ViewModes.Current" class="dashboard-card">
@@ -362,9 +367,9 @@ const campaignBannerPreviewUrl = computed(() => {
            {{ viewMode === ViewModes.Create ?  "Create campaign" : "Update campaign" }}
           </button>
 
-          <button 
-            type="button" 
-            class="secondary" 
+          <button
+            type="button"
+            class="secondary"
             @click="showCurrentCampaign"
           >
             Cancel
@@ -383,9 +388,9 @@ const campaignBannerPreviewUrl = computed(() => {
           class="campaign-list-item"
         >
           <div>
-            <h4>{{ campaign.name }} 
+            <h4>{{ campaign.name }}
             </h4>
-            <small>{{ campaign.playerCharacter }} </small> 
+            <small>{{ campaign.playerCharacter }} </small>
             <p>
               {{ campaign.description || "No description." }}
             </p>
@@ -396,8 +401,8 @@ const campaignBannerPreviewUrl = computed(() => {
           </div>
 
           <div class="campaign-list-actions">
-            <button 
-              type="button" 
+            <button
+              type="button"
               @click="switchCampaign(campaign.id)"
             >
               Select Campaign
@@ -433,24 +438,24 @@ const campaignBannerPreviewUrl = computed(() => {
       <p v-else>No campaigns have been created yet.</p>
 
       <div class="dashboard-actions">
-        <button 
-          type="button" 
+        <button
+          type="button"
           @click="showNewCampaignForm"
         >
           Start new campaign
         </button>
 
-        <button 
-          type="button" 
-          class="secondary" 
+        <button
+          type="button"
+          class="secondary"
           @click="importCampaign"
         >
           Import
         </button>
 
-        <button 
-          type="button" 
-          class="secondary" 
+        <button
+          type="button"
+          class="secondary"
           @click="showCurrentCampaign"
         >
           Back

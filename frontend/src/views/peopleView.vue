@@ -176,19 +176,21 @@ async function deletePerson() {
 
 <template>
   <section class="resource-view">
-    <header class="view-header">
-      <h2>People</h2>
-      <p>Track player characters, NPCs, contacts, enemies, and other people of interest.</p>
+    <header class="view-header with-actions">
+      <div class="view-header-copy">
+        <h2>People</h2>
+        <p>Track player characters, NPCs, contacts, enemies, and other people of interest.</p>
+      </div>
+
+      <button type="button" @click="showAddPersonForm">
+        Add person
+      </button>
     </header>
 
     <div class="resource-layout">
       <aside class="resource-list-panel">
         <div class="resource-list-header">
           <h3>People list</h3>
-
-          <button type="button" @click="showAddPersonForm">
-            Add person
-          </button>
         </div>
 
         <ul v-if="people.length > 0" class="resource-list">
