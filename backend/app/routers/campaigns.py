@@ -12,6 +12,11 @@ from app.database import get_session
 from app.models import *
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
+from app.tag_handler import (
+    get_resource_tags,
+    resolve_pending_tags_for_resource,
+    sync_resource_tags,
+)
 
 router = APIRouter(
     prefix="/api/campaigns",
@@ -289,7 +294,9 @@ def export_campaign_backup(
                     title=session.title,
                     description=session.description,
                     session_number=session.session_number,
-                    tags=session.tags,
+                    tags=get_resource_tags(
+                        db, ResourceType.SESSION, session.id
+                    ),
                     rolls=[
                         roll_entry.roll
                         for roll_entry in sorted(
@@ -310,7 +317,9 @@ def export_campaign_backup(
                     faction=person.faction,
                     location=person.location,
                     description=person.description,
-                    tags=person.tags,
+                    tags=get_resource_tags(
+                        db, ResourceType.PERSON, person.id
+                    ),
                 )
                 for person in sorted(campaign.people, key=lambda person: person.name.lower())
             ],
@@ -320,7 +329,9 @@ def export_campaign_backup(
                     type=location.type,
                     parent_location=location.parent_location,
                     description=location.description,
-                    tags=location.tags,
+                    tags=get_resource_tags(
+                        db, ResourceType.LOCATION, location.id
+                    ),
                 )
                 for location in sorted(campaign.locations, key=lambda location: location.name.lower())
             ],
@@ -330,7 +341,9 @@ def export_campaign_backup(
                     type=faction.type,
                     location=faction.location,
                     description=faction.description,
-                    tags=faction.tags,
+                    tags=get_resource_tags(
+                        db, ResourceType.FACTION, faction.id
+                    ),
                 )
                 for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
             ],
@@ -396,40 +409,73 @@ async def import_campaign_backup(
                 db.add(campaign)
 
                 for person_backup in cb.people:
-                    db.add(
-                        Person(
-                            campaign_id=campaign.id,
-                            name=person_backup.name,
-                            role=person_backup.role,
-                            faction=person_backup.faction,
-                            location=person_backup.location,
-                            description=person_backup.description,
-                            tags=person_backup.tags,
-                        )
+                    person = Person(
+                        campaign_id=campaign.id,
+                        name=person_backup.name,
+                        role=person_backup.role,
+                        faction=person_backup.faction,
+                        location=person_backup.location,
+                        description=person_backup.description,
+                    )
+                    db.add(person)
+                    db.flush()
+                    sync_resource_tags(
+                        db,
+                        campaign.id,
+                        ResourceType.PERSON,
+                        person.id,
+                        person_backup.tags,
+                    )
+                    resolve_pending_tags_for_resource(
+                        db, campaign.id, ResourceType.PERSON, person.name
                     )
 
                 for location_backup in cb.locations:
-                    db.add(
-                        Location(
-                            campaign_id=campaign.id,
-                            name=location_backup.name,
-                            type=location_backup.type,
-                            parent_location=location_backup.parent_location,
-                            description=location_backup.description,
-                            tags=location_backup.tags,
-                        )
+                    location = Location(
+                        campaign_id=campaign.id,
+                        name=location_backup.name,
+                        type=location_backup.type,
+                        parent_location=location_backup.parent_location,
+                        description=location_backup.description,
+                    )
+                    db.add(location)
+                    db.flush()
+                    sync_resource_tags(
+                        db,
+                        campaign.id,
+                        ResourceType.LOCATION,
+                        location.id,
+                        location_backup.tags,
+                    )
+                    resolve_pending_tags_for_resource(
+                        db,
+                        campaign.id,
+                        ResourceType.LOCATION,
+                        location.name,
                     )
 
                 for faction_backup in cb.factions:
-                    db.add(
-                        Faction(
-                            campaign_id=campaign.id,
-                            name=faction_backup.name,
-                            type=faction_backup.type,
-                            location=faction_backup.location,
-                            description=faction_backup.description,
-                            tags=faction_backup.tags,
-                        )
+                    faction = Faction(
+                        campaign_id=campaign.id,
+                        name=faction_backup.name,
+                        type=faction_backup.type,
+                        location=faction_backup.location,
+                        description=faction_backup.description,
+                    )
+                    db.add(faction)
+                    db.flush()
+                    sync_resource_tags(
+                        db,
+                        campaign.id,
+                        ResourceType.FACTION,
+                        faction.id,
+                        faction_backup.tags,
+                    )
+                    resolve_pending_tags_for_resource(
+                        db,
+                        campaign.id,
+                        ResourceType.FACTION,
+                        faction.name,
                     )
 
                 for session_backup in cb.sessions:
@@ -439,11 +485,23 @@ async def import_campaign_backup(
                         title=session_backup.title,
                         description=session_backup.description,
                         session_number=session_backup.session_number,
-                        tags=session_backup.tags,
                     )
 
                     db.add(session_note)
                     db.flush()
+                    sync_resource_tags(
+                        db,
+                        campaign.id,
+                        ResourceType.SESSION,
+                        session_note.id,
+                        session_backup.tags,
+                    )
+                    resolve_pending_tags_for_resource(
+                        db,
+                        campaign.id,
+                        ResourceType.SESSION,
+                        session_note.title,
+                    )
 
                     for roll in session_backup.rolls:
                         db.add(
