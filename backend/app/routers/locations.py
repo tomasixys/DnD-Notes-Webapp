@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Location, LocationData, LocationRead, ResourceType
+from app.models.database import Location
+from app.models.api import LocationData, LocationRead
+from app.models.enums import ResourceType
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,

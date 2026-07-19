@@ -3,14 +3,16 @@ import unittest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.models import (
+from app.models.database import (
     Campaign,
-    LocationData,
-    PersonData,
-    ResourceType,
-    SearchQueryDto,
     Tag,
 )
+from app.models.api import (
+    LocationData,
+    PersonData,
+    SearchQueryDto,
+)
+from app.models.enums import ResourceType
 from app.routers.locations import create_location
 from app.routers.people import create_person, get_people_for_campaign
 from app.routers.search import search_campaign

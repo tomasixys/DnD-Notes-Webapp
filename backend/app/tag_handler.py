@@ -4,17 +4,17 @@ from typing import Iterable
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from app.models import (
+from app.models.database import (
     Faction,
     Location,
     Person,
-    ResourceTagRead,
-    ResourceType,
     SessionNote,
     Tag,
     TagAssignment,
-    TagResolutionState,
 )
+from app.models.api import ResourceTagRead, ParsedTag
+from app.models.enums import ResourceType, TagResolutionState
+
 
 
 REFERENCE_MODELS = {
@@ -23,19 +23,6 @@ REFERENCE_MODELS = {
     ResourceType.FACTION: Faction,
     ResourceType.SESSION: SessionNote,
 }
-
-
-@dataclass(frozen=True)
-class ParsedTag:
-    label: str
-    normalized_label: str
-    reference_type: ResourceType | None
-
-    @property
-    def key(self) -> str:
-        prefix = self.reference_type.value if self.reference_type else "passive"
-        return f"{prefix}:{self.normalized_label}"
-
 
 def normalize_tag_label(value: str) -> str:
     return " ".join(value.strip().split()).casefold()

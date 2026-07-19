@@ -155,3 +155,7 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# developer specific code env
+pyrefly.toml
+pyrightconfig.json

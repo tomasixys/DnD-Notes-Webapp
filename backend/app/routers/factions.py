@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Faction, FactionData, FactionRead, ResourceType
+from app.models.database import Faction
+from app.models.api import FactionData, FactionRead
+from app.models.enums import ResourceType
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
