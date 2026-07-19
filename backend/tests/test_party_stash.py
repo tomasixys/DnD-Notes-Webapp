@@ -9,7 +9,7 @@ from app.models.api import (
     CoinEntryDto,
     LootItemUpdate,
 )
-from app.routers.party.stash import get_party_stash, update_party_stash
+from app.routers.party.stash import get_party_stash, update_party_stash, add_loot_item, delete_loot_item
 
 
 class PartyStashIntegrationTests(unittest.TestCase):
@@ -111,6 +111,38 @@ class PartyStashIntegrationTests(unittest.TestCase):
             self.assertEqual(len(updated2["wealth"]["coins"]), 1)
             self.assertEqual(updated2["wealth"]["total_value"]["value"], 200.0)
             self.assertEqual(len(updated2["loot"]), 1)
+
+    def test_add_and_delete_loot_item_individually(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Fellowship")
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+
+            # Add loot item
+            payload = LootItemUpdate(
+                name="Sunblade",
+                desc="Glows with solar energy",
+                value=CoinEntryDto(value=5000, type="gp"),
+            )
+            added = add_loot_item(campaign.id, payload, db)
+            self.assertIsNotNone(added["id"])
+            self.assertEqual(added["name"], "Sunblade")
+            self.assertEqual(added["value"].value, 5000)
+            self.assertEqual(added["value"].type, "gp")
+
+            # Check that it's in the stash
+            stash = get_party_stash(campaign.id, db)
+            self.assertEqual(len(stash["loot"]), 1)
+            self.assertEqual(stash["loot"][0]["id"], added["id"])
+
+            # Delete the item
+            delete_result = delete_loot_item(campaign.id, added["id"], db)
+            self.assertTrue(delete_result["success"])
+
+            # Check that the stash is empty again
+            stash2 = get_party_stash(campaign.id, db)
+            self.assertEqual(len(stash2["loot"]), 0)
 
 
 if __name__ == "__main__":

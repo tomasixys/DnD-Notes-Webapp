@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models.database import Campaign, PartyStash, LootItem, CoinEntry, WealthLink
-from app.models.api import PartyStashRead, PartyStashUpdate, CoinEntryDto, TotalValueDto, WealthDto, LootItemRead
+from app.models.api import PartyStashRead, PartyStashUpdate, CoinEntryDto, TotalValueDto, WealthDto, LootItemRead, LootItemUpdate
 
 
 router = APIRouter(
@@ -165,3 +165,71 @@ def update_party_stash(
             for item in stash.loot
         ],
     }
+
+
+@router.put("/loot", response_model=LootItemRead)
+def add_loot_item(
+    campaign_id: int,
+    payload: LootItemUpdate,
+    db: Session = Depends(get_session),
+):
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    stash = get_or_create_party_stash(campaign_id, db)
+
+    db_coin_val = CoinEntry(
+        value=payload.value.value, type=payload.value.type.value
+    )
+    db.add(db_coin_val)
+    db.flush()
+
+    new_item = LootItem(
+        party_stash_id=stash.id,
+        name=payload.name,
+        desc=payload.desc,
+        coin_entry_id=db_coin_val.id,
+    )
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return {
+        "id": new_item.id,
+        "name": new_item.name,
+        "desc": new_item.desc,
+        "value": CoinEntryDto(value=new_item.value.value, type=new_item.value.type)
+        if new_item.value
+        else CoinEntryDto(value=0, type="gp"),
+    }
+
+
+@router.delete("/loot/{loot_id}")
+def delete_loot_item(
+    campaign_id: int,
+    loot_id: int,
+    db: Session = Depends(get_session),
+):
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    stash = get_or_create_party_stash(campaign_id, db)
+
+    item = db.get(LootItem, loot_id)
+    if item is None or item.party_stash_id != stash.id:
+        raise HTTPException(status_code=404, detail="Loot item not found")
+
+    coin_entry = item.value
+
+    db.delete(item)
+    db.flush()
+
+    if coin_entry:
+        db.delete(coin_entry)
+        db.flush()
+
+    db.commit()
+    return {"success": True}
+
