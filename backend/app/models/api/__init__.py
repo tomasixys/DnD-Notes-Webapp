@@ -10,6 +10,7 @@ from .party_stash import (
     WealthDto,
     LootItemRead,
     LootItemUpdate,
+    PartyStashCreate,
     PartyStashRead,
     PartyStashUpdate,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "WealthDto",
     "LootItemRead",
     "LootItemUpdate",
+    "PartyStashCreate",
     "PartyStashRead",
     "PartyStashUpdate",
 ]

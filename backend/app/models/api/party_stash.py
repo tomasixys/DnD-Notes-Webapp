@@ -25,6 +25,7 @@ class LootItemRead(SQLModel):
 
 
 class PartyStashRead(SQLModel):
+    id: int | None = None
     wealth: WealthDto
     loot: list[LootItemRead] = Field(default_factory=list)
 
@@ -33,6 +34,11 @@ class LootItemUpdate(SQLModel):
     name: str
     desc: str = ""
     value: CoinEntryDto
+
+
+class PartyStashCreate(SQLModel):
+    wealth: WealthDto
+    loot: list[LootItemUpdate] = Field(default_factory=list)
 
 
 class PartyStashUpdate(SQLModel):

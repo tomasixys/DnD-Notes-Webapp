@@ -1,6 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
-from app.models.api import PartyStashRead, PartyStashUpdate, LootItemRead, LootItemUpdate
+from app.models.api import (
+    PartyStashCreate,
+    PartyStashRead,
+    PartyStashUpdate,
+    LootItemRead,
+    LootItemUpdate,
+)
 from app.services.stash_service import StashService
 
 
@@ -18,6 +24,15 @@ def get_party_stash(
     return service.get_stash(campaign_id)
 
 
+@router.post("", response_model=PartyStashRead, status_code=201)
+def create_party_stash(
+    campaign_id: int,
+    payload: PartyStashCreate,
+    service: StashService = Depends(),
+):
+    return service.create_stash(campaign_id, payload)
+
+
 @router.put("", response_model=PartyStashRead)
 def update_party_stash(
     campaign_id: int,
@@ -27,7 +42,7 @@ def update_party_stash(
     return service.update_stash(campaign_id, payload)
 
 
-@router.put("/loot", response_model=LootItemRead)
+@router.post("/loot", response_model=LootItemRead, status_code=201)
 def add_loot_item(
     campaign_id: int,
     payload: LootItemUpdate,
@@ -36,10 +51,10 @@ def add_loot_item(
     return service.add_loot_item(campaign_id, payload)
 
 
-@router.delete("/loot/{loot_id}")
+@router.delete("/loot/{loot_id}", status_code=204)
 def delete_loot_item(
     campaign_id: int,
     loot_id: int,
     service: StashService = Depends(),
 ):
-    return service.delete_loot_item(campaign_id, loot_id)
+    service.delete_loot_item(campaign_id, loot_id)
