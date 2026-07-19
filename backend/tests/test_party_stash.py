@@ -2,8 +2,8 @@ import unittest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.database.models import Campaign
-from app.api.models import (
+from app.models.database import Campaign
+from app.models.api import (
     PartyStashUpdate,
     WealthDto,
     CoinEntryDto,

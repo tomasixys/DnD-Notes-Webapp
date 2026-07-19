@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.database.models import Campaign, PartyStash, LootItem, CoinEntry, WealthLink
-from app.api.models import PartyStashRead, PartyStashUpdate, CoinEntryDto, TotalValueDto, WealthDto, LootItemRead
+from app.models.database import Campaign, PartyStash, LootItem, CoinEntry, WealthLink
+from app.models.api import PartyStashRead, PartyStashUpdate, CoinEntryDto, TotalValueDto, WealthDto, LootItemRead
 
 
 router = APIRouter(

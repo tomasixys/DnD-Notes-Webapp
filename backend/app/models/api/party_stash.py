@@ -1,5 +1,5 @@
 from sqlmodel import Field, SQLModel
-from models.enums import CoinType
+from app.models.enums import CoinType
 
 
 class CoinEntryDto(SQLModel):
