@@ -1,12 +1,15 @@
-from enum import Enum
+from dataclasses import dataclass
+
 from sqlmodel import Field, SQLModel
 
+from app.models.enums import SearchResourceType
 
-class SearchResourceType(str, Enum):
-    SESSION = "session"
-    PERSON = "person"
-    LOCATION = "location"
-    FACTION = "faction"
+
+@dataclass(frozen=True)
+class SearchField:
+    name: str
+    value: str
+    weight: float
 
 
 class SearchQueryDto(SQLModel):

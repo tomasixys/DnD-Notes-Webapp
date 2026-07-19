@@ -10,32 +10,12 @@ router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/rolls",
     tags=["rolls"],
 )
-
-
-class RollCreate(SQLModel):
-    session_id: int
-    roll: int
-
-
-class SessionRollStats(SQLModel):
-    campaign_id: int
-    session_id: int
-    rolls: list[int]
-    average: float
-    roll_luck: float
-
-
-class CampaignRollStats(SQLModel):
-    campaign_id: int
-    num_rolls: int
-    roll_avg: float
-    roll_luck: float
-
-
-class RollCreateResponse(SQLModel):
-    campaign_stats: CampaignRollStats
-    session_stats: SessionRollStats
-
+from app.models.api.rolls import (
+    CampaignRollStats,
+    RollCreate,
+    RollCreateResponse,
+    SessionRollStats,
+)
 
 def verify_campaign_and_session(
     campaign_id: int,

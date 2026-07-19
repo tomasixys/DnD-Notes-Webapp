@@ -26,10 +26,17 @@ from .backup import (
     CampaignBackupPartyStash,
 )
 from .search import (
-    SearchResourceType,
+    SearchField,
     SearchQueryDto,
     SearchResultDto,
     SearchResponseDto,
+)
+from .parsed_tag import ParsedTag
+from .rolls import (
+    RollCreate,
+    SessionRollStats,
+    CampaignRollStats,
+    RollCreateResponse,
 )
 
 __all__ = [
@@ -54,7 +61,7 @@ __all__ = [
     "CampaignBackup",
     "CampaignBackupLootItem",
     "CampaignBackupPartyStash",
-    "SearchResourceType",
+    "SearchField",
     "SearchQueryDto",
     "SearchResultDto",
     "SearchResponseDto",
@@ -66,4 +73,9 @@ __all__ = [
     "PartyStashCreate",
     "PartyStashRead",
     "PartyStashUpdate",
+    "RollCreate",
+    "SessionRollStats",
+    "CampaignRollStats",
+    "RollCreateResponse",
+    "ParsedTag",
 ]
