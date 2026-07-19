@@ -1,4 +1,4 @@
-from .enums import ResourceType, TagResolutionState
+from app.models.enums import ResourceType, TagResolutionState
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
 from .person import PersonData, PersonRead
