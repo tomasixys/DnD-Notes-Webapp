@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeMount } from "vue"
-import { GetAPI, PutAPI } from "@/apihelpers"
+import { GetAPI, PutAPI, DeleteAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
 
 interface CoinEntry {
@@ -147,33 +147,49 @@ function adjustCoin(coinKey: keyof typeof coins.value, amount: number) {
   coins.value[coinKey] = Math.max(0, coins.value[coinKey] + amount)
 }
 
-function addLootItem() {
-  if (!newLootName.value.trim()) return
+async function addLootItem() {
+  if (!selectedCampaignId.value || !newLootName.value.trim()) return
 
-  loot.value.push({
+  const itemPayload = {
     name: newLootName.value.trim(),
     desc: newLootDesc.value.trim(),
     value: {
       value: newLootValue.value || 0,
       type: newLootType.value,
     },
-  })
+  }
 
-  // Clear inputs
-  newLootName.value = ""
-  newLootDesc.value = ""
-  newLootValue.value = null
-  newLootType.value = "gp"
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/party/stash/loot`, itemPayload)
 
-  // Directly save to database
-  saveStash()
+  if (response && response.success !== false) {
+    const newItem = response as any
+    loot.value.push(newItem)
+
+    // Clear inputs
+    newLootName.value = ""
+    newLootDesc.value = ""
+    newLootValue.value = null
+    newLootType.value = "gp"
+  } else {
+    console.error("Failed to add loot item:", response)
+  }
 }
 
-function removeLootItem(index: number) {
-  loot.value.splice(index, 1)
+async function removeLootItem(index: number) {
+  if (!selectedCampaignId.value) return
+  const item = loot.value[index]
+  if (!item || !item.id) {
+    loot.value.splice(index, 1)
+    return
+  }
 
-  // Directly save to database
-  saveStash()
+  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/party/stash/loot/${item.id}`)
+
+  if (response && response.success !== false) {
+    loot.value.splice(index, 1)
+  } else {
+    console.error("Failed to delete loot item:", response)
+  }
 }
 
 onBeforeMount(async () => {
