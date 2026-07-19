@@ -14,10 +14,17 @@ from .backup import (
     CampaignBackup,
 )
 from .search import (
-    SearchResourceType,
+    SearchField,
     SearchQueryDto,
     SearchResultDto,
     SearchResponseDto,
+)
+from .parsed_tag import ParsedTag
+from .rolls import (
+    RollCreate,
+    SessionRollStats,
+    CampaignRollStats,
+    RollCreateResponse,
 )
 
 __all__ = [
@@ -39,8 +46,13 @@ __all__ = [
     "CampaignBackupLocation",
     "CampaignBackupFaction",
     "CampaignBackup",
-    "SearchResourceType",
+    "SearchField",
     "SearchQueryDto",
     "SearchResultDto",
     "SearchResponseDto",
+    "RollCreate",
+    "SessionRollStats",
+    "CampaignRollStats",
+    "RollCreateResponse",
+    "ParsedTag",
 ]
