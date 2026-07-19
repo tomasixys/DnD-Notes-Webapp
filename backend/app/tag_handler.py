@@ -4,17 +4,20 @@ from typing import Iterable
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from app.models import (
+from app.database.models import (
     Faction,
     Location,
     Person,
-    ResourceTagRead,
-    ResourceType,
     SessionNote,
     Tag,
     TagAssignment,
+)
+from app.api.models import (
+    ResourceTagRead,
+    ResourceType,
     TagResolutionState,
 )
+
 
 
 REFERENCE_MODELS = {

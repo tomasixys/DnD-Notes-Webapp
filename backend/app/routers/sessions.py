@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import (
+from app.database.models import SessionNote
+from app.api.models import (
     ResourceType,
-    SessionNote,
     SessionNoteData,
     SessionNoteRead,
 )

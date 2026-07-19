@@ -5,7 +5,14 @@ from sqlmodel import Session, select
 from sqlalchemy import String, cast, or_
 
 from app.database import get_session
-from app.models import Person, Faction, Location, ResourceType, SessionNote, SearchResultDto, SearchResponseDto, SearchQueryDto, SearchResourceType
+from app.database.models import Person, Faction, Location, SessionNote
+from app.api.models import (
+    ResourceType,
+    SearchResultDto,
+    SearchResponseDto,
+    SearchQueryDto,
+    SearchResourceType,
+)
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import get_resource_tags, get_tag_matching_owner_ids
 

@@ -10,13 +10,15 @@ from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.migrations import run_database_migrations
-from app.models import (
+from app.database.models import (
     Campaign,
     Location,
     Person,
-    ResourceType,
     Tag,
     TagAssignment,
+)
+from app.api.models import (
+    ResourceType,
     TagResolutionState,
 )
 from app.tag_handler import (
