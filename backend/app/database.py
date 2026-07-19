@@ -26,7 +26,7 @@ def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
 def create_db_and_tables():
     backup_database_before_migration(get_database_path())
     # Explicitly import all database models to populate SQLModel metadata
-    from app.database.models import (
+    from app.models.database import (
         Campaign,
         Tag,
         TagAssignment,

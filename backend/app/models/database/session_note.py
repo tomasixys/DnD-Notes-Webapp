@@ -3,6 +3,7 @@ from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
     from .campaign import Campaign
+    from .roll_entry import RollEntry
 
 
 class SessionNote(SQLModel, table=True):
@@ -24,15 +25,3 @@ class SessionNote(SQLModel, table=True):
         cascade_delete=True,
         passive_deletes=True,
     )
-
-
-class RollEntry(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-    session: "SessionNote" = Relationship(back_populates="rolls")
-    session_id: int = Field(
-        foreign_key="sessionnote.id",
-        ondelete="CASCADE",
-    )
-
-    roll: int

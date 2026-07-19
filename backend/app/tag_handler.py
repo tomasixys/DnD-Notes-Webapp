@@ -4,7 +4,7 @@ from typing import Iterable
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
-from app.database.models import (
+from app.models.database import (
     Faction,
     Location,
     Person,
@@ -12,11 +12,8 @@ from app.database.models import (
     Tag,
     TagAssignment,
 )
-from app.api.models import (
-    ResourceTagRead,
-    ResourceType,
-    TagResolutionState,
-)
+from app.models.api import ResourceTagRead
+from app.models.enums import ResourceType, TagResolutionState
 
 
 

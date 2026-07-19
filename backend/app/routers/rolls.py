@@ -3,7 +3,7 @@ from scipy.stats import norm
 from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
-from app.database.models import Campaign, RollEntry, SessionNote
+from app.models.database import Campaign, RollEntry, SessionNote
 from app.routers.campaigns import verify_campaign
 
 router = APIRouter(

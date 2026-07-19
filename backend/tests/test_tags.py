@@ -10,14 +10,14 @@ from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.migrations import run_database_migrations
-from app.database.models import (
+from app.models.database import (
     Campaign,
     Location,
     Person,
     Tag,
     TagAssignment,
 )
-from app.api.models import (
+from app.models.enums import (
     ResourceType,
     TagResolutionState,
 )

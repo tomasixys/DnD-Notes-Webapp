@@ -9,8 +9,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
-from app.database.models import *
-from app.api.models import *
+from app.models.database import *
+from app.models.api import *
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
 from app.tag_handler import (

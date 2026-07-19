@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel
 
-from .enums import ResourceType, TagResolutionState
+from app.models.enums import ResourceType, TagResolutionState
 
 
 class ResourceTagRead(SQLModel):
