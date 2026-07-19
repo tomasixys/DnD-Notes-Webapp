@@ -9,7 +9,7 @@ from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
     handle_resource_deleted,
-    resolve_pending_tags_for_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
 )
 
@@ -95,8 +95,8 @@ def create_person(
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, db_person.name
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.PERSON, db_person.id
     )
     db.commit()
     db.refresh(db_person)
@@ -112,6 +112,7 @@ def update_person(
     db: Session = Depends(get_session),
 ):
     person = get_person_by_id(campaign_id, person_id, db)
+    previous_name = person.name
 
     person.name = updated_person.name
     person.role = updated_person.role
@@ -123,8 +124,12 @@ def update_person(
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, person.id, updated_person.tags
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, person.name
+    refresh_reference_tags_for_resource(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        previous_labels=[previous_name],
     )
     db.commit()
     db.refresh(person)

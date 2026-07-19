@@ -8,6 +8,11 @@ and this changelog follows the structure described by
 
 ## [Unreleased]
 
+### Fixed
+
+- Resolved reference tags now follow renamed resources, update their displayed
+  labels, and merge aliases without losing existing tag assignments.
+
 ## [0.2.0] - 2026-07-18
 
 ### Added

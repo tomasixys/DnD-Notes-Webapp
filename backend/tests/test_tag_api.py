@@ -6,14 +6,17 @@ from sqlmodel import Session, SQLModel, create_engine, select
 from app.models.database import (
     Campaign,
     Tag,
+    TagAssignment,
 )
+
 from app.models.api import (
     LocationData,
     PersonData,
     SearchQueryDto,
 )
+
 from app.models.enums import ResourceType
-from app.routers.locations import create_location
+from app.routers.locations import create_location, update_location
 from app.routers.people import create_person, get_people_for_campaign
 from app.routers.search import search_campaign
 
@@ -84,6 +87,54 @@ class TagApiIntegrationTests(unittest.TestCase):
             self.assertEqual(search_response.total_count, 1)
             self.assertEqual(search_response.results[0].title, "Nalia")
             self.assertIn("tags", search_response.results[0].matched_fields)
+
+    def test_renaming_a_target_updates_and_merges_reference_tags(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Test")
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+
+            location = create_location(
+                campaign.id,
+                LocationData(name="Old Harbor"),
+                db,
+            )
+            create_person(
+                campaign.id,
+                PersonData(name="Nalia", tags=["location:Old Harbor"]),
+                db,
+            )
+            create_person(
+                campaign.id,
+                PersonData(name="Sodalan", tags=["location:New Harbor"]),
+                db,
+            )
+
+            update_location(
+                campaign.id,
+                location.id,
+                LocationData(name="New Harbor"),
+                db,
+            )
+
+            people = get_people_for_campaign(campaign.id, db)
+            for person in people:
+                self.assertEqual(len(person.tags), 1)
+                self.assertEqual(person.tags[0].value, "location:New Harbor")
+                self.assertEqual(person.tags[0].label, "New Harbor")
+                self.assertEqual(person.tags[0].reference_id, location.id)
+
+            reference_tags = db.exec(
+                select(Tag).where(Tag.reference_type == "location")
+            ).all()
+            assignments = db.exec(select(TagAssignment)).all()
+            self.assertEqual(len(reference_tags), 1)
+            self.assertEqual(
+                reference_tags[0].key,
+                f"reference:location:{location.id}",
+            )
+            self.assertEqual(len(assignments), 2)
 
 
 if __name__ == "__main__":

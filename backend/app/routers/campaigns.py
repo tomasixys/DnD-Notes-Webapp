@@ -15,7 +15,7 @@ from app.models.api import *
 from app.file_storage import *
 from app.tag_handler import (
     get_resource_tags,
-    resolve_pending_tags_for_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
 )
 
@@ -427,8 +427,8 @@ async def import_campaign_backup(
                         person.id,
                         person_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
-                        db, campaign.id, ResourceType.PERSON, person.name
+                    refresh_reference_tags_for_resource(
+                        db, campaign.id, ResourceType.PERSON, person.id
                     )
 
                 for location_backup in cb.locations:
@@ -448,11 +448,11 @@ async def import_campaign_backup(
                         location.id,
                         location_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    refresh_reference_tags_for_resource(
                         db,
                         campaign.id,
                         ResourceType.LOCATION,
-                        location.name,
+                        location.id,
                     )
 
                 for faction_backup in cb.factions:
@@ -472,11 +472,11 @@ async def import_campaign_backup(
                         faction.id,
                         faction_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    refresh_reference_tags_for_resource(
                         db,
                         campaign.id,
                         ResourceType.FACTION,
-                        faction.name,
+                        faction.id,
                     )
 
                 for session_backup in cb.sessions:
@@ -497,11 +497,11 @@ async def import_campaign_backup(
                         session_note.id,
                         session_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    refresh_reference_tags_for_resource(
                         db,
                         campaign.id,
                         ResourceType.SESSION,
-                        session_note.title,
+                        session_note.id,
                     )
 
                     for roll in session_backup.rolls:

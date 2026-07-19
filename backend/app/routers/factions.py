@@ -9,7 +9,7 @@ from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
     handle_resource_deleted,
-    resolve_pending_tags_for_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
 )
 
@@ -96,8 +96,8 @@ def create_faction(
         db_faction.id,
         faction.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.FACTION, db_faction.name
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.FACTION, db_faction.id
     )
     db.commit()
     db.refresh(db_faction)
@@ -113,6 +113,7 @@ def update_faction(
     db: Session = Depends(get_session),
 ):
     faction = get_faction_by_id(campaign_id, faction_id, db)
+    previous_name = faction.name
 
     faction.name = updated_faction.name
     faction.type = updated_faction.type
@@ -127,8 +128,12 @@ def update_faction(
         faction.id,
         updated_faction.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.FACTION, faction.name
+    refresh_reference_tags_for_resource(
+        db,
+        campaign_id,
+        ResourceType.FACTION,
+        faction.id,
+        previous_labels=[previous_name],
     )
     db.commit()
     db.refresh(faction)

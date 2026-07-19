@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Iterable
 
 from sqlalchemy import or_
@@ -26,6 +25,10 @@ REFERENCE_MODELS = {
 
 def normalize_tag_label(value: str) -> str:
     return " ".join(value.strip().split()).casefold()
+
+
+def resolved_tag_key(resource_type: ResourceType, reference_id: int) -> str:
+    return f"reference:{resource_type.value}:{reference_id}"
 
 
 def parse_tag(value: str) -> ParsedTag | None:
@@ -73,6 +76,12 @@ def _candidate_labels(resource_type: ResourceType, resource) -> list[str]:
     return [resource.name]
 
 
+def _canonical_label(resource_type: ResourceType, resource) -> str:
+    if resource_type == ResourceType.SESSION:
+        return resource.title
+    return resource.name
+
+
 def resolve_reference(
     db: Session,
     campaign_id: int,
@@ -106,25 +115,10 @@ def _get_or_create_tag(
     campaign_id: int,
     parsed: ParsedTag,
 ) -> Tag:
-    tag = db.exec(
-        select(Tag)
-        .where(Tag.campaign_id == campaign_id)
-        .where(Tag.key == parsed.key)
-    ).first()
-
-    if tag is None:
-        tag = Tag(
-            campaign_id=campaign_id,
-            label=parsed.label,
-            normalized_label=parsed.normalized_label,
-            key=parsed.key,
-            reference_type=(
-                parsed.reference_type.value
-                if parsed.reference_type
-                else None
-            ),
-            resolution_state=TagResolutionState.PASSIVE.value,
-        )
+    reference_id: int | None = None
+    state = TagResolutionState.PASSIVE
+    key = parsed.key
+    label = parsed.label
 
     if parsed.reference_type:
         reference_id, state = resolve_reference(
@@ -133,12 +127,96 @@ def _get_or_create_tag(
             parsed.reference_type,
             parsed.label,
         )
+        if reference_id is not None:
+            key = resolved_tag_key(parsed.reference_type, reference_id)
+            resource = db.get(REFERENCE_MODELS[parsed.reference_type], reference_id)
+            if resource is not None:
+                label = _canonical_label(parsed.reference_type, resource)
+
+    tag = db.exec(
+        select(Tag)
+        .where(Tag.campaign_id == campaign_id)
+        .where(Tag.key == key)
+    ).first()
+
+    if tag is None:
+        tag = Tag(
+            campaign_id=campaign_id,
+            label=label,
+            normalized_label=normalize_tag_label(label),
+            key=key,
+            reference_type=(
+                parsed.reference_type.value
+                if parsed.reference_type
+                else None
+            ),
+            reference_id=reference_id,
+            resolution_state=state.value,
+        )
+    elif parsed.reference_type:
+        tag.label = label
+        tag.normalized_label = normalize_tag_label(label)
         tag.reference_id = reference_id
         tag.resolution_state = state.value
     else:
         tag.reference_id = None
         tag.resolution_state = TagResolutionState.PASSIVE.value
 
+    db.add(tag)
+    db.flush()
+    return tag
+
+
+def _merge_tags(db: Session, source: Tag, destination: Tag) -> Tag:
+    assignments = db.exec(
+        select(TagAssignment).where(TagAssignment.tag_id == source.id)
+    ).all()
+
+    for assignment in assignments:
+        existing_assignment = db.exec(
+            select(TagAssignment)
+            .where(TagAssignment.tag_id == destination.id)
+            .where(TagAssignment.owner_type == assignment.owner_type)
+            .where(TagAssignment.owner_id == assignment.owner_id)
+        ).first()
+        if existing_assignment is None:
+            assignment.tag_id = destination.id
+            db.add(assignment)
+        else:
+            db.delete(assignment)
+
+    db.flush()
+    db.delete(source)
+    db.flush()
+    return destination
+
+
+def _promote_resolved_tag(
+    db: Session,
+    tag: Tag,
+    resource_type: ResourceType,
+    reference_id: int,
+) -> Tag:
+    resource = db.get(REFERENCE_MODELS[resource_type], reference_id)
+    if resource is None:
+        return tag
+
+    key = resolved_tag_key(resource_type, reference_id)
+    canonical_label = _canonical_label(resource_type, resource)
+    identity_tag = db.exec(
+        select(Tag)
+        .where(Tag.campaign_id == tag.campaign_id)
+        .where(Tag.key == key)
+    ).first()
+
+    if identity_tag is not None and identity_tag.id != tag.id:
+        tag = _merge_tags(db, tag, identity_tag)
+
+    tag.key = key
+    tag.label = canonical_label
+    tag.normalized_label = normalize_tag_label(canonical_label)
+    tag.reference_id = reference_id
+    tag.resolution_state = TagResolutionState.RESOLVED.value
     db.add(tag)
     db.flush()
     return tag
@@ -283,9 +361,57 @@ def resolve_pending_tags_for_resource(
             resource_type,
             tag.label,
         )
-        tag.reference_id = reference_id
-        tag.resolution_state = state.value
-        db.add(tag)
+        if reference_id is not None:
+            _promote_resolved_tag(
+                db,
+                tag,
+                resource_type,
+                reference_id,
+            )
+        else:
+            tag.reference_id = None
+            tag.resolution_state = state.value
+            db.add(tag)
+
+
+def refresh_reference_tags_for_resource(
+    db: Session,
+    campaign_id: int,
+    resource_type: ResourceType,
+    resource_id: int,
+    previous_labels: Iterable[str] = (),
+) -> None:
+    resource = db.get(REFERENCE_MODELS[resource_type], resource_id)
+    if resource is None or resource.campaign_id != campaign_id:
+        return
+
+    linked_tags = db.exec(
+        select(Tag)
+        .where(Tag.campaign_id == campaign_id)
+        .where(Tag.reference_type == resource_type.value)
+        .where(Tag.reference_id == resource_id)
+        .order_by(Tag.id)
+    ).all()
+    for tag in linked_tags:
+        _promote_resolved_tag(
+            db,
+            tag,
+            resource_type,
+            resource_id,
+        )
+
+    labels_to_resolve = {
+        normalize_tag_label(label): label
+        for label in [*_candidate_labels(resource_type, resource), *previous_labels]
+        if normalize_tag_label(label)
+    }
+    for label in labels_to_resolve.values():
+        resolve_pending_tags_for_resource(
+            db,
+            campaign_id,
+            resource_type,
+            label,
+        )
 
 
 def handle_resource_deleted(

@@ -172,7 +172,84 @@ class TagMigrationTests(unittest.TestCase):
 
             self.assertEqual(tags, [("Ally", "passive"), ("Neutral", "passive")])
             self.assertEqual(assignments, [("person", 3), ("person", 3)])
-            self.assertEqual(version, 1)
+            self.assertEqual(version, 2)
+
+    def test_migrates_resolved_aliases_to_one_identity_tag(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "version-one.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.execute(
+                    "CREATE TABLE tag ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "label TEXT NOT NULL, normalized_label TEXT NOT NULL, "
+                    "key TEXT NOT NULL, reference_type TEXT, reference_id INTEGER, "
+                    "resolution_state TEXT NOT NULL, UNIQUE(campaign_id, key))"
+                )
+                connection.execute(
+                    "CREATE TABLE tagassignment ("
+                    "id INTEGER PRIMARY KEY, tag_id INTEGER NOT NULL, "
+                    "owner_type TEXT NOT NULL, owner_id INTEGER NOT NULL, "
+                    "UNIQUE(tag_id, owner_type, owner_id))"
+                )
+                connection.execute(
+                    "CREATE TABLE location ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "name TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "INSERT INTO location VALUES (9, 4, 'New Harbor')"
+                )
+                connection.execute(
+                    "INSERT INTO tag VALUES "
+                    "(1, 4, 'Old Harbor', 'old harbor', 'location:old harbor', "
+                    "'location', 9, 'resolved')"
+                )
+                connection.execute(
+                    "INSERT INTO tag VALUES "
+                    "(2, 4, 'Harbor', 'harbor', 'location:harbor', "
+                    "'location', 9, 'resolved')"
+                )
+                connection.execute(
+                    "INSERT INTO tagassignment VALUES (1, 1, 'person', 10)"
+                )
+                connection.execute(
+                    "INSERT INTO tagassignment VALUES (2, 2, 'person', 11)"
+                )
+                connection.execute("PRAGMA user_version = 1")
+                connection.commit()
+
+            engine = create_sqlalchemy_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+
+            with engine.connect() as connection:
+                tags = connection.execute(
+                    text(
+                        "SELECT key, label, normalized_label, reference_id "
+                        "FROM tag"
+                    )
+                ).all()
+                assignments = connection.execute(
+                    text(
+                        "SELECT tag_id, owner_type, owner_id "
+                        "FROM tagassignment ORDER BY owner_id"
+                    )
+                ).all()
+                version = connection.execute(text("PRAGMA user_version")).scalar_one()
+
+            engine.dispose()
+
+            self.assertEqual(
+                tags,
+                [("reference:location:9", "New Harbor", "new harbor", 9)],
+            )
+            self.assertEqual(
+                assignments,
+                [(1, "person", 10), (1, "person", 11)],
+            )
+            self.assertEqual(version, 2)
 
 
 if __name__ == "__main__":
