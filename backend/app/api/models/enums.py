@@ -13,3 +13,12 @@ class TagResolutionState(str, Enum):
     RESOLVED = "resolved"
     UNRESOLVED = "unresolved"
     AMBIGUOUS = "ambiguous"
+
+
+class CoinType(str, Enum):
+    CP = "cp"
+    SP = "sp"
+    EP = "ep"
+    GP = "gp"
+    PP = "pp"
+

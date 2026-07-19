@@ -280,6 +280,27 @@ def export_campaign_backup(
                 banner_archive_path = f"assets/campaign-banner{source_path.suffix.lower()}"
                 archive.write(source_path, banner_archive_path)
 
+        party_stash_backup = None
+        if campaign.party_stash:
+            party_stash_backup = CampaignBackupPartyStash(
+                coins=[
+                    CampaignBackupCoinEntry(value=c.value, type=c.type)
+                    for c in campaign.party_stash.coins
+                ],
+                loot=[
+                    CampaignBackupLootItem(
+                        name=item.name,
+                        desc=item.desc,
+                        value=CampaignBackupCoinEntry(
+                            value=item.value.value, type=item.value.type
+                        )
+                        if item.value
+                        else CampaignBackupCoinEntry(value=0, type="gp"),
+                    )
+                    for item in campaign.party_stash.loot
+                ],
+            )
+
         backup = CampaignBackup(
             schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
             campaign=CampaignBackupCampaign(
@@ -348,6 +369,7 @@ def export_campaign_backup(
                 )
                 for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
             ],
+            party_stash=party_stash_backup,
         )
 
         archive.writestr(
@@ -512,8 +534,38 @@ async def import_campaign_backup(
                             )
                         )
 
+                if cb.party_stash:
+                    party_stash = PartyStash(campaign_id=campaign.id)
+                    db.add(party_stash)
+                    db.flush()
+
+                    new_coins = []
+                    for coin_backup in cb.party_stash.coins:
+                        coin_entry = CoinEntry(value=coin_backup.value, type=coin_backup.type)
+                        db.add(coin_entry)
+                        new_coins.append(coin_entry)
+                    db.flush()
+                    party_stash.coins = new_coins
+
+                    for item_backup in cb.party_stash.loot:
+                        loot_coin_entry = CoinEntry(
+                            value=item_backup.value.value,
+                            type=item_backup.value.type,
+                        )
+                        db.add(loot_coin_entry)
+                        db.flush()
+
+                        item = LootItem(
+                            party_stash_id=party_stash.id,
+                            name=item_backup.name,
+                            desc=item_backup.desc,
+                            coin_entry_id=loot_coin_entry.id,
+                        )
+                        db.add(item)
+
                 db.commit()
                 db.refresh(campaign)
+
 
             except Exception:
                 db.rollback()

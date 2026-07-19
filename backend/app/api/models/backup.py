@@ -45,6 +45,22 @@ class CampaignBackupFaction(SQLModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class CampaignBackupCoinEntry(SQLModel):
+    value: int
+    type: str
+
+
+class CampaignBackupLootItem(SQLModel):
+    name: str
+    desc: str = ""
+    value: CampaignBackupCoinEntry
+
+
+class CampaignBackupPartyStash(SQLModel):
+    coins: list[CampaignBackupCoinEntry] = Field(default_factory=list)
+    loot: list[CampaignBackupLootItem] = Field(default_factory=list)
+
+
 class CampaignBackup(SQLModel):
     schema_version: int = CAMPAIGN_BACKUP_SCHEMA_VERSION
     campaign: CampaignBackupCampaign
@@ -52,3 +68,6 @@ class CampaignBackup(SQLModel):
     people: list[CampaignBackupPerson] = Field(default_factory=list)
     locations: list[CampaignBackupLocation] = Field(default_factory=list)
     factions: list[CampaignBackupFaction] = Field(default_factory=list)
+    party_stash: CampaignBackupPartyStash | None = None
+
+

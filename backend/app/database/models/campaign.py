@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from .location import Location
     from .faction import Faction
     from .tag import Tag
+    from .party_stash import PartyStash
 
 
 class Campaign(SQLModel, table=True):
@@ -45,4 +46,11 @@ class Campaign(SQLModel, table=True):
         back_populates="campaign",
         cascade_delete=True,
         passive_deletes=True,
+    )
+
+    party_stash: "PartyStash" = Relationship(
+        back_populates="campaign",
+        cascade_delete=True,
+        passive_deletes=True,
+        sa_relationship_kwargs={"uselist": False},
     )

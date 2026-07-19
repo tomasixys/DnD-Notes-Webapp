@@ -35,6 +35,10 @@ def create_db_and_tables():
         Person,
         Location,
         Faction,
+        PartyStash,
+        LootItem,
+        CoinEntry,
+        WealthLink,
     )
 
     SQLModel.metadata.create_all(engine)
