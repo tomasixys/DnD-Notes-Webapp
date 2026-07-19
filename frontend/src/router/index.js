@@ -38,6 +38,11 @@ const router = createRouter({
       component: () => import("../views/rollsView.vue")
     },
     {
+      path: "/stash",
+      name: "Stash",
+      component: () => import("../views/stashView.vue")
+    },
+    {
       path: "/search",
       name: "Search",
       component: () => import("../views/searchView.vue"),
