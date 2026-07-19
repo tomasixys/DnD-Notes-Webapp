@@ -9,7 +9,7 @@ from app.models.api import (
     CoinEntryDto,
     LootItemUpdate,
 )
-from app.routers.party.stash import get_party_stash, update_party_stash, add_loot_item, delete_loot_item
+from app.services.stash_service import StashService
 
 
 class PartyStashIntegrationTests(unittest.TestCase):
@@ -20,11 +20,13 @@ class PartyStashIntegrationTests(unittest.TestCase):
             poolclass=StaticPool,
         )
         from sqlalchemy import event
+
         @event.listens_for(self.engine, "connect")
         def enable_sqlite_foreign_keys(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
+
         SQLModel.metadata.create_all(self.engine)
 
     def test_creates_default_stash_when_first_get_requested(self):
@@ -34,7 +36,8 @@ class PartyStashIntegrationTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
 
-            stash = get_party_stash(campaign.id, db)
+            service = StashService(db)
+            stash = service.get_stash(campaign.id)
 
             # Check defaults
             self.assertEqual(len(stash["wealth"]["coins"]), 0)
@@ -71,7 +74,8 @@ class PartyStashIntegrationTests(unittest.TestCase):
                 ],
             )
 
-            updated = update_party_stash(campaign.id, payload, db)
+            service = StashService(db)
+            updated = service.update_stash(campaign.id, payload)
 
             # Check that it returns updated data
             self.assertEqual(len(updated["wealth"]["coins"]), 2)
@@ -86,7 +90,7 @@ class PartyStashIntegrationTests(unittest.TestCase):
             self.assertEqual(updated["loot"][1]["value"].type, "sp")
 
             # Retrieve again via get_party_stash and verify
-            retrieved = get_party_stash(campaign.id, db)
+            retrieved = service.get_stash(campaign.id)
             self.assertEqual(len(retrieved["wealth"]["coins"]), 2)
             self.assertEqual(retrieved["wealth"]["total_value"]["value"], 11.0)
             self.assertEqual(len(retrieved["loot"]), 2)
@@ -107,7 +111,7 @@ class PartyStashIntegrationTests(unittest.TestCase):
                     ),
                 ],
             )
-            updated2 = update_party_stash(campaign.id, payload2, db)
+            updated2 = service.update_stash(campaign.id, payload2)
             self.assertEqual(len(updated2["wealth"]["coins"]), 1)
             self.assertEqual(updated2["wealth"]["total_value"]["value"], 200.0)
             self.assertEqual(len(updated2["loot"]), 1)
@@ -119,29 +123,31 @@ class PartyStashIntegrationTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
 
+            service = StashService(db)
+
             # Add loot item
             payload = LootItemUpdate(
                 name="Sunblade",
                 desc="Glows with solar energy",
                 value=CoinEntryDto(value=5000, type="gp"),
             )
-            added = add_loot_item(campaign.id, payload, db)
+            added = service.add_loot_item(campaign.id, payload)
             self.assertIsNotNone(added["id"])
             self.assertEqual(added["name"], "Sunblade")
             self.assertEqual(added["value"].value, 5000)
             self.assertEqual(added["value"].type, "gp")
 
             # Check that it's in the stash
-            stash = get_party_stash(campaign.id, db)
+            stash = service.get_stash(campaign.id)
             self.assertEqual(len(stash["loot"]), 1)
             self.assertEqual(stash["loot"][0]["id"], added["id"])
 
             # Delete the item
-            delete_result = delete_loot_item(campaign.id, added["id"], db)
+            delete_result = service.delete_loot_item(campaign.id, added["id"])
             self.assertTrue(delete_result["success"])
 
             # Check that the stash is empty again
-            stash2 = get_party_stash(campaign.id, db)
+            stash2 = service.get_stash(campaign.id)
             self.assertEqual(len(stash2["loot"]), 0)
 
 
