@@ -13,8 +13,12 @@ function fetchError(x) {
 async function statusCodeHandler(response) {
   switch (response.status) {
     case 200:
+    case 201: {
       const data = await response.json();
       return keysToCamelCase(data);
+    }
+    case 204:
+      return { success: true };
     case 400:
       return {
         success: false,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeMount } from "vue"
-import { GetAPI, PutAPI, DeleteAPI } from "@/apihelpers"
+import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
 
 interface CoinEntry {
@@ -24,6 +24,9 @@ const COIN_MULTIPLIER_TO_GP = {
 }
 
 const { selectedCampaignId, selectedCampaign } = useCampaignStore()
+
+// Stash identity — null means no stash persisted yet
+const stashId = ref<number | null>(null)
 
 // Local counts for vault cards
 const coins = ref({
@@ -79,6 +82,10 @@ async function fetchStash() {
 
   if (response && response.success !== false) {
     const rawStash = response as any
+
+    // Track whether a stash exists in the DB
+    stashId.value = rawStash.id ?? null
+
     const rawCoins = rawStash.wealth?.coins || []
 
     // Reset counts
@@ -129,9 +136,14 @@ async function saveStash() {
     })),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/party/stash`, payload)
+  const endpoint = `campaigns/${selectedCampaignId.value}/party/stash`
+  const response = stashId.value === null
+    ? await PostAPI(endpoint, payload)
+    : await PutAPI(endpoint, payload)
 
   if (response && response.success !== false) {
+    // Capture the stash id from the response (important on first create)
+    stashId.value = (response as any).id ?? stashId.value
     saveStatus.value = "success"
     setTimeout(() => {
       saveStatus.value = "idle"
@@ -159,11 +171,17 @@ async function addLootItem() {
     },
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/party/stash/loot`, itemPayload)
+  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/party/stash/loot`, itemPayload)
 
   if (response && response.success !== false) {
     const newItem = response as any
     loot.value.push(newItem)
+
+    // If this was the first mutation, the backend auto-created the stash.
+    // Refresh to pick up the stash id so subsequent saves use PUT.
+    if (stashId.value === null) {
+      await fetchStash()
+    }
 
     // Clear inputs
     newLootName.value = ""
@@ -427,7 +445,6 @@ onBeforeMount(async () => {
                   type="number"
                   min="0"
                   placeholder="0"
-                  required
                 />
               </div>
               <div class="input-group type-input-group">
