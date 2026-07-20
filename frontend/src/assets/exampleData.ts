@@ -6,6 +6,7 @@ function passiveTags(...values: string[]): dto.ResourceTagDto[] {
     label: value,
     referenceType: null,
     referenceId: null,
+    relationshipType: "associated_with",
     resolutionState: "passive",
   }))
 }

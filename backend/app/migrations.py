@@ -9,7 +9,7 @@ from sqlalchemy import Engine, inspect, text
 from app.tag_handler import normalize_tag_label
 
 
-CURRENT_DATABASE_VERSION = 2
+CURRENT_DATABASE_VERSION = 4
 
 LEGACY_TAG_TABLES = {
     "sessionnote": "session",
@@ -237,6 +237,36 @@ def migrate_resolved_tags_to_identity_keys(connection) -> None:
             )
 
 
+def migrate_tag_assignment_relationship_types(connection) -> None:
+    columns = {
+        column["name"]
+        for column in inspect(connection).get_columns("tagassignment")
+    }
+    if "relationship_type" not in columns:
+        connection.execute(
+            text(
+                "ALTER TABLE tagassignment "
+                "ADD COLUMN relationship_type VARCHAR"
+            )
+        )
+
+    connection.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_tagassignment_relationship_type "
+            "ON tagassignment (relationship_type)"
+        )
+    )
+
+
+def migrate_tag_field_assignments_to_associated_with(connection) -> None:
+    connection.execute(
+        text(
+            "UPDATE tagassignment "
+            "SET relationship_type = 'associated_with'"
+        )
+    )
+
+
 def run_database_migrations(engine: Engine) -> None:
     with engine.begin() as connection:
         version = int(
@@ -250,6 +280,14 @@ def run_database_migrations(engine: Engine) -> None:
         if version < 2:
             migrate_resolved_tags_to_identity_keys(connection)
             connection.execute(text("PRAGMA user_version = 2"))
+
+        if version < 3:
+            migrate_tag_assignment_relationship_types(connection)
+            connection.execute(text("PRAGMA user_version = 3"))
+
+        if version < 4:
+            migrate_tag_field_assignments_to_associated_with(connection)
+            connection.execute(text("PRAGMA user_version = 4"))
 
         if version > CURRENT_DATABASE_VERSION:
             raise RuntimeError(

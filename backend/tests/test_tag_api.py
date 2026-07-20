@@ -15,7 +15,7 @@ from app.models.api import (
     SearchQueryDto,
 )
 
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.locations import create_location, update_location
 from app.routers.people import create_person, get_people_for_campaign
 from app.routers.search import search_campaign
@@ -68,6 +68,10 @@ class TagApiIntegrationTests(unittest.TestCase):
                 ResourceType.LOCATION,
             )
             self.assertEqual(person.tags[1].reference_id, location.id)
+            self.assertEqual(
+                person.tags[1].relationship_type,
+                RelationshipType.ASSOCIATED_WITH,
+            )
 
             tag = db.exec(
                 select(Tag).where(

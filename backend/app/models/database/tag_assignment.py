@@ -24,5 +24,6 @@ class TagAssignment(SQLModel, table=True):
     )
     owner_type: str = Field(index=True)
     owner_id: int = Field(index=True)
+    relationship_type: str | None = Field(default=None, index=True)
 
     tag: "Tag" = Relationship(back_populates="assignments")

@@ -18,6 +18,7 @@ from app.models.database import (
     TagAssignment,
 )
 from app.models.enums import (
+    RelationshipType,
     ResourceType,
     TagResolutionState,
 )
@@ -86,6 +87,13 @@ class TagHandlerTests(unittest.TestCase):
                 TagResolutionState.RESOLVED.value,
             )
             self.assertEqual(len(assignments), 2)
+            self.assertTrue(
+                all(
+                    assignment.relationship_type
+                    == RelationshipType.ASSOCIATED_WITH.value
+                    for assignment in assignments
+                )
+            )
             self.assertEqual(
                 get_resource_tags(db, ResourceType.PERSON, first_person.id),
                 ["Neutral", "location:Skummende Seidel"],
@@ -130,6 +138,48 @@ class TagHandlerTests(unittest.TestCase):
 
 
 class TagMigrationTests(unittest.TestCase):
+    def test_migrates_inferred_relationships_to_associations(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "version-three.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.execute(
+                    "CREATE TABLE tagassignment ("
+                    "id INTEGER PRIMARY KEY, relationship_type VARCHAR)"
+                )
+                connection.executemany(
+                    "INSERT INTO tagassignment VALUES (?, ?)",
+                    [
+                        (1, "located_in"),
+                        (2, "member_of"),
+                        (3, None),
+                    ],
+                )
+                connection.execute("PRAGMA user_version = 3")
+                connection.commit()
+
+            engine = create_sqlalchemy_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+
+            with engine.connect() as connection:
+                relationship_types = connection.execute(
+                    text(
+                        "SELECT relationship_type FROM tagassignment "
+                        "ORDER BY id"
+                    )
+                ).scalars().all()
+                version = connection.execute(text("PRAGMA user_version")).scalar_one()
+
+            engine.dispose()
+
+            self.assertEqual(
+                relationship_types,
+                ["associated_with", "associated_with", "associated_with"],
+            )
+            self.assertEqual(version, 4)
+
     def test_migrates_legacy_json_tags_as_shared_passive_tags(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "legacy.db"
@@ -164,15 +214,24 @@ class TagMigrationTests(unittest.TestCase):
                     text("SELECT label, resolution_state FROM tag ORDER BY label")
                 ).all()
                 assignments = connection.execute(
-                    text("SELECT owner_type, owner_id FROM tagassignment")
+                    text(
+                        "SELECT owner_type, owner_id, relationship_type "
+                        "FROM tagassignment"
+                    )
                 ).all()
                 version = connection.execute(text("PRAGMA user_version")).scalar_one()
 
             engine.dispose()
 
             self.assertEqual(tags, [("Ally", "passive"), ("Neutral", "passive")])
-            self.assertEqual(assignments, [("person", 3), ("person", 3)])
-            self.assertEqual(version, 2)
+            self.assertEqual(
+                assignments,
+                [
+                    ("person", 3, "associated_with"),
+                    ("person", 3, "associated_with"),
+                ],
+            )
+            self.assertEqual(version, 4)
 
     def test_migrates_resolved_aliases_to_one_identity_tag(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -233,7 +292,7 @@ class TagMigrationTests(unittest.TestCase):
                 ).all()
                 assignments = connection.execute(
                     text(
-                        "SELECT tag_id, owner_type, owner_id "
+                        "SELECT tag_id, owner_type, owner_id, relationship_type "
                         "FROM tagassignment ORDER BY owner_id"
                     )
                 ).all()
@@ -247,9 +306,12 @@ class TagMigrationTests(unittest.TestCase):
             )
             self.assertEqual(
                 assignments,
-                [(1, "person", 10), (1, "person", 11)],
+                [
+                    (1, "person", 10, "associated_with"),
+                    (1, "person", 11, "associated_with"),
+                ],
             )
-            self.assertEqual(version, 2)
+            self.assertEqual(version, 4)
 
 
 if __name__ == "__main__":

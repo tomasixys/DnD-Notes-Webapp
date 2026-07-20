@@ -20,11 +20,19 @@ export type TagResolutionState =
   | "unresolved"
   | "ambiguous"
 
+export type RelationshipType =
+  | "associated_with"
+  | "member_of"
+  | "located_in"
+  | "part_of"
+  | "based_in"
+
 export type ResourceTagDto = {
   value: string
   label: string
   referenceType: ResourceType | null
   referenceId: number | null
+  relationshipType: RelationshipType | null
   resolutionState: TagResolutionState
 }
 

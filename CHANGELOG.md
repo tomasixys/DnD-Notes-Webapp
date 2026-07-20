@@ -8,6 +8,13 @@ and this changelog follows the structure described by
 
 ## [Unreleased]
 
+### Added
+
+- Added relationship metadata to tag assignments in preparation for moving
+  dedicated entry relationships into the tag system.
+- Marked every tag entered through a Tags field as `associated_with`, while
+  keeping relationship meaning out of tag-chip labels.
+
 ### Fixed
 
 - Resolved reference tags now follow renamed resources, update their displayed

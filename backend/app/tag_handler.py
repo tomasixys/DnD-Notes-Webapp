@@ -12,7 +12,7 @@ from app.models.database import (
     TagAssignment,
 )
 from app.models.api import ResourceTagRead, ParsedTag
-from app.models.enums import ResourceType, TagResolutionState
+from app.models.enums import RelationshipType, ResourceType, TagResolutionState
 
 
 
@@ -266,6 +266,7 @@ def sync_resource_tags(
                 tag_id=tag.id,
                 owner_type=owner_type.value,
                 owner_id=owner_id,
+                relationship_type=RelationshipType.ASSOCIATED_WITH.value,
             )
         )
 
@@ -294,7 +295,7 @@ def get_resource_tag_reads(
     owner_id: int,
 ) -> list[ResourceTagRead]:
     statement = (
-        select(Tag)
+        select(Tag, TagAssignment.relationship_type)
         .join(TagAssignment, TagAssignment.tag_id == Tag.id)
         .where(TagAssignment.owner_type == owner_type.value)
         .where(TagAssignment.owner_id == owner_id)
@@ -311,9 +312,14 @@ def get_resource_tag_reads(
                 else None
             ),
             reference_id=tag.reference_id,
+            relationship_type=(
+                RelationshipType(relationship_type)
+                if relationship_type
+                else None
+            ),
             resolution_state=TagResolutionState(tag.resolution_state),
         )
-        for tag in db.exec(statement).all()
+        for tag, relationship_type in db.exec(statement).all()
     ]
 
 
