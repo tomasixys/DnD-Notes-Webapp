@@ -9,7 +9,7 @@ from sqlalchemy import Engine, inspect, text
 from app.tag_handler import normalize_tag_label
 
 
-CURRENT_DATABASE_VERSION = 4
+CURRENT_DATABASE_VERSION = 7
 
 LEGACY_TAG_TABLES = {
     "sessionnote": "session",
@@ -126,8 +126,9 @@ def migrate_legacy_json_tags(connection) -> None:
                 connection.execute(
                     text(
                         "INSERT OR IGNORE INTO tagassignment "
-                        "(tag_id, owner_type, owner_id) "
-                        "VALUES (:tag_id, :owner_type, :owner_id)"
+                        "(tag_id, owner_type, owner_id, relationship_type) "
+                        "VALUES (:tag_id, :owner_type, :owner_id, "
+                        "'associated_with')"
                     ),
                     {
                         "tag_id": tag_id,
@@ -267,6 +268,214 @@ def migrate_tag_field_assignments_to_associated_with(connection) -> None:
     )
 
 
+def migrate_tag_assignment_relationship_constraint(connection) -> None:
+    connection.execute(
+        text(
+            "CREATE TABLE tagassignment_v5 ("
+            "id INTEGER NOT NULL PRIMARY KEY, "
+            "tag_id INTEGER NOT NULL, "
+            "owner_type VARCHAR NOT NULL, "
+            "owner_id INTEGER NOT NULL, "
+            "relationship_type VARCHAR NOT NULL, "
+            "CONSTRAINT uq_tag_assignment_owner_relationship UNIQUE "
+            "(tag_id, owner_type, owner_id, relationship_type), "
+            "FOREIGN KEY(tag_id) REFERENCES tag (id) ON DELETE CASCADE"
+            ")"
+        )
+    )
+    connection.execute(
+        text(
+            "INSERT INTO tagassignment_v5 "
+            "(id, tag_id, owner_type, owner_id, relationship_type) "
+            "SELECT id, tag_id, owner_type, owner_id, "
+            "COALESCE(relationship_type, 'associated_with') "
+            "FROM tagassignment"
+        )
+    )
+    connection.execute(text("DROP TABLE tagassignment"))
+    connection.execute(
+        text("ALTER TABLE tagassignment_v5 RENAME TO tagassignment")
+    )
+    connection.execute(
+        text("CREATE INDEX ix_tagassignment_tag_id ON tagassignment (tag_id)")
+    )
+    connection.execute(
+        text(
+            "CREATE INDEX ix_tagassignment_owner_type "
+            "ON tagassignment (owner_type)"
+        )
+    )
+    connection.execute(
+        text(
+            "CREATE INDEX ix_tagassignment_owner_id "
+            "ON tagassignment (owner_id)"
+        )
+    )
+    connection.execute(
+        text(
+            "CREATE INDEX ix_tagassignment_relationship_type "
+            "ON tagassignment (relationship_type)"
+        )
+    )
+
+
+def _strip_reference_prefix(value: str, reference_type: str) -> str:
+    cleaned = " ".join(value.strip().split())
+    prefix, separator, remainder = cleaned.partition(":")
+    if (
+        separator
+        and prefix.strip().casefold() == reference_type
+        and remainder.strip()
+    ):
+        return " ".join(remainder.strip().split())
+    return cleaned
+
+
+def _migrate_relationship_field(
+    connection,
+    owner_table: str,
+    owner_type: str,
+    field_name: str,
+    reference_table: str,
+    reference_type: str,
+    relationship_type: str,
+) -> None:
+    inspector = inspect(connection)
+    existing_tables = set(inspector.get_table_names())
+    if owner_table not in existing_tables or reference_table not in existing_tables:
+        return
+    owner_columns = {
+        column["name"]
+        for column in inspector.get_columns(owner_table)
+    }
+    if field_name not in owner_columns:
+        return
+
+    targets_by_name: dict[tuple[int, str], list[dict]] = {}
+    target_rows = connection.execute(
+        text(
+            f'SELECT id, campaign_id, name FROM "{reference_table}"'
+        )
+    ).mappings().all()
+    for target in target_rows:
+        key = (
+            target["campaign_id"],
+            normalize_tag_label(target["name"]),
+        )
+        targets_by_name.setdefault(key, []).append(target)
+
+    owner_rows = connection.execute(
+        text(
+            f'SELECT id, campaign_id, "{field_name}" AS reference_label '
+            f'FROM "{owner_table}" '
+            f'WHERE "{field_name}" IS NOT NULL '
+            f'AND TRIM("{field_name}") != \'\''
+        )
+    ).mappings().all()
+
+    for owner in owner_rows:
+        label = _strip_reference_prefix(
+            str(owner["reference_label"]),
+            reference_type,
+        )
+        normalized_label = normalize_tag_label(label)
+        matches = targets_by_name.get(
+            (owner["campaign_id"], normalized_label),
+            [],
+        )
+
+        if len(matches) == 1:
+            target = matches[0]
+            tag_key = f"reference:{reference_type}:{target['id']}"
+            tag_label = target["name"]
+            reference_id = target["id"]
+            resolution_state = "resolved"
+        else:
+            tag_key = f"{reference_type}:{normalized_label}"
+            tag_label = label
+            reference_id = None
+            resolution_state = "ambiguous" if len(matches) > 1 else "unresolved"
+
+        connection.execute(
+            text(
+                "INSERT OR IGNORE INTO tag "
+                "(campaign_id, label, normalized_label, key, "
+                "reference_type, reference_id, resolution_state) "
+                "VALUES (:campaign_id, :label, :normalized_label, :key, "
+                ":reference_type, :reference_id, :resolution_state)"
+            ),
+            {
+                "campaign_id": owner["campaign_id"],
+                "label": tag_label,
+                "normalized_label": normalize_tag_label(tag_label),
+                "key": tag_key,
+                "reference_type": reference_type,
+                "reference_id": reference_id,
+                "resolution_state": resolution_state,
+            },
+        )
+        tag_id = connection.execute(
+            text(
+                "SELECT id FROM tag "
+                "WHERE campaign_id = :campaign_id AND key = :key"
+            ),
+            {"campaign_id": owner["campaign_id"], "key": tag_key},
+        ).scalar_one()
+        connection.execute(
+            text(
+                "INSERT OR IGNORE INTO tagassignment "
+                "(tag_id, owner_type, owner_id, relationship_type) "
+                "VALUES (:tag_id, :owner_type, :owner_id, "
+                ":relationship_type)"
+            ),
+            {
+                "tag_id": tag_id,
+                "owner_type": owner_type,
+                "owner_id": owner["id"],
+                "relationship_type": relationship_type,
+            },
+        )
+
+
+def migrate_plain_relationship_fields(connection) -> None:
+    relationships = [
+        ("person", "person", "faction", "faction", "faction", "member_of"),
+        ("person", "person", "location", "location", "location", "located_in"),
+        ("location", "location", "parent_location", "location", "location", "part_of"),
+        ("faction", "faction", "location", "location", "location", "based_in"),
+    ]
+    for relationship in relationships:
+        _migrate_relationship_field(connection, *relationship)
+
+
+def drop_plain_relationship_fields(connection) -> None:
+    legacy_columns = {
+        "person": ("faction", "location"),
+        "location": ("parent_location",),
+        "faction": ("location",),
+    }
+    inspector = inspect(connection)
+    existing_tables = set(inspector.get_table_names())
+
+    for table_name, column_names in legacy_columns.items():
+        if table_name not in existing_tables:
+            continue
+        existing_columns = {
+            column["name"]
+            for column in inspect(connection).get_columns(table_name)
+        }
+        for column_name in column_names:
+            if column_name not in existing_columns:
+                continue
+            connection.execute(
+                text(
+                    f'ALTER TABLE "{table_name}" '
+                    f'DROP COLUMN "{column_name}"'
+                )
+            )
+            existing_columns.remove(column_name)
+
+
 def run_database_migrations(engine: Engine) -> None:
     with engine.begin() as connection:
         version = int(
@@ -288,6 +497,18 @@ def run_database_migrations(engine: Engine) -> None:
         if version < 4:
             migrate_tag_field_assignments_to_associated_with(connection)
             connection.execute(text("PRAGMA user_version = 4"))
+
+        if version < 5:
+            migrate_tag_assignment_relationship_constraint(connection)
+            connection.execute(text("PRAGMA user_version = 5"))
+
+        if version < 6:
+            migrate_plain_relationship_fields(connection)
+            connection.execute(text("PRAGMA user_version = 6"))
+
+        if version < 7:
+            drop_plain_relationship_fields(connection)
+            connection.execute(text("PRAGMA user_version = 7"))
 
         if version > CURRENT_DATABASE_VERSION:
             raise RuntimeError(

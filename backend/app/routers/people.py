@@ -4,13 +4,15 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.database import Person
 from app.models.api import PersonData, PersonRead
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
+    get_resource_relationship,
     handle_resource_deleted,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
+    sync_resource_relationship,
 )
 
 router = APIRouter(
@@ -25,8 +27,18 @@ def person_to_read(person: Person, db: Session) -> PersonRead:
         campaign_id=person.campaign_id,
         name=person.name,
         role=person.role,
-        faction=person.faction,
-        location=person.location,
+        faction=get_resource_relationship(
+            db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.MEMBER_OF,
+        ),
+        location=get_resource_relationship(
+            db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.LOCATED_IN,
+        ),
         description=person.description,
         tags=get_resource_tag_reads(db, ResourceType.PERSON, person.id),
     )
@@ -86,14 +98,30 @@ def create_person(
         campaign_id=campaign_id,
         name=person.name,
         role=person.role,
-        faction=person.faction,
-        location=person.location,
         description=person.description,
     )
     db.add(db_person)
     db.flush()
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        person.location,
     )
     refresh_reference_tags_for_resource(
         db, campaign_id, ResourceType.PERSON, db_person.id
@@ -116,13 +144,29 @@ def update_person(
 
     person.name = updated_person.name
     person.role = updated_person.role
-    person.faction = updated_person.faction
-    person.location = updated_person.location
     person.description = updated_person.description
     db.add(person)
     db.flush()
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, person.id, updated_person.tags
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        updated_person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        updated_person.location,
     )
     refresh_reference_tags_for_resource(
         db,

@@ -14,11 +14,25 @@ and this changelog follows the structure described by
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while
   keeping relationship meaning out of tag-chip labels.
+- Replaced person faction/location, location parent, and faction location text
+  storage with typed tag relationships.
+- Added derived people lists to locations and member lists to factions, with
+  links back to the related person entries.
+
+### Changed
+
+- Updated campaign backups and search to preserve and understand the new
+  relationship-backed fields.
+- Migrated existing relationship text values into typed tag assignments while
+  retaining unresolved and ambiguous references, then removed the obsolete
+  database columns.
 
 ### Fixed
 
 - Resolved reference tags now follow renamed resources, update their displayed
   labels, and merge aliases without losing existing tag assignments.
+- Person details now refresh immediately after editing, and refreshing a
+  resource URL no longer redirects away while its persisted campaign is valid.
 
 ## [0.2.0] - 2026-07-18
 

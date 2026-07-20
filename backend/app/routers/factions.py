@@ -4,13 +4,16 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.database import Faction
 from app.models.api import FactionData, FactionRead
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
+    get_resource_relationship,
+    get_relationship_owner_reads,
     handle_resource_deleted,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
+    sync_resource_relationship,
 )
 
 router = APIRouter(
@@ -25,7 +28,20 @@ def faction_to_read(faction: Faction, db: Session) -> FactionRead:
         campaign_id=faction.campaign_id,
         name=faction.name,
         type=faction.type,
-        location=faction.location,
+        location=get_resource_relationship(
+            db,
+            ResourceType.FACTION,
+            faction.id,
+            RelationshipType.BASED_IN,
+        ),
+        members=get_relationship_owner_reads(
+            db,
+            faction.campaign_id,
+            ResourceType.FACTION,
+            faction.id,
+            ResourceType.PERSON,
+            RelationshipType.MEMBER_OF,
+        ),
         description=faction.description,
         tags=get_resource_tag_reads(db, ResourceType.FACTION, faction.id),
     )
@@ -84,7 +100,6 @@ def create_faction(
         campaign_id=campaign_id,
         name=faction.name,
         type=faction.type,
-        location=faction.location,
         description=faction.description,
     )
     db.add(db_faction)
@@ -95,6 +110,15 @@ def create_faction(
         ResourceType.FACTION,
         db_faction.id,
         faction.tags,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.FACTION,
+        db_faction.id,
+        RelationshipType.BASED_IN,
+        ResourceType.LOCATION,
+        faction.location,
     )
     refresh_reference_tags_for_resource(
         db, campaign_id, ResourceType.FACTION, db_faction.id
@@ -117,7 +141,6 @@ def update_faction(
 
     faction.name = updated_faction.name
     faction.type = updated_faction.type
-    faction.location = updated_faction.location
     faction.description = updated_faction.description
     db.add(faction)
     db.flush()
@@ -127,6 +150,15 @@ def update_faction(
         ResourceType.FACTION,
         faction.id,
         updated_faction.tags,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.FACTION,
+        faction.id,
+        RelationshipType.BASED_IN,
+        ResourceType.LOCATION,
+        updated_faction.location,
     )
     refresh_reference_tags_for_resource(
         db,

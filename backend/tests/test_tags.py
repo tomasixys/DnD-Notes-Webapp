@@ -144,14 +144,24 @@ class TagMigrationTests(unittest.TestCase):
             with closing(sqlite3.connect(database_path)) as connection:
                 connection.execute(
                     "CREATE TABLE tagassignment ("
-                    "id INTEGER PRIMARY KEY, relationship_type VARCHAR)"
+                    "id INTEGER PRIMARY KEY, tag_id INTEGER NOT NULL, "
+                    "owner_type VARCHAR NOT NULL, owner_id INTEGER NOT NULL, "
+                    "relationship_type VARCHAR, "
+                    "UNIQUE(tag_id, owner_type, owner_id))"
+                )
+                connection.execute(
+                    "CREATE TABLE tag (id INTEGER PRIMARY KEY)"
                 )
                 connection.executemany(
-                    "INSERT INTO tagassignment VALUES (?, ?)",
+                    "INSERT INTO tag (id) VALUES (?)",
+                    [(1,), (2,), (3,)],
+                )
+                connection.executemany(
+                    "INSERT INTO tagassignment VALUES (?, ?, ?, ?, ?)",
                     [
-                        (1, "located_in"),
-                        (2, "member_of"),
-                        (3, None),
+                        (1, 1, "person", 1, "located_in"),
+                        (2, 2, "person", 1, "member_of"),
+                        (3, 3, "person", 1, None),
                     ],
                 )
                 connection.execute("PRAGMA user_version = 3")
@@ -178,7 +188,7 @@ class TagMigrationTests(unittest.TestCase):
                 relationship_types,
                 ["associated_with", "associated_with", "associated_with"],
             )
-            self.assertEqual(version, 4)
+            self.assertEqual(version, 7)
 
     def test_migrates_legacy_json_tags_as_shared_passive_tags(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -231,7 +241,7 @@ class TagMigrationTests(unittest.TestCase):
                     ("person", 3, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 4)
+            self.assertEqual(version, 7)
 
     def test_migrates_resolved_aliases_to_one_identity_tag(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -311,7 +321,101 @@ class TagMigrationTests(unittest.TestCase):
                     (1, "person", 11, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 4)
+            self.assertEqual(version, 7)
+
+    def test_migrates_plain_relationship_fields_to_typed_assignments(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "version-five.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.execute(
+                    "CREATE TABLE tag ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "label TEXT NOT NULL, normalized_label TEXT NOT NULL, "
+                    "key TEXT NOT NULL, reference_type TEXT, reference_id INTEGER, "
+                    "resolution_state TEXT NOT NULL, UNIQUE(campaign_id, key))"
+                )
+                connection.execute(
+                    "CREATE TABLE tagassignment ("
+                    "id INTEGER PRIMARY KEY, tag_id INTEGER NOT NULL, "
+                    "owner_type TEXT NOT NULL, owner_id INTEGER NOT NULL, "
+                    "relationship_type TEXT NOT NULL, "
+                    "UNIQUE(tag_id, owner_type, owner_id, relationship_type))"
+                )
+                connection.execute(
+                    "CREATE TABLE location ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "name TEXT NOT NULL, parent_location TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "CREATE TABLE faction ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "name TEXT NOT NULL, location TEXT NOT NULL)"
+                )
+                connection.execute(
+                    "CREATE TABLE person ("
+                    "id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL, "
+                    "name TEXT NOT NULL, faction TEXT NOT NULL, "
+                    "location TEXT NOT NULL)"
+                )
+                connection.executemany(
+                    "INSERT INTO location VALUES (?, 1, ?, ?)",
+                    [(10, "Gernanti", ""), (11, "Academy", "location:Gernanti")],
+                )
+                connection.execute(
+                    "INSERT INTO faction VALUES (20, 1, 'Dragon Order', 'Academy')"
+                )
+                connection.execute(
+                    "INSERT INTO person VALUES "
+                    "(30, 1, 'Nalia', 'faction:Dragon Order', 'Academy')"
+                )
+                connection.execute("PRAGMA user_version = 5")
+                connection.commit()
+
+            engine = create_sqlalchemy_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+
+            with engine.connect() as connection:
+                assignments = connection.execute(
+                    text(
+                        "SELECT ta.owner_type, ta.owner_id, "
+                        "ta.relationship_type, t.reference_type, t.reference_id "
+                        "FROM tagassignment ta JOIN tag t ON t.id = ta.tag_id "
+                        "ORDER BY ta.owner_type, ta.owner_id, ta.relationship_type"
+                    )
+                ).all()
+                person_columns = {
+                    row[1]
+                    for row in connection.execute(text("PRAGMA table_info(person)"))
+                }
+                location_columns = {
+                    row[1]
+                    for row in connection.execute(text("PRAGMA table_info(location)"))
+                }
+                faction_columns = {
+                    row[1]
+                    for row in connection.execute(text("PRAGMA table_info(faction)"))
+                }
+                version = connection.execute(text("PRAGMA user_version")).scalar_one()
+
+            engine.dispose()
+
+            self.assertEqual(
+                assignments,
+                [
+                    ("faction", 20, "based_in", "location", 11),
+                    ("location", 11, "part_of", "location", 10),
+                    ("person", 30, "located_in", "location", 11),
+                    ("person", 30, "member_of", "faction", 20),
+                ],
+            )
+            self.assertNotIn("faction", person_columns)
+            self.assertNotIn("location", person_columns)
+            self.assertNotIn("parent_location", location_columns)
+            self.assertNotIn("location", faction_columns)
+            self.assertEqual(version, 7)
 
 
 if __name__ == "__main__":

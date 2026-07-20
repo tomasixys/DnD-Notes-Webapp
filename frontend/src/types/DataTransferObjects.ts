@@ -79,13 +79,18 @@ export type PersonDto = {
   campaignId: number
   name: string
   role: string
-  faction: string
-  location: string
+  faction: ResourceTagDto | null
+  location: ResourceTagDto | null
   description: string
   tags: ResourceTagDto[]
 }
 
-export type PersonDataDto = Omit<PersonDto, "id" | "campaignId" | "tags"> & {
+export type PersonDataDto = Omit<
+  PersonDto,
+  "id" | "campaignId" | "faction" | "location" | "tags"
+> & {
+  faction: string
+  location: string
   tags: string[]
 }
 
@@ -94,15 +99,17 @@ export type LocationDto = {
   campaignId: number
   name: string
   type: string
-  parentLocation: string
+  parentLocation: ResourceTagDto | null
+  people: ResourceTagDto[]
   description: string
   tags: ResourceTagDto[]
 }
 
 export type LocationDataDto = Omit<
   LocationDto,
-  "id" | "campaignId" | "tags"
+  "id" | "campaignId" | "parentLocation" | "people" | "tags"
 > & {
+  parentLocation: string
   tags: string[]
 }
 
@@ -111,15 +118,17 @@ export type FactionDto = {
   campaignId: number
   name: string
   type: string
-  location: string
+  location: ResourceTagDto | null
+  members: ResourceTagDto[]
   description: string
   tags: ResourceTagDto[]
 }
 
 export type FactionDataDto = Omit<
   FactionDto,
-  "id" | "campaignId" | "tags"
+  "id" | "campaignId" | "location" | "members" | "tags"
 > & {
+  location: string
   tags: string[]
 }
 

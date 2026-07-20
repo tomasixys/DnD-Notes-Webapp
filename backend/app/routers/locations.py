@@ -4,13 +4,16 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.database import Location
 from app.models.api import LocationData, LocationRead
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
 from app.tag_handler import (
     get_resource_tag_reads,
+    get_resource_relationship,
+    get_relationship_owner_reads,
     handle_resource_deleted,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
+    sync_resource_relationship,
 )
 
 router = APIRouter(
@@ -25,7 +28,20 @@ def location_to_read(location: Location, db: Session) -> LocationRead:
         campaign_id=location.campaign_id,
         name=location.name,
         type=location.type,
-        parent_location=location.parent_location,
+        parent_location=get_resource_relationship(
+            db,
+            ResourceType.LOCATION,
+            location.id,
+            RelationshipType.PART_OF,
+        ),
+        people=get_relationship_owner_reads(
+            db,
+            location.campaign_id,
+            ResourceType.LOCATION,
+            location.id,
+            ResourceType.PERSON,
+            RelationshipType.LOCATED_IN,
+        ),
         description=location.description,
         tags=get_resource_tag_reads(db, ResourceType.LOCATION, location.id),
     )
@@ -86,7 +102,6 @@ def create_location(
         campaign_id=campaign_id,
         name=location.name,
         type=location.type,
-        parent_location=location.parent_location,
         description=location.description,
     )
     db.add(db_location)
@@ -98,6 +113,18 @@ def create_location(
         db_location.id,
         location.tags,
     )
+    try:
+        sync_resource_relationship(
+            db,
+            campaign_id,
+            ResourceType.LOCATION,
+            db_location.id,
+            RelationshipType.PART_OF,
+            ResourceType.LOCATION,
+            location.parent_location,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     refresh_reference_tags_for_resource(
         db, campaign_id, ResourceType.LOCATION, db_location.id
     )
@@ -119,7 +146,6 @@ def update_location(
 
     location.name = updated_location.name
     location.type = updated_location.type
-    location.parent_location = updated_location.parent_location
     location.description = updated_location.description
     db.add(location)
     db.flush()
@@ -130,6 +156,18 @@ def update_location(
         location.id,
         updated_location.tags,
     )
+    try:
+        sync_resource_relationship(
+            db,
+            campaign_id,
+            ResourceType.LOCATION,
+            location.id,
+            RelationshipType.PART_OF,
+            ResourceType.LOCATION,
+            updated_location.parent_location,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     refresh_reference_tags_for_resource(
         db,
         campaign_id,

@@ -11,6 +11,22 @@ function passiveTags(...values: string[]): dto.ResourceTagDto[] {
   }))
 }
 
+function referenceTag(
+  label: string,
+  referenceType: dto.ResourceType,
+  referenceId: number,
+  relationshipType: dto.RelationshipType,
+): dto.ResourceTagDto {
+  return {
+    value: `${referenceType}:${label}`,
+    label,
+    referenceType,
+    referenceId,
+    relationshipType,
+    resolutionState: "resolved",
+  }
+}
+
 
 export const sessionListExample: dto.SessionListItemDto[] = [
   {
@@ -85,8 +101,8 @@ export const peopleExample: dto.PersonDto[] = [
     campaignId: 1,
     name: "Skiv Whistler",
     role: "Lookout and street contact",
-    faction: "Beggars",
-    location: "Gernanti mainland",
+    faction: referenceTag("The Beggars", "faction", 3, "member_of"),
+    location: referenceTag("Gernanti Mainland", "location", 2, "located_in"),
     description:
       "A street-level contact who warns Nalia and Elira about patrols, trouble, and useful rumors. Paid through coin, favors, or by being worked into their scams as a supposed recipient of charity.",
     tags: passiveTags("contact", "street", "lookout"),
@@ -96,8 +112,8 @@ export const peopleExample: dto.PersonDto[] = [
     campaignId: 1,
     name: "Eryn Marrowell",
     role: "Assistant librarian",
-    faction: "Talmira's Church",
-    location: "Gernanti magic academy",
+    faction: referenceTag("Talmira's Church", "faction", 2, "member_of"),
+    location: null,
     description:
       "One of the few people at the academy who believed Nalia during the scandal. Eryn did not have enough influence to protect her, but may still be a useful contact for books, rumors, and restricted academic information.",
     tags: passiveTags("ally", "academy", "library"),
@@ -107,8 +123,8 @@ export const peopleExample: dto.PersonDto[] = [
     campaignId: 1,
     name: "Velcor Thanes",
     role: "Professor of magical history",
-    faction: "Dragon Order",
-    location: "Gernanti magic academy",
+    faction: referenceTag("The Dragon Order", "faction", 1, "member_of"),
+    location: null,
     description:
       "The professor who discredited Nalia after she uncovered favoritism and corruption. Still active, still protected, and still a problem.",
     tags: passiveTags("enemy", "academic", "corrupt"),
@@ -121,7 +137,8 @@ export const locationsExample: dto.LocationDto[] = [
     campaignId: 1,
     name: "Gernanti",
     type: "City",
-    parentLocation: "",
+    parentLocation: null,
+    people: [],
     description:
       "A magical free city built across islands and mainland districts, governed through the academy, noble houses, and arcane factions.",
     tags: passiveTags("city", "magic", "campaign-hub"),
@@ -131,7 +148,8 @@ export const locationsExample: dto.LocationDto[] = [
     campaignId: 1,
     name: "Gernanti Mainland",
     type: "District",
-    parentLocation: "Gernanti",
+    parentLocation: referenceTag("Gernanti", "location", 1, "part_of"),
+    people: [referenceTag("Skiv Whistler", "person", 1, "located_in")],
     description:
       "The mainland part of Gernanti, where many poorer residents, lodgings, markets, and street-level contacts are found.",
     tags: passiveTags("district", "street-level", "lower-city"),
@@ -141,7 +159,8 @@ export const locationsExample: dto.LocationDto[] = [
     campaignId: 1,
     name: "Nalia and Elira's Lodging House",
     type: "Building",
-    parentLocation: "Gernanti Mainland",
+    parentLocation: referenceTag("Gernanti Mainland", "location", 2, "part_of"),
+    people: [],
     description:
       "A modest lodging house where Nalia and Elira live at the start of the campaign. Safer than the street, but not truly safe.",
     tags: passiveTags("home", "lodging", "safe-ish"),
@@ -154,7 +173,8 @@ export const factionsExample: dto.FactionDto[] = [
     campaignId: 1,
     name: "The Dragon Order",
     type: "Arcane order",
-    location: "Gernanti Magic Academy",
+    location: null,
+    members: [referenceTag("Velcor Thanes", "person", 3, "member_of")],
     description:
       "A powerful academic order studying dragons, draconic magic, and how to reproduce or exploit that power through wizardry.",
     tags: passiveTags("academy", "dragons", "magic", "political"),
@@ -164,7 +184,8 @@ export const factionsExample: dto.FactionDto[] = [
     campaignId: 1,
     name: "Talmira's Church",
     type: "Temple institution",
-    location: "Gernanti Magic Academy",
+    location: null,
+    members: [referenceTag("Eryn Marrowell", "person", 2, "member_of")],
     description:
       "The main religious institution in Gernanti, tied closely to knowledge, discipline, study, and the academy library.",
     tags: passiveTags("religion", "knowledge", "library", "academy"),
@@ -174,7 +195,8 @@ export const factionsExample: dto.FactionDto[] = [
     campaignId: 1,
     name: "The Beggars",
     type: "Street faction",
-    location: "Gernanti Mainland",
+    location: referenceTag("Gernanti Mainland", "location", 2, "based_in"),
+    members: [referenceTag("Skiv Whistler", "person", 1, "member_of")],
     description:
       "A loose but guarded street-level faction made up of beggars, informants, and people pushed to the margins by magical experiments and city politics.",
     tags: passiveTags("street", "informants", "poor", "contacts"),

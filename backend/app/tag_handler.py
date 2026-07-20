@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlmodel import Session, select
 
 from app.models.database import (
@@ -178,6 +178,10 @@ def _merge_tags(db: Session, source: Tag, destination: Tag) -> Tag:
             .where(TagAssignment.tag_id == destination.id)
             .where(TagAssignment.owner_type == assignment.owner_type)
             .where(TagAssignment.owner_id == assignment.owner_id)
+            .where(
+                TagAssignment.relationship_type
+                == assignment.relationship_type
+            )
         ).first()
         if existing_assignment is None:
             assignment.tag_id = destination.id
@@ -246,6 +250,10 @@ def sync_resource_tags(
         select(TagAssignment)
         .where(TagAssignment.owner_type == owner_type.value)
         .where(TagAssignment.owner_id == owner_id)
+        .where(
+            TagAssignment.relationship_type
+            == RelationshipType.ASSOCIATED_WITH.value
+        )
     ).all()
     old_tag_ids = [assignment.tag_id for assignment in existing_assignments]
 
@@ -274,6 +282,70 @@ def sync_resource_tags(
     _cleanup_orphan_tags(db, old_tag_ids)
 
 
+def _parse_relationship_reference(
+    value: str,
+    reference_type: ResourceType,
+) -> ParsedTag | None:
+    cleaned = " ".join(value.strip().split())
+    if not cleaned:
+        return None
+
+    parsed = parse_tag(cleaned)
+    label = (
+        parsed.label
+        if parsed is not None and parsed.reference_type == reference_type
+        else cleaned
+    )
+    normalized_label = normalize_tag_label(label)
+    if not normalized_label:
+        return None
+
+    return ParsedTag(
+        label=label,
+        normalized_label=normalized_label,
+        reference_type=reference_type,
+    )
+
+
+def sync_resource_relationship(
+    db: Session,
+    campaign_id: int,
+    owner_type: ResourceType,
+    owner_id: int,
+    relationship_type: RelationshipType,
+    reference_type: ResourceType,
+    raw_reference: str,
+) -> None:
+    existing_assignments = db.exec(
+        select(TagAssignment)
+        .where(TagAssignment.owner_type == owner_type.value)
+        .where(TagAssignment.owner_id == owner_id)
+        .where(TagAssignment.relationship_type == relationship_type.value)
+    ).all()
+    old_tag_ids = [assignment.tag_id for assignment in existing_assignments]
+
+    for assignment in existing_assignments:
+        db.delete(assignment)
+    db.flush()
+
+    parsed = _parse_relationship_reference(raw_reference, reference_type)
+    if parsed is not None:
+        tag = _get_or_create_tag(db, campaign_id, parsed)
+        if owner_type == reference_type and tag.reference_id == owner_id:
+            raise ValueError("A resource cannot reference itself")
+        db.add(
+            TagAssignment(
+                tag_id=tag.id,
+                owner_type=owner_type.value,
+                owner_id=owner_id,
+                relationship_type=relationship_type.value,
+            )
+        )
+
+    db.flush()
+    _cleanup_orphan_tags(db, old_tag_ids)
+
+
 def get_resource_tags(
     db: Session,
     owner_type: ResourceType,
@@ -284,6 +356,10 @@ def get_resource_tags(
         .join(TagAssignment, TagAssignment.tag_id == Tag.id)
         .where(TagAssignment.owner_type == owner_type.value)
         .where(TagAssignment.owner_id == owner_id)
+        .where(
+            TagAssignment.relationship_type
+            == RelationshipType.ASSOCIATED_WITH.value
+        )
         .order_by(Tag.reference_type, Tag.normalized_label, Tag.id)
     )
     return [format_tag(tag) for tag in db.exec(statement).all()]
@@ -299,6 +375,10 @@ def get_resource_tag_reads(
         .join(TagAssignment, TagAssignment.tag_id == Tag.id)
         .where(TagAssignment.owner_type == owner_type.value)
         .where(TagAssignment.owner_id == owner_id)
+        .where(
+            TagAssignment.relationship_type
+            == RelationshipType.ASSOCIATED_WITH.value
+        )
         .order_by(Tag.reference_type, Tag.normalized_label, Tag.id)
     )
 
@@ -320,6 +400,77 @@ def get_resource_tag_reads(
             resolution_state=TagResolutionState(tag.resolution_state),
         )
         for tag, relationship_type in db.exec(statement).all()
+    ]
+
+
+def get_resource_relationship(
+    db: Session,
+    owner_type: ResourceType,
+    owner_id: int,
+    relationship_type: RelationshipType,
+) -> ResourceTagRead | None:
+    row = db.exec(
+        select(Tag, TagAssignment.relationship_type)
+        .join(TagAssignment, TagAssignment.tag_id == Tag.id)
+        .where(TagAssignment.owner_type == owner_type.value)
+        .where(TagAssignment.owner_id == owner_id)
+        .where(TagAssignment.relationship_type == relationship_type.value)
+        .order_by(Tag.id)
+    ).first()
+    if row is None:
+        return None
+
+    tag, stored_relationship_type = row
+    return ResourceTagRead(
+        value=format_tag(tag),
+        label=tag.label,
+        reference_type=(
+            ResourceType(tag.reference_type)
+            if tag.reference_type
+            else None
+        ),
+        reference_id=tag.reference_id,
+        relationship_type=RelationshipType(stored_relationship_type),
+        resolution_state=TagResolutionState(tag.resolution_state),
+    )
+
+
+def get_relationship_owner_reads(
+    db: Session,
+    campaign_id: int,
+    target_type: ResourceType,
+    target_id: int,
+    owner_type: ResourceType,
+    relationship_type: RelationshipType,
+) -> list[ResourceTagRead]:
+    model = REFERENCE_MODELS[owner_type]
+    statement = (
+        select(model)
+        .join(
+            TagAssignment,
+            and_(
+                TagAssignment.owner_type == owner_type.value,
+                TagAssignment.owner_id == model.id,
+            ),
+        )
+        .join(Tag, Tag.id == TagAssignment.tag_id)
+        .where(model.campaign_id == campaign_id)
+        .where(Tag.reference_type == target_type.value)
+        .where(Tag.reference_id == target_id)
+        .where(TagAssignment.relationship_type == relationship_type.value)
+        .order_by(model.name)
+    )
+
+    return [
+        ResourceTagRead(
+            value=f"{owner_type.value}:{_canonical_label(owner_type, owner)}",
+            label=_canonical_label(owner_type, owner),
+            reference_type=owner_type,
+            reference_id=owner.id,
+            relationship_type=relationship_type,
+            resolution_state=TagResolutionState.RESOLVED,
+        )
+        for owner in db.exec(statement).all()
     ]
 
 

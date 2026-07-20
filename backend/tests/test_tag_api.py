@@ -10,14 +10,20 @@ from app.models.database import (
 )
 
 from app.models.api import (
+    FactionData,
     LocationData,
     PersonData,
     SearchQueryDto,
 )
 
 from app.models.enums import RelationshipType, ResourceType
-from app.routers.locations import create_location, update_location
-from app.routers.people import create_person, get_people_for_campaign
+from app.routers.factions import create_faction, get_factions_for_campaign
+from app.routers.locations import (
+    create_location,
+    get_locations_for_campaign,
+    update_location,
+)
+from app.routers.people import create_person, get_people_for_campaign, update_person
 from app.routers.search import search_campaign
 
 
@@ -139,6 +145,102 @@ class TagApiIntegrationTests(unittest.TestCase):
                 f"reference:location:{location.id}",
             )
             self.assertEqual(len(assignments), 2)
+
+    def test_relationship_fields_use_tags_and_populate_inverse_lists(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Test")
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+
+            city = create_location(
+                campaign.id,
+                LocationData(name="Gernanti"),
+                db,
+            )
+            academy = create_location(
+                campaign.id,
+                LocationData(name="Academy", parent_location="Gernanti"),
+                db,
+            )
+            faction = create_faction(
+                campaign.id,
+                FactionData(name="Dragon Order", location="Academy"),
+                db,
+            )
+            person = create_person(
+                campaign.id,
+                PersonData(
+                    name="Nalia",
+                    faction="Dragon Order",
+                    location="Academy",
+                    tags=["location:Academy", "ally"],
+                ),
+                db,
+            )
+
+            self.assertEqual(person.faction.reference_id, faction.id)
+            self.assertEqual(
+                person.faction.relationship_type,
+                RelationshipType.MEMBER_OF,
+            )
+            self.assertEqual(person.location.reference_id, academy.id)
+            self.assertEqual(
+                person.location.relationship_type,
+                RelationshipType.LOCATED_IN,
+            )
+            self.assertEqual(academy.parent_location.reference_id, city.id)
+            self.assertEqual(
+                academy.parent_location.relationship_type,
+                RelationshipType.PART_OF,
+            )
+            self.assertEqual(faction.location.reference_id, academy.id)
+            self.assertEqual(
+                faction.location.relationship_type,
+                RelationshipType.BASED_IN,
+            )
+            self.assertEqual(
+                [tag.value for tag in person.tags],
+                ["ally", "location:Academy"],
+            )
+
+            faction_read = get_factions_for_campaign(campaign.id, db)[0]
+            academy_read = next(
+                location
+                for location in get_locations_for_campaign(campaign.id, db)
+                if location.id == academy.id
+            )
+            self.assertEqual([member.label for member in faction_read.members], ["Nalia"])
+            self.assertEqual([resident.label for resident in academy_read.people], ["Nalia"])
+
+            updated = update_person(
+                campaign.id,
+                person.id,
+                PersonData(
+                    name="Nalia",
+                    faction="Dragon Order",
+                    location="Academy",
+                    tags=["trusted"],
+                ),
+                db,
+            )
+            self.assertEqual(updated.faction.reference_id, faction.id)
+            self.assertEqual(updated.location.reference_id, academy.id)
+            self.assertEqual([tag.value for tag in updated.tags], ["trusted"])
+
+            assignments = db.exec(
+                select(TagAssignment)
+                .where(TagAssignment.owner_type == ResourceType.PERSON.value)
+                .where(TagAssignment.owner_id == person.id)
+            ).all()
+            self.assertEqual(
+                {assignment.relationship_type for assignment in assignments},
+                {
+                    RelationshipType.ASSOCIATED_WITH.value,
+                    RelationshipType.LOCATED_IN.value,
+                    RelationshipType.MEMBER_OF.value,
+                },
+            )
 
 
 if __name__ == "__main__":

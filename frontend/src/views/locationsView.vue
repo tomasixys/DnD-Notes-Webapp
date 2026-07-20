@@ -68,7 +68,7 @@ function showEditLocationForm() {
 
   locationForm.name = selectedEntry.value.name
   locationForm.type = selectedEntry.value.type
-  locationForm.parentLocation = selectedEntry.value.parentLocation
+  locationForm.parentLocation = selectedEntry.value.parentLocation?.label ?? ""
   locationForm.description = selectedEntry.value.description
   locationForm.tags = selectedEntry.value.tags
     .map((tag) => tag.value)
@@ -205,7 +205,7 @@ async function deleteLocation() {
               </span>
 
               <span class="resource-list-meta">
-                {{ location.parentLocation || "No parent location" }}
+                {{ location.parentLocation?.label || "No parent location" }}
               </span>
             </button>
           </li>
@@ -325,14 +325,30 @@ async function deleteLocation() {
           </header>
 
           <dl class="resource-facts">
-            <div>
-              <dt>Type</dt>
-              <dd>{{ selectedEntry.type || "None registered" }}</dd>
-            </div>
 
             <div>
               <dt>Located in</dt>
-              <dd>{{ selectedEntry.parentLocation || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.parentLocation"
+                  :tag="selectedEntry.parentLocation"
+                />
+                <template v-else>None registered</template>
+              </dd>
+            </div>
+
+            <div>
+              <dt>People</dt>
+              <dd>
+                <span v-if="selectedEntry.people.length > 0" class="tag-list">
+                  <ResourceTag
+                    v-for="person in selectedEntry.people"
+                    :key="person.value"
+                    :tag="person"
+                  />
+                </span>
+                <template v-else>None registered</template>
+              </dd>
             </div>
           </dl>
 
