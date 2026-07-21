@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, onBeforeMount } from "vue"
+import { RouterLink } from "vue-router"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
@@ -210,7 +211,12 @@ async function deletePerson() {
               @click="openEntry(person.id)"
             >
               <span class="resource-list-kicker">
-                {{ person.role || "No role" }}
+                {{ person.isActiveCharacter
+                  ? "Active character"
+                  : person.characterProfileAvailable
+                    ? "Former character"
+                    : person.role || "No role"
+                }}
               </span>
 
               <span class="resource-list-title">
@@ -331,6 +337,17 @@ async function deletePerson() {
             </div>
             
             <div class="resource-detail-actions">
+              <RouterLink
+                v-if="selectedEntry.characterProfileAvailable"
+                class="button-link"
+                :to="{
+                  name: 'CharacterOverview',
+                  params: { personId: selectedEntry.id },
+                }"
+              >
+                Open character
+              </RouterLink>
+
               <button
                 type="button"
                 class="secondary"

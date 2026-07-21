@@ -23,6 +23,40 @@ const router = createRouter({
       component: () => import('../views/peopleView.vue')
     },
     {
+      path: '/character/:personId(\\d+)?',
+      component: () => import('../views/characterView.vue'),
+      children: [
+        {
+          path: '',
+          redirect: (route) => ({
+            name: 'CharacterOverview',
+            params: { personId: route.params.personId },
+          }),
+          meta: { showInSubmenu: false },
+        },
+        {
+          path: 'overview',
+          name: 'CharacterOverview',
+          component: () => import('../views/characterOverviewView.vue'),
+          meta: { label: 'Overview' },
+        },
+        {
+          path: 'notes/:noteId?',
+          name: 'CharacterNotes',
+          component: () => import('../views/characterNotesView.vue'),
+          props: { kind: 'notes' },
+          meta: { label: 'Notes' },
+        },
+        {
+          path: 'backstory/:noteId?',
+          name: 'CharacterBackstory',
+          component: () => import('../views/characterNotesView.vue'),
+          props: { kind: 'backstory' },
+          meta: { label: 'Backstory' },
+        },
+      ],
+    },
+    {
       path: "/locations/:id?",
       name: "Locations",
       component: () => import("../views/locationsView.vue")
