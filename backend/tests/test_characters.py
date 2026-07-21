@@ -17,6 +17,7 @@ from app.models.api import (
     CharacterCreate,
     CharacterNoteData,
     PersonData,
+    SearchQueryDto,
     SessionNoteData,
 )
 from app.models.database import (
@@ -42,6 +43,7 @@ from app.routers.characters import (
 )
 from app.routers.people import delete_person, person_to_read
 from app.routers.sessions import create_session_note
+from app.routers.search import search_campaign
 from app.routers.campaigns import (
     export_campaign_backup,
     import_campaign_backup,
@@ -197,6 +199,74 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 [entry.id for entry in backstories],
                 [backstory.id],
             )
+
+    def test_search_finds_character_notes_and_links_them_to_their_character(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Test")
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+
+            character = create_character(
+                campaign.id,
+                CharacterCreate(person=PersonData(name="Nalia")),
+                db,
+            )
+            note = create_character_note(
+                campaign.id,
+                character.person.id,
+                CharacterNoteData(
+                    title="Shopping list",
+                    content="Buy healing potions",
+                    tags=["urgent"],
+                ),
+                db,
+            )
+            backstory = create_backstory_note(
+                campaign.id,
+                character.person.id,
+                CharacterNoteData(
+                    title="Family",
+                    content="Raised by an aunt",
+                    tags=["childhood"],
+                ),
+                db,
+            )
+
+            note_results = search_campaign(
+                campaign.id,
+                SearchQueryDto(
+                    query="urgent",
+                    resource_types=[ResourceType.CHARACTER_NOTE.value],
+                ),
+                db,
+            )
+            backstory_results = search_campaign(
+                campaign.id,
+                SearchQueryDto(
+                    query="aunt",
+                    resource_types=[ResourceType.BACKSTORY_NOTE.value],
+                ),
+                db,
+            )
+
+            self.assertEqual(note_results.total_count, 1)
+            self.assertEqual(note_results.results[0].resource_id, note.id)
+            self.assertEqual(
+                note_results.results[0].parent_resource_id,
+                character.person.id,
+            )
+            self.assertIn("tags", note_results.results[0].matched_fields)
+            self.assertEqual(backstory_results.total_count, 1)
+            self.assertEqual(
+                backstory_results.results[0].resource_id,
+                backstory.id,
+            )
+            self.assertEqual(
+                backstory_results.results[0].parent_resource_id,
+                character.person.id,
+            )
+            self.assertIn("content", backstory_results.results[0].matched_fields)
 
     def test_profile_delete_preserves_person_and_person_delete_cleans_profile(self):
         with Session(self.engine) as db:

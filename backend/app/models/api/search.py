@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from sqlmodel import Field, SQLModel
 
-from app.models.enums import SearchResourceType
+from app.models.enums import ResourceType
 
 
 @dataclass(frozen=True)
@@ -19,8 +19,9 @@ class SearchQueryDto(SQLModel):
 
 class SearchResultDto(SQLModel):
     campaign_id: int
-    resource_type: str
+    resource_type: ResourceType
     resource_id: int
+    parent_resource_id: int | None = None
     title: str
     context: str
     snippet: str
@@ -30,6 +31,6 @@ class SearchResultDto(SQLModel):
 
 class SearchResponseDto(SQLModel):
     query: str
-    searched_resource_types: list[str] = Field(default_factory=list)
+    searched_resource_types: list[ResourceType] = Field(default_factory=list)
     total_count: int
     results: list[SearchResultDto] = Field(default_factory=list)

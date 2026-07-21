@@ -187,10 +187,7 @@ export type ExportResponse = {
   filename: string
 }
 
-export type SearchResourceType = Exclude<
-  ResourceType,
-  "character_note" | "backstory_note"
->
+export type SearchResourceType = ResourceType
 
 export type SearchQueryDto = {
   query: string
@@ -201,6 +198,7 @@ export type SearchResultDto = {
   campaignId: number
   resourceType: SearchResourceType
   resourceId: number
+  parentResourceId: number | null
   title: string
   context: string
   snippet: string

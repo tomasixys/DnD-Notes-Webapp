@@ -43,6 +43,8 @@ and this changelog follows the structure described by
   labels, and merge aliases without losing existing tag assignments.
 - Person details now refresh immediately after editing, and refreshing a
   resource URL no longer redirects away while its persisted campaign is valid.
+- Added campaign search filters and direct results for character notes and
+  backstory entries, including entries belonging to former characters.
 
 ## [0.2.0] - 2026-07-18
 
