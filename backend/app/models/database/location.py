@@ -16,5 +16,4 @@ class Location(SQLModel, table=True):
 
     name: str
     type: str = ""
-    parent_location: str = ""
     description: str = ""

@@ -70,8 +70,8 @@ function showEditPersonForm() {
 
   personForm.name = selectedEntry.value.name
   personForm.role = selectedEntry.value.role
-  personForm.faction = selectedEntry.value.faction
-  personForm.location = selectedEntry.value.location
+  personForm.faction = selectedEntry.value.faction?.label ?? ""
+  personForm.location = selectedEntry.value.location?.label ?? ""
   personForm.description = selectedEntry.value.description
   personForm.tags = selectedEntry.value.tags
     .map((tag) => tag.value)
@@ -138,6 +138,7 @@ async function createPerson() {
 async function updatePerson() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
 
+  const personId = selectedEntry.value.id
   const name = personForm.name.trim()
   if (!name) return
 
@@ -150,13 +151,14 @@ async function updatePerson() {
     tags: parseTags(personForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${selectedEntry.value.id}`, person)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${personId}`, person)
   if (response.success === false) {
     console.error("Failed to update person:", response.error)
     return
   }
+  await fetchPeople()
   resetPersonForm()
-  await openEntry(selectedEntry.value.id)
+  await openEntry(personId)
 }
 
 async function deletePerson() {
@@ -216,9 +218,9 @@ async function deletePerson() {
               </span>
 
               <span class="resource-list-meta">
-                {{ person.faction || "No faction" }}
+                {{ person.faction?.label || "No faction" }}
                 <template v-if="person.location">
-                  · {{ person.location }}
+                  · {{ person.location.label }}
                 </template>
               </span>
             </button>
@@ -350,12 +352,24 @@ async function deletePerson() {
           <dl class="resource-facts">
             <div>
               <dt>Faction</dt>
-              <dd>{{ selectedEntry.faction || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.faction"
+                  :tag="selectedEntry.faction"
+                />
+                <template v-else>None registered</template>
+              </dd>
             </div>
 
             <div>
               <dt>Location</dt>
-              <dd>{{ selectedEntry.location || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.location"
+                  :tag="selectedEntry.location"
+                />
+                <template v-else>None registered</template>
+              </dd>
             </div>
           </dl>
 

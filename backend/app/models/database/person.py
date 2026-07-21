@@ -16,6 +16,4 @@ class Person(SQLModel, table=True):
 
     name: str
     role: str = ""
-    faction: str = ""
-    location: str = ""
     description: str = ""

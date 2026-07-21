@@ -16,5 +16,4 @@ class Faction(SQLModel, table=True):
 
     name: str
     type: str = ""
-    location: str = ""
     description: str = ""

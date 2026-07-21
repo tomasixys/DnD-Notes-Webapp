@@ -11,7 +11,6 @@ const router = useRouter()
 const {
   selectedCampaignId,
   selectedCampaign,
-  hasSelectedCampaign,
   selectedCampaignImageUrl,
   selectedCampaignBannerUrl,
 } = useCampaignStore()
@@ -58,7 +57,7 @@ watch(
   () => [route.name, route.query.q],
   ([routeName, queryValue]) => {
 
-    if (!hasSelectedCampaign.value && routeName !== "Dashboard") {
+    if (selectedCampaignId.value === null && routeName !== "Dashboard") {
       searchPhrase.value = ""
       router.push({name: "Dashboard" })
       return

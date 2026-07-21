@@ -9,10 +9,10 @@ from app.models.api import (
 )
 from app.models.enums import ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
-    handle_resource_deleted,
-    resolve_pending_tags_for_resource,
+    handle_tags_of_deleted_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
 )
 
@@ -127,8 +127,8 @@ def create_session_note(
         db_session_note.id,
         session_note.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.SESSION, db_session_note.title
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.SESSION, db_session_note.id
     )
     db.commit()
     db.refresh(db_session_note)
@@ -144,6 +144,11 @@ def update_session_note(
     db: Session = Depends(get_session),
 ):
     session_note = get_session_note_by_id(campaign_id, session_note_id, db)
+    previous_labels = [
+        session_note.title,
+        str(session_note.session_number),
+        f"session {session_note.session_number}",
+    ]
     existing_session_with_number = get_session_note_by_number(campaign_id, updated_session.session_number, db)
 
     if (existing_session_with_number is not None and existing_session_with_number.id != session_note.id):
@@ -163,8 +168,12 @@ def update_session_note(
         session_note.id,
         updated_session.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.SESSION, session_note.title
+    refresh_reference_tags_for_resource(
+        db,
+        campaign_id,
+        ResourceType.SESSION,
+        session_note.id,
+        previous_labels=previous_labels,
     )
     db.commit()
     db.refresh(session_note)
@@ -179,7 +188,7 @@ def delete_session_note(
     db: Session = Depends(get_session),
 ):
     session_note = get_session_note_by_id(campaign_id, session_note_id, db)
-    handle_resource_deleted(db, ResourceType.SESSION, session_note.id)
+    handle_tags_of_deleted_resource(db, ResourceType.SESSION, session_note.id)
     db.delete(session_note)
     db.commit()
 

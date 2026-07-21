@@ -4,13 +4,15 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.database import Person
 from app.models.api import PersonData, PersonRead
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
-    handle_resource_deleted,
-    resolve_pending_tags_for_resource,
+    get_resource_relationship,
+    handle_tags_of_deleted_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
+    sync_resource_relationship,
 )
 
 router = APIRouter(
@@ -25,8 +27,18 @@ def person_to_read(person: Person, db: Session) -> PersonRead:
         campaign_id=person.campaign_id,
         name=person.name,
         role=person.role,
-        faction=person.faction,
-        location=person.location,
+        faction=get_resource_relationship(
+            db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.MEMBER_OF,
+        ),
+        location=get_resource_relationship(
+            db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.LOCATED_IN,
+        ),
         description=person.description,
         tags=get_resource_tag_reads(db, ResourceType.PERSON, person.id),
     )
@@ -86,8 +98,6 @@ def create_person(
         campaign_id=campaign_id,
         name=person.name,
         role=person.role,
-        faction=person.faction,
-        location=person.location,
         description=person.description,
     )
     db.add(db_person)
@@ -95,8 +105,26 @@ def create_person(
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, db_person.name
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        person.location,
+    )
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.PERSON, db_person.id
     )
     db.commit()
     db.refresh(db_person)
@@ -112,19 +140,40 @@ def update_person(
     db: Session = Depends(get_session),
 ):
     person = get_person_by_id(campaign_id, person_id, db)
+    previous_name = person.name
 
     person.name = updated_person.name
     person.role = updated_person.role
-    person.faction = updated_person.faction
-    person.location = updated_person.location
     person.description = updated_person.description
     db.add(person)
     db.flush()
     sync_resource_tags(
         db, campaign_id, ResourceType.PERSON, person.id, updated_person.tags
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, person.name
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        updated_person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        updated_person.location,
+    )
+    refresh_reference_tags_for_resource(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        previous_labels=[previous_name],
     )
     db.commit()
     db.refresh(person)
@@ -140,7 +189,7 @@ def delete_person(
 ):
     person = get_person_by_id(campaign_id, person_id, db)
 
-    handle_resource_deleted(db, ResourceType.PERSON, person.id)
+    handle_tags_of_deleted_resource(db, ResourceType.PERSON, person.id)
     db.delete(person)
     db.commit()
 

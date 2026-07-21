@@ -13,9 +13,11 @@ from app.models.database import *
 from app.models.api import *
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
-from app.tag_handler import (
+from app.tags import (
+    get_resource_relationship,
     get_resource_tags,
-    resolve_pending_tags_for_resource,
+    refresh_reference_tags_for_resource,
+    sync_resource_relationship,
     sync_resource_tags,
 )
 
@@ -315,8 +317,26 @@ def export_campaign_backup(
                 CampaignBackupPerson(
                     name=person.name,
                     role=person.role,
-                    faction=person.faction,
-                    location=person.location,
+                    faction=(
+                        relationship.label
+                        if (relationship := get_resource_relationship(
+                            db,
+                            ResourceType.PERSON,
+                            person.id,
+                            RelationshipType.MEMBER_OF,
+                        ))
+                        else ""
+                    ),
+                    location=(
+                        relationship.label
+                        if (relationship := get_resource_relationship(
+                            db,
+                            ResourceType.PERSON,
+                            person.id,
+                            RelationshipType.LOCATED_IN,
+                        ))
+                        else ""
+                    ),
                     description=person.description,
                     tags=get_resource_tags(
                         db, ResourceType.PERSON, person.id
@@ -328,7 +348,16 @@ def export_campaign_backup(
                 CampaignBackupLocation(
                     name=location.name,
                     type=location.type,
-                    parent_location=location.parent_location,
+                    parent_location=(
+                        relationship.label
+                        if (relationship := get_resource_relationship(
+                            db,
+                            ResourceType.LOCATION,
+                            location.id,
+                            RelationshipType.PART_OF,
+                        ))
+                        else ""
+                    ),
                     description=location.description,
                     tags=get_resource_tags(
                         db, ResourceType.LOCATION, location.id
@@ -340,7 +369,16 @@ def export_campaign_backup(
                 CampaignBackupFaction(
                     name=faction.name,
                     type=faction.type,
-                    location=faction.location,
+                    location=(
+                        relationship.label
+                        if (relationship := get_resource_relationship(
+                            db,
+                            ResourceType.FACTION,
+                            faction.id,
+                            RelationshipType.BASED_IN,
+                        ))
+                        else ""
+                    ),
                     description=faction.description,
                     tags=get_resource_tags(
                         db, ResourceType.FACTION, faction.id
@@ -414,8 +452,6 @@ async def import_campaign_backup(
                         campaign_id=campaign.id,
                         name=person_backup.name,
                         role=person_backup.role,
-                        faction=person_backup.faction,
-                        location=person_backup.location,
                         description=person_backup.description,
                     )
                     db.add(person)
@@ -427,8 +463,26 @@ async def import_campaign_backup(
                         person.id,
                         person_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
-                        db, campaign.id, ResourceType.PERSON, person.name
+                    sync_resource_relationship(
+                        db,
+                        campaign.id,
+                        ResourceType.PERSON,
+                        person.id,
+                        RelationshipType.MEMBER_OF,
+                        ResourceType.FACTION,
+                        person_backup.faction,
+                    )
+                    sync_resource_relationship(
+                        db,
+                        campaign.id,
+                        ResourceType.PERSON,
+                        person.id,
+                        RelationshipType.LOCATED_IN,
+                        ResourceType.LOCATION,
+                        person_backup.location,
+                    )
+                    refresh_reference_tags_for_resource(
+                        db, campaign.id, ResourceType.PERSON, person.id
                     )
 
                 for location_backup in cb.locations:
@@ -436,7 +490,6 @@ async def import_campaign_backup(
                         campaign_id=campaign.id,
                         name=location_backup.name,
                         type=location_backup.type,
-                        parent_location=location_backup.parent_location,
                         description=location_backup.description,
                     )
                     db.add(location)
@@ -448,11 +501,20 @@ async def import_campaign_backup(
                         location.id,
                         location_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    sync_resource_relationship(
                         db,
                         campaign.id,
                         ResourceType.LOCATION,
-                        location.name,
+                        location.id,
+                        RelationshipType.PART_OF,
+                        ResourceType.LOCATION,
+                        location_backup.parent_location,
+                    )
+                    refresh_reference_tags_for_resource(
+                        db,
+                        campaign.id,
+                        ResourceType.LOCATION,
+                        location.id,
                     )
 
                 for faction_backup in cb.factions:
@@ -460,7 +522,6 @@ async def import_campaign_backup(
                         campaign_id=campaign.id,
                         name=faction_backup.name,
                         type=faction_backup.type,
-                        location=faction_backup.location,
                         description=faction_backup.description,
                     )
                     db.add(faction)
@@ -472,11 +533,20 @@ async def import_campaign_backup(
                         faction.id,
                         faction_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    sync_resource_relationship(
                         db,
                         campaign.id,
                         ResourceType.FACTION,
-                        faction.name,
+                        faction.id,
+                        RelationshipType.BASED_IN,
+                        ResourceType.LOCATION,
+                        faction_backup.location,
+                    )
+                    refresh_reference_tags_for_resource(
+                        db,
+                        campaign.id,
+                        ResourceType.FACTION,
+                        faction.id,
                     )
 
                 for session_backup in cb.sessions:
@@ -497,11 +567,11 @@ async def import_campaign_backup(
                         session_note.id,
                         session_backup.tags,
                     )
-                    resolve_pending_tags_for_resource(
+                    refresh_reference_tags_for_resource(
                         db,
                         campaign.id,
                         ResourceType.SESSION,
-                        session_note.title,
+                        session_note.id,
                     )
 
                     for roll in session_backup.rolls:

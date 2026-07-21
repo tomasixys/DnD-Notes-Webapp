@@ -12,9 +12,13 @@ from app.models.api import (
     SearchResponseDto,
     SearchQueryDto,
 )
-from app.models.enums import ResourceType, SearchResourceType
+from app.models.enums import RelationshipType, ResourceType, SearchResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import get_resource_tags, get_tag_matching_owner_ids
+from app.tags import (
+    get_resource_relationship,
+    get_resource_tags,
+    get_tag_matching_owner_ids,
+)
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/search",
@@ -58,8 +62,6 @@ def get_people_matches(campaign_id: int, pattern: str, db: Session) -> list[Pers
     conditions = [
         Person.name.ilike(pattern, escape="\\"),
         Person.role.ilike(pattern, escape="\\"),
-        Person.faction.ilike(pattern, escape="\\"),
-        Person.location.ilike(pattern, escape="\\"),
         Person.description.ilike(pattern, escape="\\"),
     ]
     if tag_owner_ids:
@@ -79,7 +81,6 @@ def get_faction_matches(campaign_id: int, pattern: str, db: Session) -> list[Fac
     conditions = [
         Faction.name.ilike(pattern, escape="\\"),
         Faction.type.ilike(pattern, escape="\\"),
-        Faction.location.ilike(pattern, escape="\\"),
         Faction.description.ilike(pattern, escape="\\"),
     ]
     if tag_owner_ids:
@@ -99,7 +100,6 @@ def get_location_matches(campaign_id: int, pattern: str, db: Session) -> list[Lo
     conditions = [
         Location.name.ilike(pattern, escape="\\"),
         Location.type.ilike(pattern, escape="\\"),
-        Location.parent_location.ilike(pattern, escape="\\"),
         Location.description.ilike(pattern, escape="\\"),
     ]
     if tag_owner_ids:
@@ -135,21 +135,37 @@ def get_session_matches(campaign_id: int, pattern: str, db: Session) -> list[Ses
 
 
 def get_faction_search_fields(faction: Faction, db: Session) -> list[SearchField]:
+    location = get_resource_relationship(
+        db,
+        ResourceType.FACTION,
+        faction.id,
+        RelationshipType.BASED_IN,
+    )
     return [
         SearchField("name", faction.name, 1.0),
         SearchField("type", faction.type, 0.7),
-        SearchField("location", faction.location, 0.7),
+        SearchField("location", location.label if location else "", 0.7),
         SearchField("tags", " ".join(get_resource_tags(db, ResourceType.FACTION, faction.id)), 0.85),
         SearchField("description", faction.description, 0.55),
     ]
 
 def get_location_search_fields(location: Location, db: Session) -> list[SearchField]:
+    parent_location = get_resource_relationship(
+        db,
+        ResourceType.LOCATION,
+        location.id,
+        RelationshipType.PART_OF,
+    )
     return [
         SearchField("name", location.name, 1.0),
         SearchField("type", location.type, 0.7),
         SearchField("tags", " ".join(get_resource_tags(db, ResourceType.LOCATION, location.id)), 0.85),
         SearchField("description", location.description, 0.55),
-        SearchField("parent_location", location.parent_location, 0.7),
+        SearchField(
+            "parent_location",
+            parent_location.label if parent_location else "",
+            0.7,
+        ),
     ]
 
 def get_session_search_fields(session: SessionNote, db: Session) -> list[SearchField]:
@@ -162,11 +178,23 @@ def get_session_search_fields(session: SessionNote, db: Session) -> list[SearchF
     ]
 
 def get_person_search_fields(person: Person, db: Session) -> list[SearchField]:
+    faction = get_resource_relationship(
+        db,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.MEMBER_OF,
+    )
+    location = get_resource_relationship(
+        db,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.LOCATED_IN,
+    )
     return [
         SearchField( name="name", value=person.name, weight=1.0, ),
         SearchField( name="role", value=person.role, weight=0.7, ),
-        SearchField( name="faction", value=person.faction, weight=0.7, ),
-        SearchField( name="location", value=person.location, weight=0.7, ),
+        SearchField( name="faction", value=faction.label if faction else "", weight=0.7, ),
+        SearchField( name="location", value=location.label if location else "", weight=0.7, ),
         SearchField( name="tags", value=" ".join(get_resource_tags(db, ResourceType.PERSON, person.id)), weight=0.85, ),
         SearchField( name="description", value=person.description, weight=0.55, ),
     ]
