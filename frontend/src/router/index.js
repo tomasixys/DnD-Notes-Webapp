@@ -18,10 +18,13 @@ const router = createRouter({
       children: [
         {
           path: '',
-          redirect: (route) => ({
-            name: 'SessionNotes',
-            params: { id: route.params.id },
-          }),
+          redirect: (route) => {
+            const pathSessionId = /^\/sessions\/(\d+)\/?$/.exec(route.path)?.[1]
+            return {
+              name: 'SessionNotes',
+              params: pathSessionId ? { id: pathSessionId } : {},
+            }
+          },
           meta: { showInSubmenu: false },
         },
         {

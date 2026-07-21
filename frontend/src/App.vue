@@ -20,7 +20,7 @@ const mainLinks = computed(() => [
     label: selectedCampaign.value?.name ?? "Campaign Notes",
     to: "/dashboard",
   },
-  { label: "Sessions", to: "/sessions" },
+  { label: "Sessions", to: "/sessions/notes" },
   { label: "People", to: "/people" },
   { label: "Locations", to: "/locations" },
   { label: "Factions", to: "/factions" },
