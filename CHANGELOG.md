@@ -23,6 +23,10 @@ and this changelog follows the structure described by
 
 - Split tag parsing, reference resolution, assignments, and read queries into
   focused modules behind a small compatibility facade.
+- Consolidated the unreleased database changes into one version 1 to version 2
+  migration instead of retaining development-only intermediate versions.
+- Organized database migrations as versioned modules with a registry-driven
+  runner and an idempotent hook for temporary development migrations.
 - Updated campaign backups and search to preserve and understand the new
   relationship-backed fields.
 - Migrated existing relationship text values into typed tag assignments while

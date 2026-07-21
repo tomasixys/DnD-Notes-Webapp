@@ -138,57 +138,32 @@ class TagHandlerTests(unittest.TestCase):
 
 
 class TagMigrationTests(unittest.TestCase):
-    def test_migrates_inferred_relationships_to_associations(self):
+    def test_fresh_database_uses_current_schema_version(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            database_path = Path(temporary_directory) / "version-three.db"
-            with closing(sqlite3.connect(database_path)) as connection:
-                connection.execute(
-                    "CREATE TABLE tagassignment ("
-                    "id INTEGER PRIMARY KEY, tag_id INTEGER NOT NULL, "
-                    "owner_type VARCHAR NOT NULL, owner_id INTEGER NOT NULL, "
-                    "relationship_type VARCHAR, "
-                    "UNIQUE(tag_id, owner_type, owner_id))"
-                )
-                connection.execute(
-                    "CREATE TABLE tag (id INTEGER PRIMARY KEY)"
-                )
-                connection.executemany(
-                    "INSERT INTO tag (id) VALUES (?)",
-                    [(1,), (2,), (3,)],
-                )
-                connection.executemany(
-                    "INSERT INTO tagassignment VALUES (?, ?, ?, ?, ?)",
-                    [
-                        (1, 1, "person", 1, "located_in"),
-                        (2, 2, "person", 1, "member_of"),
-                        (3, 3, "person", 1, None),
-                    ],
-                )
-                connection.execute("PRAGMA user_version = 3")
-                connection.commit()
-
+            database_path = Path(temporary_directory) / "fresh.db"
             engine = create_sqlalchemy_engine(
                 f"sqlite:///{database_path}",
                 poolclass=NullPool,
             )
+            SQLModel.metadata.create_all(engine)
+
             run_database_migrations(engine)
 
             with engine.connect() as connection:
-                relationship_types = connection.execute(
-                    text(
-                        "SELECT relationship_type FROM tagassignment "
-                        "ORDER BY id"
+                version = connection.execute(
+                    text("PRAGMA user_version")
+                ).scalar_one()
+                assignment_columns = {
+                    row[1]
+                    for row in connection.execute(
+                        text("PRAGMA table_info(tagassignment)")
                     )
-                ).scalars().all()
-                version = connection.execute(text("PRAGMA user_version")).scalar_one()
+                }
 
             engine.dispose()
 
-            self.assertEqual(
-                relationship_types,
-                ["associated_with", "associated_with", "associated_with"],
-            )
-            self.assertEqual(version, 7)
+            self.assertEqual(version, 2)
+            self.assertIn("relationship_type", assignment_columns)
 
     def test_migrates_legacy_json_tags_as_shared_passive_tags(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -241,7 +216,7 @@ class TagMigrationTests(unittest.TestCase):
                     ("person", 3, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 7)
+            self.assertEqual(version, 2)
 
     def test_migrates_resolved_aliases_to_one_identity_tag(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -321,11 +296,11 @@ class TagMigrationTests(unittest.TestCase):
                     (1, "person", 11, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 7)
+            self.assertEqual(version, 2)
 
     def test_migrates_plain_relationship_fields_to_typed_assignments(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
-            database_path = Path(temporary_directory) / "version-five.db"
+            database_path = Path(temporary_directory) / "version-one.db"
             with closing(sqlite3.connect(database_path)) as connection:
                 connection.execute(
                     "CREATE TABLE tag ("
@@ -338,8 +313,7 @@ class TagMigrationTests(unittest.TestCase):
                     "CREATE TABLE tagassignment ("
                     "id INTEGER PRIMARY KEY, tag_id INTEGER NOT NULL, "
                     "owner_type TEXT NOT NULL, owner_id INTEGER NOT NULL, "
-                    "relationship_type TEXT NOT NULL, "
-                    "UNIQUE(tag_id, owner_type, owner_id, relationship_type))"
+                    "UNIQUE(tag_id, owner_type, owner_id))"
                 )
                 connection.execute(
                     "CREATE TABLE location ("
@@ -368,7 +342,7 @@ class TagMigrationTests(unittest.TestCase):
                     "INSERT INTO person VALUES "
                     "(30, 1, 'Nalia', 'faction:Dragon Order', 'Academy')"
                 )
-                connection.execute("PRAGMA user_version = 5")
+                connection.execute("PRAGMA user_version = 1")
                 connection.commit()
 
             engine = create_sqlalchemy_engine(
@@ -413,9 +387,12 @@ class TagMigrationTests(unittest.TestCase):
             )
             self.assertNotIn("faction", person_columns)
             self.assertNotIn("location", person_columns)
+            self.assertNotIn("tags", person_columns)
             self.assertNotIn("parent_location", location_columns)
+            self.assertNotIn("tags", location_columns)
             self.assertNotIn("location", faction_columns)
-            self.assertEqual(version, 7)
+            self.assertNotIn("tags", faction_columns)
+            self.assertEqual(version, 2)
 
 
 if __name__ == "__main__":
