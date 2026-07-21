@@ -9,9 +9,9 @@ from app.models.api import (
 )
 from app.models.enums import ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
-    handle_resource_deleted,
+    handle_tags_of_deleted_resource,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
 )
@@ -188,7 +188,7 @@ def delete_session_note(
     db: Session = Depends(get_session),
 ):
     session_note = get_session_note_by_id(campaign_id, session_note_id, db)
-    handle_resource_deleted(db, ResourceType.SESSION, session_note.id)
+    handle_tags_of_deleted_resource(db, ResourceType.SESSION, session_note.id)
     db.delete(session_note)
     db.commit()
 

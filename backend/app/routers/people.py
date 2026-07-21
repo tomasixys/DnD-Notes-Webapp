@@ -6,10 +6,10 @@ from app.models.database import Person
 from app.models.api import PersonData, PersonRead
 from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
     get_resource_relationship,
-    handle_resource_deleted,
+    handle_tags_of_deleted_resource,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
     sync_resource_relationship,
@@ -189,7 +189,7 @@ def delete_person(
 ):
     person = get_person_by_id(campaign_id, person_id, db)
 
-    handle_resource_deleted(db, ResourceType.PERSON, person.id)
+    handle_tags_of_deleted_resource(db, ResourceType.PERSON, person.id)
     db.delete(person)
     db.commit()
 

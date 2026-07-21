@@ -6,11 +6,11 @@ from app.models.database import Faction
 from app.models.api import FactionData, FactionRead
 from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
     get_resource_relationship,
-    get_relationship_owner_reads,
-    handle_resource_deleted,
+    get_resources_referencing_tag,
+    handle_tags_of_deleted_resource,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
     sync_resource_relationship,
@@ -34,7 +34,7 @@ def faction_to_read(faction: Faction, db: Session) -> FactionRead:
             faction.id,
             RelationshipType.BASED_IN,
         ),
-        members=get_relationship_owner_reads(
+        members=get_resources_referencing_tag(
             db,
             faction.campaign_id,
             ResourceType.FACTION,
@@ -181,7 +181,7 @@ def delete_faction(
 ):
     faction = get_faction_by_id(campaign_id, faction_id, db)
 
-    handle_resource_deleted(db, ResourceType.FACTION, faction.id)
+    handle_tags_of_deleted_resource(db, ResourceType.FACTION, faction.id)
     db.delete(faction)
     db.commit()
 

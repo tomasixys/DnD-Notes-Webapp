@@ -21,6 +21,8 @@ and this changelog follows the structure described by
 
 ### Changed
 
+- Split tag parsing, reference resolution, assignments, and read queries into
+  focused modules behind a small compatibility facade.
 - Updated campaign backups and search to preserve and understand the new
   relationship-backed fields.
 - Migrated existing relationship text values into typed tag assignments while

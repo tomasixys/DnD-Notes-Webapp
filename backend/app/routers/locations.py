@@ -6,11 +6,11 @@ from app.models.database import Location
 from app.models.api import LocationData, LocationRead
 from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
     get_resource_relationship,
-    get_relationship_owner_reads,
-    handle_resource_deleted,
+    get_resources_referencing_tag,
+    handle_tags_of_deleted_resource,
     refresh_reference_tags_for_resource,
     sync_resource_tags,
     sync_resource_relationship,
@@ -34,7 +34,7 @@ def location_to_read(location: Location, db: Session) -> LocationRead:
             location.id,
             RelationshipType.PART_OF,
         ),
-        people=get_relationship_owner_reads(
+        people=get_resources_referencing_tag(
             db,
             location.campaign_id,
             ResourceType.LOCATION,
@@ -189,7 +189,7 @@ def delete_location(
 ):
     location = get_location_by_id(campaign_id, location_id, db)
 
-    handle_resource_deleted(db, ResourceType.LOCATION, location.id)
+    handle_tags_of_deleted_resource(db, ResourceType.LOCATION, location.id)
     db.delete(location)
     db.commit()
 

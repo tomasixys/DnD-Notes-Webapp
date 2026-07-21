@@ -14,7 +14,7 @@ from app.models.api import (
 )
 from app.models.enums import RelationshipType, ResourceType, SearchResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_relationship,
     get_resource_tags,
     get_tag_matching_owner_ids,

@@ -13,7 +13,7 @@ from app.models.database import *
 from app.models.api import *
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
-from app.tag_handler import (
+from app.tags import (
     get_resource_relationship,
     get_resource_tags,
     refresh_reference_tags_for_resource,

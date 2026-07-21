@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import Engine, inspect, text
 
-from app.tag_handler import normalize_tag_label
+from app.tags import normalize_tag_label
 
 
 CURRENT_DATABASE_VERSION = 7

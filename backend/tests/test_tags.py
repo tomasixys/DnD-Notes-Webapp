@@ -22,9 +22,9 @@ from app.models.enums import (
     ResourceType,
     TagResolutionState,
 )
-from app.tag_handler import (
+from app.tags import (
     get_resource_tags,
-    handle_resource_deleted,
+    handle_tags_of_deleted_resource,
     parse_tag,
     resolve_pending_tags_for_resource,
     sync_resource_tags,
@@ -129,7 +129,7 @@ class TagHandlerTests(unittest.TestCase):
             db.refresh(tag)
             self.assertEqual(tag.reference_id, location.id)
 
-            handle_resource_deleted(db, ResourceType.LOCATION, location.id)
+            handle_tags_of_deleted_resource(db, ResourceType.LOCATION, location.id)
             db.delete(location)
             db.flush()
             db.refresh(tag)
