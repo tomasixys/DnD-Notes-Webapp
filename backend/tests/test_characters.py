@@ -12,7 +12,7 @@ from sqlalchemy import event, inspect
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.migrations import run_database_migrations
+from app.migrations import CURRENT_DATABASE_VERSION, run_database_migrations
 from app.models.api import (
     CharacterCreate,
     CharacterNoteData,
@@ -316,7 +316,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 self.assertEqual(len(imported_entries), 1)
                 self.assertEqual(imported_entries[0].title, "Family")
 class CharacterMigrationTests(unittest.TestCase):
-    def test_development_migration_adds_character_schema_to_existing_database(self):
+    def test_v3_migration_adds_character_schema_to_version_two_database(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "version-two.db"
             with closing(sqlite3.connect(database_path)) as connection:
@@ -342,14 +342,19 @@ class CharacterMigrationTests(unittest.TestCase):
                 column["name"] for column in schema.get_columns("campaign")
             }
             table_names = set(schema.get_table_names())
+            with engine.connect() as connection:
+                version = connection.exec_driver_sql(
+                    "PRAGMA user_version"
+                ).scalar_one()
             engine.dispose()
 
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
             self.assertIn("active_character_person_id", campaign_columns)
             self.assertIn("characterprofile", table_names)
             self.assertIn("characternote", table_names)
             self.assertIn("backstorynote", table_names)
 
-    def test_development_migration_splits_legacy_character_entries_and_tags(self):
+    def test_v3_migration_splits_legacy_character_entries_and_tags(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "character-entry.db"
             with closing(sqlite3.connect(database_path)) as connection:
@@ -432,6 +437,9 @@ class CharacterMigrationTests(unittest.TestCase):
             )
             run_database_migrations(engine)
             with engine.connect() as connection:
+                version = connection.exec_driver_sql(
+                    "PRAGMA user_version"
+                ).scalar_one()
                 note_rows = connection.exec_driver_sql(
                     "SELECT id, title FROM characternote"
                 ).all()
@@ -448,8 +456,13 @@ class CharacterMigrationTests(unittest.TestCase):
                     "SELECT content FROM sessionnote WHERE id = 20"
                 ).scalar_one()
                 tables = set(inspect(connection).get_table_names())
+                session_columns = {
+                    column["name"]
+                    for column in inspect(connection).get_columns("sessionnote")
+                }
             engine.dispose()
 
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
             self.assertEqual(note_rows, [(10, "Shopping")])
             self.assertEqual(backstory_rows, [(11, "Family")])
             self.assertEqual(assignment, ("character_note", 10))
@@ -458,6 +471,7 @@ class CharacterMigrationTests(unittest.TestCase):
                 ("reference:backstory_note:11", "backstory_note", 11),
             )
             self.assertEqual(session_content, "Reached the city")
+            self.assertNotIn("description", session_columns)
             self.assertNotIn("characterentry", tables)
 
 

@@ -9,7 +9,7 @@ from sqlalchemy import create_engine as create_sqlalchemy_engine, text
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.migrations import run_database_migrations
+from app.migrations import CURRENT_DATABASE_VERSION, run_database_migrations
 from app.models.database import (
     Campaign,
     Location,
@@ -162,7 +162,7 @@ class TagMigrationTests(unittest.TestCase):
 
             engine.dispose()
 
-            self.assertEqual(version, 2)
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
             self.assertIn("relationship_type", assignment_columns)
 
     def test_migrates_legacy_json_tags_as_shared_passive_tags(self):
@@ -216,7 +216,7 @@ class TagMigrationTests(unittest.TestCase):
                     ("person", 3, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 2)
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
 
     def test_migrates_resolved_aliases_to_one_identity_tag(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -296,7 +296,7 @@ class TagMigrationTests(unittest.TestCase):
                     (1, "person", 11, "associated_with"),
                 ],
             )
-            self.assertEqual(version, 2)
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
 
     def test_migrates_plain_relationship_fields_to_typed_assignments(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -392,7 +392,7 @@ class TagMigrationTests(unittest.TestCase):
             self.assertNotIn("tags", location_columns)
             self.assertNotIn("location", faction_columns)
             self.assertNotIn("tags", faction_columns)
-            self.assertEqual(version, 2)
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
 
 
 if __name__ == "__main__":
