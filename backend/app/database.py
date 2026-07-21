@@ -35,6 +35,9 @@ def create_db_and_tables():
         Person,
         Location,
         Faction,
+        CharacterProfile,
+        CharacterNote,
+        BackstoryNote,
     )
 
     SQLModel.metadata.create_all(engine)

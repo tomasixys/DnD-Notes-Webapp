@@ -2,6 +2,14 @@ from app.models.enums import RelationshipType, ResourceType, TagResolutionState
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
 from .person import PersonData, PersonRead
+from .character import (
+    CharacterCreate,
+    CharacterUpdate,
+    CharacterRead,
+    CharacterNoteData,
+    CharacterNoteRead,
+    BackstoryNoteRead,
+)
 from .location import LocationData, LocationRead
 from .faction import FactionData, FactionRead
 from .backup import (
@@ -9,6 +17,9 @@ from .backup import (
     CampaignBackupCampaign,
     CampaignBackupSession,
     CampaignBackupPerson,
+    CampaignBackupCharacter,
+    CampaignBackupCharacterNote,
+    CampaignBackupLegacyCharacterEntry,
     CampaignBackupLocation,
     CampaignBackupFaction,
     CampaignBackup,
@@ -36,6 +47,12 @@ __all__ = [
     "SessionNoteRead",
     "PersonData",
     "PersonRead",
+    "CharacterCreate",
+    "CharacterUpdate",
+    "CharacterRead",
+    "CharacterNoteData",
+    "CharacterNoteRead",
+    "BackstoryNoteRead",
     "LocationData",
     "LocationRead",
     "FactionData",
@@ -44,6 +61,9 @@ __all__ = [
     "CampaignBackupCampaign",
     "CampaignBackupSession",
     "CampaignBackupPerson",
+    "CampaignBackupCharacter",
+    "CampaignBackupCharacterNote",
+    "CampaignBackupLegacyCharacterEntry",
     "CampaignBackupLocation",
     "CampaignBackupFaction",
     "CampaignBackup",

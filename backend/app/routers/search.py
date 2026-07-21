@@ -120,7 +120,7 @@ def get_session_matches(campaign_id: int, pattern: str, db: Session) -> list[Ses
         SessionNote.title.ilike(pattern, escape="\\"),
         SessionNote.date.ilike(pattern, escape="\\"),
         cast(SessionNote.session_number, String).ilike(pattern, escape="\\"),
-        SessionNote.description.ilike(pattern, escape="\\"),
+        SessionNote.content.ilike(pattern, escape="\\"),
     ]
     if tag_owner_ids:
         conditions.append(SessionNote.id.in_(tag_owner_ids))
@@ -173,7 +173,7 @@ def get_session_search_fields(session: SessionNote, db: Session) -> list[SearchF
         SearchField("title", session.title, 1.0),
         SearchField("date", session.date, 0.65),
         SearchField("tags", " ".join(get_resource_tags(db, ResourceType.SESSION, session.id)), 0.85),
-        SearchField("description", session.description, 0.55),
+        SearchField("description", session.content, 0.55),
         SearchField("session_number", str(session.session_number), 0.65),
     ]
 
@@ -332,7 +332,7 @@ def search_campaign(
                 resource_id = session.id,
                 title = session.title,
                 context = f"Session {session.session_number}",
-                snippet = session.description or "",
+                snippet = session.content or "",
                 matched_fields = matched_fields,
                 relevance = relevance,
             )

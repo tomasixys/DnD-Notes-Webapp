@@ -12,6 +12,8 @@ from app.models.database import (
     SessionNote,
     Tag,
     TagAssignment,
+    BackstoryNote,
+    CharacterNote,
 )
 from app.models.enums import ResourceType, TagResolutionState
 
@@ -23,6 +25,8 @@ REFERENCE_MODELS = {
     ResourceType.LOCATION: Location,
     ResourceType.FACTION: Faction,
     ResourceType.SESSION: SessionNote,
+    ResourceType.CHARACTER_NOTE: CharacterNote,
+    ResourceType.BACKSTORY_NOTE: BackstoryNote,
 }
 
 
@@ -37,11 +41,20 @@ def candidate_labels(resource_type: ResourceType, resource) -> list[str]:
             str(resource.session_number),
             f"session {resource.session_number}",
         ]
+    if resource_type in {
+        ResourceType.CHARACTER_NOTE,
+        ResourceType.BACKSTORY_NOTE,
+    }:
+        return [resource.title]
     return [resource.name]
 
 
 def canonical_label(resource_type: ResourceType, resource) -> str:
-    if resource_type == ResourceType.SESSION:
+    if resource_type in {
+        ResourceType.SESSION,
+        ResourceType.CHARACTER_NOTE,
+        ResourceType.BACKSTORY_NOTE,
+    }:
         return resource.title
     return resource.name
 
