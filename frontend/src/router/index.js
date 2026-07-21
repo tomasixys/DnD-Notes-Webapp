@@ -13,9 +13,30 @@ const router = createRouter({
       component: () => import('../views/dashboardView.vue')
     },
     {
-      path: '/sessions/:id?',
-      name: 'Sessions',
-      component: () => import('../views/sessionsView.vue')
+      path: '/sessions/:id(\\d+)?',
+      component: () => import('../views/sessionsView.vue'),
+      children: [
+        {
+          path: '',
+          redirect: (route) => ({
+            name: 'SessionNotes',
+            params: { id: route.params.id },
+          }),
+          meta: { showInSubmenu: false },
+        },
+        {
+          path: 'notes',
+          name: 'SessionNotes',
+          component: () => import('../views/sessionNotesView.vue'),
+          meta: { label: 'Notes' },
+        },
+        {
+          path: 'rolls',
+          name: 'SessionRolls',
+          component: () => import('../views/rollsView.vue'),
+          meta: { label: 'Rolls' },
+        },
+      ],
     },
     {
       path: '/people/:id?',
@@ -67,9 +88,11 @@ const router = createRouter({
       component: () => import("../views/factionsView.vue")
     },
     {
-      path: "/rolls/:id?",
-      name: "Rolls",
-      component: () => import("../views/rollsView.vue")
+      path: "/rolls/:id(\\d+)?",
+      redirect: (route) => ({
+        name: "SessionRolls",
+        params: { id: route.params.id },
+      }),
     },
     {
       path: "/search",

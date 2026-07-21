@@ -24,7 +24,6 @@ const mainLinks = computed(() => [
   { label: "People", to: "/people" },
   { label: "Locations", to: "/locations" },
   { label: "Factions", to: "/factions" },
-  { label: "Rolls", to: "/rolls" },
   { label: "Character", to: "/character/overview" },
 ])
 
@@ -45,6 +44,9 @@ const submenuLinks = computed(() => {
         params: {
           ...(route.params.personId
             ? { personId: route.params.personId }
+            : {}),
+          ...(route.params.id
+            ? { id: route.params.id }
             : {}),
         },
       },

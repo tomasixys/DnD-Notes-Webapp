@@ -17,7 +17,7 @@ const resourceOptions: Array<{
   label: string
   routeName: string
 }> = [
-  { type: "session",  label: "Sessions",  routeName: "Sessions" },
+  { type: "session",  label: "Sessions",  routeName: "SessionNotes" },
   { type: "person",   label: "People",    routeName: "People" },
   { type: "location", label: "Locations", routeName: "Locations" },
   { type: "faction",  label: "Factions",  routeName: "Factions" },

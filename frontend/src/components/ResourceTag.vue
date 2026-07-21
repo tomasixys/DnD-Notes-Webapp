@@ -14,7 +14,7 @@ const props = defineProps<{
 const router = useRouter()
 
 const routeNames: Partial<Record<ResourceType, string>> = {
-  session: "Sessions",
+  session: "SessionNotes",
   person: "People",
   location: "Locations",
   faction: "Factions",
