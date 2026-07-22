@@ -91,6 +91,11 @@ const router = createRouter({
       component: () => import("../views/factionsView.vue")
     },
     {
+      path: "/inventory/:id(\\d+)?",
+      name: "Inventory",
+      component: () => import("../views/inventoryView.vue"),
+    },
+    {
       path: "/rolls/:id(\\d+)?",
       redirect: (route) => ({
         name: "SessionRolls",

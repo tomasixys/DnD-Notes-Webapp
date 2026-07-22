@@ -25,6 +25,7 @@ const mainLinks = computed(() => [
   { label: "Locations", to: "/locations" },
   { label: "Factions", to: "/factions" },
   { label: "Character", to: "/character/overview" },
+  { label: "Inventory", to: "/inventory" },
 ])
 
 const currentRouteGroup = computed(() => {
