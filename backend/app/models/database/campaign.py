@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from .location import Location
     from .faction import Faction
     from .tag import Tag
+    from .inventory import Inventory
 
 
 class Campaign(SQLModel, table=True):
@@ -48,6 +49,12 @@ class Campaign(SQLModel, table=True):
     )
 
     tag_definitions: list["Tag"] = Relationship(
+        back_populates="campaign",
+        cascade_delete=True,
+        passive_deletes=True,
+    )
+
+    inventories: list["Inventory"] = Relationship(
         back_populates="campaign",
         cascade_delete=True,
         passive_deletes=True,

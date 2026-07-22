@@ -8,6 +8,9 @@ from .location import Location
 from .faction import Faction
 from .note import NoteBase
 from .character import CharacterProfile, CharacterNote, BackstoryNote
+from .inventory import Inventory, InventoryAccess
+from .purse import Purse, CurrencyBalance
+from .inventory_item import InventoryItem
 
 __all__ = [
     "Campaign",
@@ -22,4 +25,9 @@ __all__ = [
     "CharacterNote",
     "BackstoryNote",
     "NoteBase",
+    "Inventory",
+    "InventoryAccess",
+    "Purse",
+    "CurrencyBalance",
+    "InventoryItem",
 ]

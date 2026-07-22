@@ -7,6 +7,7 @@ from .note import NoteBase
 
 if TYPE_CHECKING:
     from .person import Person
+    from .inventory import InventoryAccess
 
 
 def utc_now() -> datetime:
@@ -32,6 +33,11 @@ class CharacterProfile(SQLModel, table=True):
         passive_deletes=True,
     )
     backstory_notes: list["BackstoryNote"] = Relationship(
+        back_populates="character_profile",
+        cascade_delete=True,
+        passive_deletes=True,
+    )
+    inventory_access: list["InventoryAccess"] = Relationship(
         back_populates="character_profile",
         cascade_delete=True,
         passive_deletes=True,
