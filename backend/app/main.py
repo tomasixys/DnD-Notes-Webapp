@@ -4,7 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import create_db_and_tables
 from app.frontend import mount_frontend
-from app.routers import campaigns, sessions, people, locations, factions, rolls, search, characters
+from app.routers import (
+    campaigns,
+    characters,
+    factions,
+    inventory,
+    locations,
+    people,
+    rolls,
+    search,
+    sessions,
+)
 
 from app.app_paths import (
     get_app_data_dir,
@@ -52,6 +62,7 @@ app.include_router(factions.router)
 app.include_router(rolls.router)
 app.include_router(search.router)
 app.include_router(characters.router)
+app.include_router(inventory.router)
 
 # Keep this after every API router. It contains the catch-all SPA route.
 mount_frontend(app)

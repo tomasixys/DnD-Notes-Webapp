@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.database import get_session
+from app.inventory_service import sync_default_inventory_owner
 from app.file_storage import (
     build_upload_url,
     delete_uploaded_file,
@@ -302,6 +303,7 @@ def create_character(
     if character.make_active:
         campaign.active_character_person_id = person.id
         db.add(campaign)
+        sync_default_inventory_owner(campaign, db)
 
     db.commit()
     db.refresh(profile)
@@ -339,6 +341,7 @@ def activate_character(
     profile = get_character_profile(campaign_id, person_id, db)
     campaign.active_character_person_id = person_id
     db.add(campaign)
+    sync_default_inventory_owner(campaign, db)
     db.commit()
     db.refresh(campaign)
     return character_to_read(profile, campaign, db)

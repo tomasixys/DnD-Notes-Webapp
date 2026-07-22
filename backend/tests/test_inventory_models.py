@@ -298,7 +298,8 @@ class InventoryMigrationTests(unittest.TestCase):
                     """
                     CREATE TABLE campaign (
                         id INTEGER PRIMARY KEY,
-                        name TEXT NOT NULL
+                        name TEXT NOT NULL,
+                        active_character_person_id INTEGER
                     );
                     CREATE TABLE person (
                         id INTEGER PRIMARY KEY,
@@ -332,6 +333,9 @@ class InventoryMigrationTests(unittest.TestCase):
                         value_in_gp NUMERIC NOT NULL
                     );
                     INSERT INTO currencyvalue VALUES ('gp', 1);
+                    INSERT INTO campaign VALUES (1, 'Test', 5);
+                    INSERT INTO person VALUES (5, 1, 'Nalia');
+                    INSERT INTO characterprofile VALUES (5, '', '', '');
                     PRAGMA user_version = 3;
                     """
                 )
@@ -350,6 +354,20 @@ class InventoryMigrationTests(unittest.TestCase):
                 version = connection.exec_driver_sql(
                     "PRAGMA user_version"
                 ).scalar_one()
+                default_inventory = connection.exec_driver_sql(
+                    "SELECT id, campaign_id FROM inventory"
+                ).one()
+                purse_id = connection.exec_driver_sql(
+                    "SELECT inventory_id FROM purse"
+                ).scalar_one()
+                balances = connection.exec_driver_sql(
+                    "SELECT denomination, amount FROM currencybalance "
+                    "ORDER BY denomination"
+                ).all()
+                access = connection.exec_driver_sql(
+                    "SELECT inventory_id, character_person_id, role "
+                    "FROM inventoryaccess"
+                ).one()
             engine.dispose()
 
             self.assertEqual(version, CURRENT_DATABASE_VERSION)
@@ -363,6 +381,13 @@ class InventoryMigrationTests(unittest.TestCase):
                 }.issubset(table_names)
             )
             self.assertNotIn("currencyvalue", table_names)
+            self.assertEqual(default_inventory[1], 1)
+            self.assertEqual(purse_id, default_inventory[0])
+            self.assertEqual(
+                balances,
+                [("cp", 0), ("ep", 0), ("gp", 0), ("pp", 0), ("sp", 0)],
+            )
+            self.assertEqual(access, (default_inventory[0], 5, "owner"))
 
             inventory_columns = {
                 column["name"] for column in schema.get_columns("inventory")

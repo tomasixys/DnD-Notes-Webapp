@@ -9,6 +9,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
+from app.inventory_service import (
+    ensure_default_inventory,
+    sync_default_inventory_owner,
+)
 from app.models.database import *
 from app.models.api import *
 # from app.app_paths import get_uploads_dir
@@ -112,6 +116,7 @@ def create_campaign(
 
     db.add(campaign)
     db.flush()  # assigns campaign.id without committing yet
+    ensure_default_inventory(campaign, db)
 
     saved_image_relative_path: str | None = None
     saved_banner_relative_path: str | None = None
@@ -513,6 +518,7 @@ async def import_campaign_backup(
             try:
                 db.add(campaign)
                 db.flush()
+                ensure_default_inventory(campaign, db)
 
                 original_path = Path(cb.campaign.image_archive_path)
                 if cb.campaign.image_archive_path:
@@ -772,6 +778,8 @@ async def import_campaign_backup(
                         )
                     campaign.active_character_person_id = active_person_id
                     db.add(campaign)
+
+                sync_default_inventory_owner(campaign, db)
 
                 db.commit()
                 db.refresh(campaign)

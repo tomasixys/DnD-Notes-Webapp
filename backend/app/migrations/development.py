@@ -123,6 +123,68 @@ def _add_inventory_columns(connection) -> None:
         )
 
 
+def _backfill_default_inventories(connection) -> None:
+    connection.execute(
+        text(
+            "INSERT INTO inventory (campaign_id, name, description) "
+            "SELECT campaign.id, 'Party Inventory', '' FROM campaign "
+            "WHERE NOT EXISTS ("
+            "SELECT 1 FROM inventory "
+            "WHERE inventory.campaign_id = campaign.id"
+            ")"
+        )
+    )
+    connection.execute(
+        text(
+            "INSERT INTO purse (inventory_id) "
+            "SELECT inventory.id FROM inventory "
+            "WHERE NOT EXISTS ("
+            "SELECT 1 FROM purse WHERE purse.inventory_id = inventory.id"
+            ")"
+        )
+    )
+    for denomination in ("cp", "sp", "ep", "gp", "pp"):
+        connection.execute(
+            text(
+                "INSERT INTO currencybalance "
+                "(purse_id, denomination, amount) "
+                "SELECT purse.inventory_id, :denomination, 0 FROM purse "
+                "WHERE NOT EXISTS ("
+                "SELECT 1 FROM currencybalance "
+                "WHERE currencybalance.purse_id = purse.inventory_id "
+                "AND currencybalance.denomination = :denomination"
+                ")"
+            ),
+            {"denomination": denomination},
+        )
+
+    campaign_columns = {
+        column["name"]
+        for column in inspect(connection).get_columns("campaign")
+    }
+    if "active_character_person_id" in campaign_columns:
+        connection.execute(
+            text(
+                "INSERT INTO inventoryaccess "
+                "(inventory_id, character_person_id, role) "
+                "SELECT inventory.id, campaign.active_character_person_id, "
+                "'owner' FROM inventory "
+                "JOIN campaign ON campaign.id = inventory.campaign_id "
+                "JOIN characterprofile ON characterprofile.person_id = "
+                "campaign.active_character_person_id "
+                "WHERE inventory.id = ("
+                "SELECT MIN(candidate.id) FROM inventory AS candidate "
+                "WHERE candidate.campaign_id = campaign.id"
+                ") AND NOT EXISTS ("
+                "SELECT 1 FROM inventoryaccess "
+                "WHERE inventoryaccess.inventory_id = inventory.id "
+                "AND inventoryaccess.character_person_id = "
+                "campaign.active_character_person_id"
+                ")"
+            )
+        )
+
+
 def migrate_development_schema(connection) -> None:
     existing_tables = set(inspect(connection).get_table_names())
     if not {"campaign", "characterprofile"}.issubset(existing_tables):
@@ -133,3 +195,4 @@ def migrate_development_schema(connection) -> None:
 
     _create_inventory_tables(connection)
     _add_inventory_columns(connection)
+    _backfill_default_inventories(connection)
