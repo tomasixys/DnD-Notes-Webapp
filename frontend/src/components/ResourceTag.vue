@@ -2,10 +2,8 @@
 import { computed } from "vue"
 import { useRouter } from "vue-router"
 
-import type {
-  ResourceTagDto,
-  ResourceType,
-} from "@/types/DataTransferObjects"
+import type { ResourceTagDto } from "@/types/DataTransferObjects"
+import type { ResourceType } from "@/types/resourceTypes"
 
 const props = defineProps<{
   tag: ResourceTagDto

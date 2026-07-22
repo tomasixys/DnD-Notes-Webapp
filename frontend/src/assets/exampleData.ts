@@ -1,4 +1,6 @@
 import * as dto from "@/types/DataTransferObjects"
+import type { ResourceType } from "@/types/resourceTypes"
+import type { RelationshipType } from "@/types/tagTypes"
 
 function passiveTags(...values: string[]): dto.ResourceTagDto[] {
   return values.map((value) => ({
@@ -13,9 +15,9 @@ function passiveTags(...values: string[]): dto.ResourceTagDto[] {
 
 function referenceTag(
   label: string,
-  referenceType: dto.ResourceType,
+  referenceType: ResourceType,
   referenceId: number,
-  relationshipType: dto.RelationshipType,
+  relationshipType: RelationshipType,
 ): dto.ResourceTagDto {
   return {
     value: `${referenceType}:${label}`,

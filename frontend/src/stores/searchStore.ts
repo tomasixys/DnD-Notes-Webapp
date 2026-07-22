@@ -1,5 +1,6 @@
 import { ref } from "vue"
-import type { SearchResourceType, SearchResponseDto } from "@/types/DataTransferObjects"
+import type { SearchResponseDto } from "@/types/DataTransferObjects"
+import type { ResourceType } from "@/types/resourceTypes"
 
 type CachedSearch = {
   key: string
@@ -13,7 +14,7 @@ const cachedSearch = ref<CachedSearch | null>(null)
 function createSearchKey(
   campaignId: number,
   query: string,
-  resourceTypes: SearchResourceType[])
+  resourceTypes: ResourceType[])
 {
   const normalizedQuery = query.trim().toLowerCase()
   const normalizedTypes = [...new Set(resourceTypes)].sort()
@@ -23,7 +24,7 @@ function createSearchKey(
 function getCachedSearch(
   campaignId: number,
   query: string,
-  resourceTypes: SearchResourceType[],
+  resourceTypes: ResourceType[],
 ): SearchResponseDto | null
 {
   const key = createSearchKey(campaignId, query, resourceTypes)
@@ -35,7 +36,7 @@ function getCachedSearch(
 function cacheSearch(
   campaignId: number,
   query: string,
-  resourceTypes: SearchResourceType[],
+  resourceTypes: ResourceType[],
   response: SearchResponseDto)
 {
   cachedSearch.value = {

@@ -4,7 +4,8 @@ import { RouterLink, useRoute, useRouter } from "vue-router"
 import { PostAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useSearchStore } from "@/stores/searchStore"
-import type { SearchResourceType, SearchResponseDto, SearchResultDto, SearchQueryDto} from "@/types/DataTransferObjects"
+import type { SearchResponseDto, SearchResultDto, SearchQueryDto} from "@/types/DataTransferObjects"
+import type { ResourceType } from "@/types/resourceTypes"
 
 const route = useRoute()
 const router = useRouter()
@@ -13,7 +14,7 @@ const { selectedCampaignId } = useCampaignStore()
 const { cacheSearch, getCachedSearch } = useSearchStore()
 
 const resourceOptions: Array<{
-  type: SearchResourceType
+  type: ResourceType
   label: string
   routeName: string
 }> = [
@@ -26,7 +27,7 @@ const resourceOptions: Array<{
 ]
 
 const allResourceTypes = resourceOptions.map( (option) => option.type )
-const selectedResourceTypes = ref<SearchResourceType[]>([])
+const selectedResourceTypes = ref<ResourceType[]>([])
 const searchResults = ref<SearchResultDto[]>([])
 const searchInput = ref("")
 
@@ -35,7 +36,7 @@ const queryFromUrl = computed(() => {
   return (typeof query === "string") ? query.trim() : ""
 })
 
-const resourceTypesFromUrl = computed<SearchResourceType[]>(() => {
+const resourceTypesFromUrl = computed<ResourceType[]>(() => {
   const parameter = route.query.types
 
   if (typeof parameter !== "string" || !parameter.trim()) {
@@ -49,7 +50,7 @@ const resourceTypesFromUrl = computed<SearchResourceType[]>(() => {
   )
 })
 
-async function getSearchResults(query: string, resourceTypes: SearchResourceType[])
+async function getSearchResults(query: string, resourceTypes: ResourceType[])
 {
   if (!query || !selectedCampaignId.value) return
 
@@ -142,7 +143,7 @@ function getResultRoute(result: SearchResultDto) {
   }
 }
 
-function normalizeResourceTypes(types: SearchResourceType[]) {
+function normalizeResourceTypes(types: ResourceType[]) {
   return allResourceTypes.filter((type) => types.includes(type))
 }
 
