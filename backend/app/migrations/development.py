@@ -2,7 +2,7 @@
 
 Development migrations must be idempotent and based on schema inspection
 because they run without changing ``PRAGMA user_version``. Before release,
-move their final behavior into the next numbered migration and restore this
+move their final behavior into the next numbered module and restore this
 function to a no-op.
 """
 

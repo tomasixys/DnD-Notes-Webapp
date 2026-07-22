@@ -6,6 +6,7 @@ export type CampaignsDto = {
   sessionCount: number
   imageUrl: string
   bannerImageUrl: string
+  activeCharacterPersonId: number | null
 }
 
 export type ResourceType =
@@ -13,6 +14,8 @@ export type ResourceType =
   | "person"
   | "location"
   | "faction"
+  | "character_note"
+  | "backstory_note"
 
 export type TagResolutionState =
   | "passive"
@@ -83,14 +86,61 @@ export type PersonDto = {
   location: ResourceTagDto | null
   description: string
   tags: ResourceTagDto[]
+  characterProfileAvailable: boolean
+  isActiveCharacter: boolean
 }
 
 export type PersonDataDto = Omit<
   PersonDto,
-  "id" | "campaignId" | "faction" | "location" | "tags"
+  | "id"
+  | "campaignId"
+  | "faction"
+  | "location"
+  | "tags"
+  | "characterProfileAvailable"
+  | "isActiveCharacter"
 > & {
   faction: string
   location: string
+  tags: string[]
+}
+
+export type CharacterDto = {
+  person: PersonDto
+  shortBio: string
+  appearance: string
+  imageUrl: string
+  isActive: boolean
+}
+
+export type CharacterCreateDto = {
+  personId?: number
+  person?: PersonDataDto
+  shortBio: string
+  appearance: string
+  makeActive: boolean
+}
+
+export type CharacterUpdateDto = {
+  person: PersonDataDto
+  shortBio: string
+  appearance: string
+}
+
+export type CharacterNoteDto = {
+  id: number
+  campaignId: number
+  characterPersonId: number
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  tags: ResourceTagDto[]
+}
+
+export type CharacterNoteDataDto = {
+  title: string
+  content: string
   tags: string[]
 }
 
@@ -148,6 +198,7 @@ export type SearchResultDto = {
   campaignId: number
   resourceType: SearchResourceType
   resourceId: number
+  parentResourceId: number | null
   title: string
   context: string
   snippet: string

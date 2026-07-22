@@ -6,3 +6,5 @@ class ResourceType(str, Enum):
     PERSON = "person"
     LOCATION = "location"
     FACTION = "faction"
+    CHARACTER_NOTE = "character_note"
+    BACKSTORY_NOTE = "backstory_note"

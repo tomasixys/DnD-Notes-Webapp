@@ -106,6 +106,8 @@ export const peopleExample: dto.PersonDto[] = [
     description:
       "A street-level contact who warns Nalia and Elira about patrols, trouble, and useful rumors. Paid through coin, favors, or by being worked into their scams as a supposed recipient of charity.",
     tags: passiveTags("contact", "street", "lookout"),
+    characterProfileAvailable: false,
+    isActiveCharacter: false,
   },
   {
     id: 2,
@@ -117,6 +119,8 @@ export const peopleExample: dto.PersonDto[] = [
     description:
       "One of the few people at the academy who believed Nalia during the scandal. Eryn did not have enough influence to protect her, but may still be a useful contact for books, rumors, and restricted academic information.",
     tags: passiveTags("ally", "academy", "library"),
+    characterProfileAvailable: false,
+    isActiveCharacter: false,
   },
   {
     id: 3,
@@ -128,6 +132,8 @@ export const peopleExample: dto.PersonDto[] = [
     description:
       "The professor who discredited Nalia after she uncovered favoritism and corruption. Still active, still protected, and still a problem.",
     tags: passiveTags("enemy", "academic", "corrupt"),
+    characterProfileAvailable: false,
+    isActiveCharacter: false,
   },
 ]
 
@@ -213,5 +219,6 @@ export const campaignsExample: dto.CampaignsDto[] = [
     sessionCount: 0,
     imageUrl: "/src/assets/banner.png",
     bannerImageUrl: "/src/assets/banner.png",
+    activeCharacterPersonId: null,
   },
 ]

@@ -6,6 +6,8 @@ from .roll_entry import RollEntry
 from .person import Person
 from .location import Location
 from .faction import Faction
+from .note import NoteBase
+from .character import CharacterProfile, CharacterNote, BackstoryNote
 
 __all__ = [
     "Campaign",
@@ -16,4 +18,8 @@ __all__ = [
     "Person",
     "Location",
     "Faction",
+    "CharacterProfile",
+    "CharacterNote",
+    "BackstoryNote",
+    "NoteBase",
 ]

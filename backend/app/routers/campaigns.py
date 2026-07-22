@@ -46,11 +46,12 @@ def campaign_to_response(campaign: Campaign, session_count: int = 0):
         "session_count": session_count,
         "image_url": image_url,
         "banner_image_url": banner_image_url,
+        "active_character_person_id": campaign.active_character_person_id,
     }
 
 def sqlmodel_to_dict(model: SQLModel):
     if hasattr(model, "model_dump"):
-        return model.model_dump()
+        return model.model_dump(mode="json")
 
     return model.dict()
 
@@ -228,6 +229,15 @@ def delete_campaign(
 
     image_path = campaign.image_path
     banner_path = campaign.banner_image_path
+    character_image_paths = [
+        profile.image_path
+        for profile in db.exec(
+            select(CharacterProfile)
+            .join(Person, Person.id == CharacterProfile.person_id)
+            .where(Person.campaign_id == campaign_id)
+        ).all()
+        if profile.image_path
+    ]
 
     db.delete(campaign)
     db.commit()
@@ -237,6 +247,9 @@ def delete_campaign(
 
     if banner_path and banner_path != image_path:
         delete_uploaded_file(banner_path)
+
+    for character_image_path in character_image_paths:
+        delete_uploaded_file(character_image_path)
 
     return {"deleted": True}
 
@@ -263,9 +276,17 @@ def export_campaign_backup(
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
+    character_profiles = db.exec(
+        select(CharacterProfile)
+        .join(Person, Person.id == CharacterProfile.person_id)
+        .where(Person.campaign_id == campaign_id)
+        .order_by(Person.name)
+    ).all()
+
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
     banner_archive_path = ""
+    character_image_archive_paths: dict[int, str] = {}
 
     with ZipFile(archive_absolute_path, "w", compression=ZIP_DEFLATED) as archive:
         if campaign.image_path:
@@ -282,6 +303,18 @@ def export_campaign_backup(
                 banner_archive_path = f"assets/campaign-banner{source_path.suffix.lower()}"
                 archive.write(source_path, banner_archive_path)
 
+        for profile in character_profiles:
+            if not profile.image_path:
+                continue
+            source_path = get_uploaded_file_path(profile.image_path)
+            if source_path and source_path.exists():
+                archive_path = (
+                    f"assets/characters/{profile.person_id}-portrait"
+                    f"{source_path.suffix.lower()}"
+                )
+                archive.write(source_path, archive_path)
+                character_image_archive_paths[profile.person_id] = archive_path
+
         backup = CampaignBackup(
             schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
             campaign=CampaignBackupCampaign(
@@ -290,12 +323,15 @@ def export_campaign_backup(
                 description=campaign.description,
                 image_archive_path=image_archive_path,
                 banner_archive_path=banner_archive_path,
+                active_character_person_backup_id=(
+                    campaign.active_character_person_id
+                ),
             ),
             sessions=[
                 CampaignBackupSession(
                     date=session.date,
                     title=session.title,
-                    description=session.description,
+                    description=session.content,
                     session_number=session.session_number,
                     tags=get_resource_tags(
                         db, ResourceType.SESSION, session.id
@@ -315,6 +351,7 @@ def export_campaign_backup(
             ],
             people=[
                 CampaignBackupPerson(
+                    backup_id=person.id,
                     name=person.name,
                     role=person.role,
                     faction=(
@@ -343,6 +380,51 @@ def export_campaign_backup(
                     ),
                 )
                 for person in sorted(campaign.people, key=lambda person: person.name.lower())
+            ],
+            characters=[
+                CampaignBackupCharacter(
+                    person_backup_id=profile.person_id,
+                    short_bio=profile.short_bio,
+                    appearance=profile.appearance,
+                    image_archive_path=character_image_archive_paths.get(
+                        profile.person_id, ""
+                    ),
+                    notes=[
+                        CampaignBackupCharacterNote(
+                            title=note.title,
+                            content=note.content,
+                            tags=get_resource_tags(
+                                db,
+                                ResourceType.CHARACTER_NOTE,
+                                note.id,
+                            ),
+                            created_at=note.created_at,
+                            updated_at=note.updated_at,
+                        )
+                        for note in sorted(
+                            profile.notes,
+                            key=lambda item: (item.created_at, item.id or 0),
+                        )
+                    ],
+                    backstory_notes=[
+                        CampaignBackupCharacterNote(
+                            title=note.title,
+                            content=note.content,
+                            tags=get_resource_tags(
+                                db,
+                                ResourceType.BACKSTORY_NOTE,
+                                note.id,
+                            ),
+                            created_at=note.created_at,
+                            updated_at=note.updated_at,
+                        )
+                        for note in sorted(
+                            profile.backstory_notes,
+                            key=lambda item: (item.created_at, item.id or 0),
+                        )
+                    ],
+                )
+                for profile in character_profiles
             ],
             locations=[
                 CampaignBackupLocation(
@@ -411,7 +493,7 @@ async def import_campaign_backup(
             parsed_json = json.loads(backup_json.decode("utf-8"))
             cb = CampaignBackup(**parsed_json)
 
-            if cb.schema_version != CAMPAIGN_BACKUP_SCHEMA_VERSION:
+            if cb.schema_version not in {1, CAMPAIGN_BACKUP_SCHEMA_VERSION}:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Unsupported backup schema version: {cb.schema_version}",
@@ -426,20 +508,21 @@ async def import_campaign_backup(
             )
 
             saved_asset_paths: list[str] = []
+            person_id_map: dict[int, int] = {}
 
             try:
                 db.add(campaign)
                 db.flush()
 
                 original_path = Path(cb.campaign.image_archive_path)
-                if original_path != "":
+                if cb.campaign.image_archive_path:
                     image_data = read_archive_member(archive, original_path)
                     image_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), image_data)
                     saved_asset_paths.append(image_path)
                     campaign.image_path = image_path
 
                 original_path = Path(cb.campaign.banner_archive_path)
-                if original_path != "":
+                if cb.campaign.banner_archive_path:
                     banner_data = read_archive_member(archive, original_path)
                     banner_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), banner_data)
                     saved_asset_paths.append(banner_path)
@@ -456,6 +539,8 @@ async def import_campaign_backup(
                     )
                     db.add(person)
                     db.flush()
+                    if person_backup.backup_id is not None:
+                        person_id_map[person_backup.backup_id] = person.id
                     sync_resource_tags(
                         db,
                         campaign.id,
@@ -554,7 +639,7 @@ async def import_campaign_backup(
                         campaign_id=campaign.id,
                         date=session_backup.date,
                         title=session_backup.title,
-                        description=session_backup.description,
+                        content=session_backup.description,
                         session_number=session_backup.session_number,
                     )
 
@@ -581,6 +666,112 @@ async def import_campaign_backup(
                                 roll=roll,
                             )
                         )
+
+                for character_backup in cb.characters:
+                    person_id = person_id_map.get(
+                        character_backup.person_backup_id
+                    )
+                    if person_id is None:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "Character profile references a missing "
+                                "backup person"
+                            ),
+                        )
+
+                    profile = CharacterProfile(
+                        person_id=person_id,
+                        short_bio=character_backup.short_bio,
+                        appearance=character_backup.appearance,
+                        image_path="",
+                    )
+
+                    if character_backup.image_archive_path:
+                        original_path = Path(
+                            character_backup.image_archive_path
+                        )
+                        image_data = read_archive_member(
+                            archive, character_backup.image_archive_path
+                        )
+                        profile.image_path = write_image_from_bytes(
+                            campaign.id,
+                            original_path.suffix.lower(),
+                            image_data,
+                        )
+                        saved_asset_paths.append(profile.image_path)
+
+                    db.add(profile)
+                    db.flush()
+
+                    note_groups = [
+                        (
+                            CharacterNote,
+                            ResourceType.CHARACTER_NOTE,
+                            list(character_backup.notes),
+                        ),
+                        (
+                            BackstoryNote,
+                            ResourceType.BACKSTORY_NOTE,
+                            list(character_backup.backstory_notes),
+                        ),
+                    ]
+                    for legacy_entry in character_backup.entries:
+                        legacy_type = legacy_entry.entry_type.casefold()
+                        if legacy_type == "note":
+                            note_groups[0][2].append(legacy_entry)
+                        elif legacy_type == "backstory":
+                            note_groups[1][2].append(legacy_entry)
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="Unknown character entry type in backup",
+                            )
+
+                    for note_model, resource_type, note_backups in note_groups:
+                        for note_backup in note_backups:
+                            note = note_model(
+                                campaign_id=campaign.id,
+                                character_person_id=person_id,
+                                title=note_backup.title,
+                                content=note_backup.content,
+                                created_at=note_backup.created_at,
+                                updated_at=note_backup.updated_at,
+                            )
+                            db.add(note)
+                            db.flush()
+                            sync_resource_tags(
+                                db,
+                                campaign.id,
+                                resource_type,
+                                note.id,
+                                note_backup.tags,
+                            )
+                            refresh_reference_tags_for_resource(
+                                db,
+                                campaign.id,
+                                resource_type,
+                                note.id,
+                            )
+
+                active_backup_id = (
+                    cb.campaign.active_character_person_backup_id
+                )
+                if active_backup_id is not None:
+                    active_person_id = person_id_map.get(active_backup_id)
+                    if (
+                        active_person_id is None
+                        or db.get(CharacterProfile, active_person_id) is None
+                    ):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "Active character references a missing "
+                                "character profile"
+                            ),
+                        )
+                    campaign.active_character_person_id = active_person_id
+                    db.add(campaign)
 
                 db.commit()
                 db.refresh(campaign)

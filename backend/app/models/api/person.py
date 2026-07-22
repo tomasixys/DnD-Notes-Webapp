@@ -21,3 +21,5 @@ class PersonRead(PersonBase):
     faction: ResourceTagRead | None = None
     location: ResourceTagRead | None = None
     tags: list[ResourceTagRead] = Field(default_factory=list)
+    character_profile_available: bool = False
+    is_active_character: bool = False

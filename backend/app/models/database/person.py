@@ -3,6 +3,7 @@ from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
     from .campaign import Campaign
+    from .character import CharacterProfile
 
 
 class Person(SQLModel, table=True):
@@ -17,3 +18,10 @@ class Person(SQLModel, table=True):
     name: str
     role: str = ""
     description: str = ""
+
+    character_profile: "CharacterProfile" = Relationship(
+        back_populates="person",
+        cascade_delete=True,
+        passive_deletes=True,
+        sa_relationship_kwargs={"uselist": False},
+    )

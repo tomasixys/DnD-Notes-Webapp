@@ -18,6 +18,8 @@ and this changelog follows the structure described by
   storage with typed tag relationships.
 - Added derived people lists to locations and member lists to factions, with
   links back to the related person entries.
+- Added private character profiles backed by People entries, including active
+  character selection, portraits, personal notes, and backstory entries.
 
 ### Changed
 
@@ -32,6 +34,8 @@ and this changelog follows the structure described by
 - Migrated existing relationship text values into typed tag assignments while
   retaining unresolved and ambiguous references, then removed the obsolete
   database columns.
+- Promoted the character and shared-note schema into the version 2 to version 3
+  database migration and restored the development migration hook to a no-op.
 
 ### Fixed
 
@@ -39,6 +43,8 @@ and this changelog follows the structure described by
   labels, and merge aliases without losing existing tag assignments.
 - Person details now refresh immediately after editing, and refreshing a
   resource URL no longer redirects away while its persisted campaign is valid.
+- Added campaign search filters and direct results for character notes and
+  backstory entries, including entries belonging to former characters.
 
 ## [0.2.0] - 2026-07-18
 

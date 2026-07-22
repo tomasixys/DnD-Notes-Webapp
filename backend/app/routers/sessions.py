@@ -31,7 +31,7 @@ def session_note_to_read(
         campaign_id=session_note.campaign_id,
         date=session_note.date,
         title=session_note.title,
-        description=session_note.description,
+        description=session_note.content,
         session_number=session_note.session_number,
         tags=get_resource_tag_reads(db, ResourceType.SESSION, session_note.id),
     )
@@ -115,7 +115,7 @@ def create_session_note(
         campaign_id=campaign_id,
         date=session_note.date,
         title=session_note.title,
-        description=session_note.description,
+        content=session_note.description,
         session_number=session_note.session_number,
     )
     db.add(db_session_note)
@@ -158,7 +158,7 @@ def update_session_note(
     session_note.session_number = updated_session.session_number
     session_note.date = updated_session.date
     session_note.title = updated_session.title
-    session_note.description = updated_session.description
+    session_note.content = updated_session.description
     db.add(session_note)
     db.flush()
     sync_resource_tags(

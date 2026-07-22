@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models.database import Person
+from app.file_storage import delete_uploaded_file
+from app.models.database import (
+    BackstoryNote,
+    Campaign,
+    CharacterNote,
+    CharacterProfile,
+    Person,
+)
 from app.models.api import PersonData, PersonRead
 from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
@@ -22,6 +29,8 @@ router = APIRouter(
 
 
 def person_to_read(person: Person, db: Session) -> PersonRead:
+    character_profile = db.get(CharacterProfile, person.id)
+    campaign = db.get(Campaign, person.campaign_id)
     return PersonRead(
         id=person.id,
         campaign_id=person.campaign_id,
@@ -41,6 +50,11 @@ def person_to_read(person: Person, db: Session) -> PersonRead:
         ),
         description=person.description,
         tags=get_resource_tag_reads(db, ResourceType.PERSON, person.id),
+        character_profile_available=character_profile is not None,
+        is_active_character=(
+            campaign is not None
+            and campaign.active_character_person_id == person.id
+        ),
     )
 
 
@@ -65,6 +79,98 @@ def get_all_people_for_campaign(campaign_id: int, db: Session) -> list[Person]:
         .order_by(Person.name)
     )
     return db.exec(statement).all()
+
+
+def create_person_record(
+    campaign_id: int,
+    person: PersonData,
+    db: Session,
+) -> Person:
+    db_person = Person(
+        campaign_id=campaign_id,
+        name=person.name.strip(),
+        role=person.role.strip(),
+        description=person.description.strip(),
+    )
+    if not db_person.name:
+        raise HTTPException(status_code=422, detail="Person name cannot be blank")
+
+    db.add(db_person)
+    db.flush()
+    sync_resource_tags(
+        db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        campaign_id,
+        ResourceType.PERSON,
+        db_person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        person.location,
+    )
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.PERSON, db_person.id
+    )
+    return db_person
+
+
+def update_person_record(
+    person: Person,
+    updated_person: PersonData,
+    db: Session,
+) -> Person:
+    previous_name = person.name
+    person.name = updated_person.name.strip()
+    person.role = updated_person.role.strip()
+    person.description = updated_person.description.strip()
+    if not person.name:
+        raise HTTPException(status_code=422, detail="Person name cannot be blank")
+
+    db.add(person)
+    db.flush()
+    sync_resource_tags(
+        db,
+        person.campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        updated_person.tags,
+    )
+    sync_resource_relationship(
+        db,
+        person.campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.MEMBER_OF,
+        ResourceType.FACTION,
+        updated_person.faction,
+    )
+    sync_resource_relationship(
+        db,
+        person.campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        RelationshipType.LOCATED_IN,
+        ResourceType.LOCATION,
+        updated_person.location,
+    )
+    refresh_reference_tags_for_resource(
+        db,
+        person.campaign_id,
+        ResourceType.PERSON,
+        person.id,
+        previous_labels=[previous_name],
+    )
+    return person
 
 @router.get("")
 def get_people_for_campaign(
@@ -94,38 +200,7 @@ def create_person(
 ):
     verify_campaign(campaign_id, db)
 
-    db_person = Person(
-        campaign_id=campaign_id,
-        name=person.name,
-        role=person.role,
-        description=person.description,
-    )
-    db.add(db_person)
-    db.flush()
-    sync_resource_tags(
-        db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        db_person.id,
-        RelationshipType.MEMBER_OF,
-        ResourceType.FACTION,
-        person.faction,
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        db_person.id,
-        RelationshipType.LOCATED_IN,
-        ResourceType.LOCATION,
-        person.location,
-    )
-    refresh_reference_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, db_person.id
-    )
+    db_person = create_person_record(campaign_id, person, db)
     db.commit()
     db.refresh(db_person)
 
@@ -140,41 +215,7 @@ def update_person(
     db: Session = Depends(get_session),
 ):
     person = get_person_by_id(campaign_id, person_id, db)
-    previous_name = person.name
-
-    person.name = updated_person.name
-    person.role = updated_person.role
-    person.description = updated_person.description
-    db.add(person)
-    db.flush()
-    sync_resource_tags(
-        db, campaign_id, ResourceType.PERSON, person.id, updated_person.tags
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        RelationshipType.MEMBER_OF,
-        ResourceType.FACTION,
-        updated_person.faction,
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        RelationshipType.LOCATED_IN,
-        ResourceType.LOCATION,
-        updated_person.location,
-    )
-    refresh_reference_tags_for_resource(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        previous_labels=[previous_name],
-    )
+    update_person_record(person, updated_person, db)
     db.commit()
     db.refresh(person)
 
@@ -189,8 +230,33 @@ def delete_person(
 ):
     person = get_person_by_id(campaign_id, person_id, db)
 
+    profile = db.get(CharacterProfile, person.id)
+    portrait_path = profile.image_path if profile is not None else ""
+    if profile is not None:
+        for note_model, resource_type in (
+            (CharacterNote, ResourceType.CHARACTER_NOTE),
+            (BackstoryNote, ResourceType.BACKSTORY_NOTE),
+        ):
+            notes = db.exec(
+                select(note_model).where(
+                    note_model.character_person_id == person.id
+                )
+            ).all()
+            for note in notes:
+                handle_tags_of_deleted_resource(
+                    db, resource_type, note.id
+                )
+
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is not None and campaign.active_character_person_id == person.id:
+        campaign.active_character_person_id = None
+        db.add(campaign)
+
     handle_tags_of_deleted_resource(db, ResourceType.PERSON, person.id)
     db.delete(person)
     db.commit()
+
+    if portrait_path:
+        delete_uploaded_file(portrait_path)
 
     return {"deleted": True}
