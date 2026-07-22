@@ -290,7 +290,7 @@ class InventoryModelTests(unittest.TestCase):
 
 
 class InventoryMigrationTests(unittest.TestCase):
-    def test_development_migration_adds_inventory_schema_idempotently(self):
+    def test_v4_migration_promotes_development_inventory_schema_idempotently(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "version-three.db"
             with closing(sqlite3.connect(database_path)) as connection:
@@ -336,6 +336,11 @@ class InventoryMigrationTests(unittest.TestCase):
                     INSERT INTO campaign VALUES (1, 'Test', 5);
                     INSERT INTO person VALUES (5, 1, 'Nalia');
                     INSERT INTO characterprofile VALUES (5, '', '', '');
+                    INSERT INTO inventory VALUES (10, 1, 'Existing Stash', 'Kept');
+                    INSERT INTO inventoryitem (
+                        id, inventory_id, name, description, category,
+                        quantity, unit_value_cp
+                    ) VALUES (20, 10, 'Rope', 'Still here', 'equipment', 2, 100);
                     PRAGMA user_version = 3;
                     """
                 )
@@ -355,7 +360,10 @@ class InventoryMigrationTests(unittest.TestCase):
                     "PRAGMA user_version"
                 ).scalar_one()
                 default_inventory = connection.exec_driver_sql(
-                    "SELECT id, campaign_id FROM inventory"
+                    "SELECT id, campaign_id, name, description FROM inventory"
+                ).one()
+                existing_item = connection.exec_driver_sql(
+                    "SELECT id, inventory_id, name, rarity FROM inventoryitem"
                 ).one()
                 purse_id = connection.exec_driver_sql(
                     "SELECT inventory_id FROM purse"
@@ -381,7 +389,11 @@ class InventoryMigrationTests(unittest.TestCase):
                 }.issubset(table_names)
             )
             self.assertNotIn("currencyvalue", table_names)
-            self.assertEqual(default_inventory[1], 1)
+            self.assertEqual(
+                default_inventory,
+                (10, 1, "Existing Stash", "Kept"),
+            )
+            self.assertEqual(existing_item, (20, 10, "Rope", None))
             self.assertEqual(purse_id, default_inventory[0])
             self.assertEqual(
                 balances,
@@ -426,5 +438,71 @@ class InventoryMigrationTests(unittest.TestCase):
                 access_primary_key,
                 {"inventory_id", "character_person_id"},
             )
+
+    def test_v4_migration_creates_default_inventory_for_each_campaign(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "clean-version-three.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE campaign (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        active_character_person_id INTEGER
+                    );
+                    CREATE TABLE person (
+                        id INTEGER PRIMARY KEY,
+                        campaign_id INTEGER NOT NULL,
+                        name TEXT NOT NULL
+                    );
+                    CREATE TABLE characterprofile (
+                        person_id INTEGER PRIMARY KEY,
+                        short_bio TEXT NOT NULL DEFAULT '',
+                        appearance TEXT NOT NULL DEFAULT '',
+                        image_path TEXT NOT NULL DEFAULT '',
+                        FOREIGN KEY(person_id) REFERENCES person (id) ON DELETE CASCADE
+                    );
+                    INSERT INTO campaign VALUES (1, 'First', 5);
+                    INSERT INTO campaign VALUES (2, 'Second', NULL);
+                    INSERT INTO person VALUES (5, 1, 'Nalia');
+                    INSERT INTO characterprofile VALUES (5, '', '', '');
+                    PRAGMA user_version = 3;
+                    """
+                )
+                connection.commit()
+
+            engine = create_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+
+            with engine.connect() as connection:
+                version = connection.exec_driver_sql(
+                    "PRAGMA user_version"
+                ).scalar_one()
+                inventories = connection.exec_driver_sql(
+                    "SELECT campaign_id, name FROM inventory ORDER BY campaign_id"
+                ).all()
+                purse_count = connection.exec_driver_sql(
+                    "SELECT COUNT(*) FROM purse"
+                ).scalar_one()
+                balances = connection.exec_driver_sql(
+                    "SELECT purse_id, COUNT(*) FROM currencybalance "
+                    "GROUP BY purse_id ORDER BY purse_id"
+                ).all()
+                access = connection.exec_driver_sql(
+                    "SELECT character_person_id, role FROM inventoryaccess"
+                ).one()
+            engine.dispose()
+
+            self.assertEqual(version, CURRENT_DATABASE_VERSION)
+            self.assertEqual(
+                inventories,
+                [(1, "Party Inventory"), (2, "Party Inventory")],
+            )
+            self.assertEqual(purse_count, 2)
+            self.assertEqual(balances, [(1, 5), (2, 5)])
+            self.assertEqual(access, (5, "owner"))
 if __name__ == "__main__":
     unittest.main()
