@@ -25,15 +25,15 @@
    - serve webapp from backend server | DONE
    - use pyinstall for executable application | DONE
 
-5. Character view
-   - notes, backstory, appearance
-   - image
-   - tags and related entries
+5. Character view (Completed)
+   - notes, backstory, appearance | DONE
+   - image | DONE
+   - tags and related entries | DONE
 
-6. Inventory view
-   - party inventory first
-   - optional owner/location
-   - tags
+6. Inventory view (Completed)
+   - party inventory first  | DONE
+   - optional owner/location  | DONE
+   - tags  (postponed/on ice)
 
 7. Campaign search view (Completed)
    - basic search first | DONE
