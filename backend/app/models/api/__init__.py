@@ -37,6 +37,20 @@ from .rolls import (
     CampaignRollStats,
     RollCreateResponse,
 )
+from .inventory import (
+    MoneyAmount,
+    PurseBalances,
+    PurseBalancesUpdate,
+    PurseUpdate,
+    PurseRead,
+    InventoryMemberRead,
+    InventoryItemData,
+    InventoryItemCreate,
+    InventoryItemUpdate,
+    InventoryItemRead,
+    InventoryUpdate,
+    InventoryRead,
+)
 
 __all__ = [
     "ResourceType",
@@ -76,4 +90,16 @@ __all__ = [
     "CampaignRollStats",
     "RollCreateResponse",
     "ParsedTag",
+    "MoneyAmount",
+    "PurseBalances",
+    "PurseBalancesUpdate",
+    "PurseUpdate",
+    "PurseRead",
+    "InventoryMemberRead",
+    "InventoryItemData",
+    "InventoryItemCreate",
+    "InventoryItemUpdate",
+    "InventoryItemRead",
+    "InventoryUpdate",
+    "InventoryRead",
 ]
