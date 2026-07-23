@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from sqlmodel import Session
 
 from app.database import get_session
+from app.models.api import CampaignBackupExportRead, CampaignRead
 from app.services.campaign_backups import CampaignBackupService
 
 
@@ -15,7 +16,7 @@ router = APIRouter(
 def export_campaign_backup(
     campaign_id: int,
     db: Session = Depends(get_session),
-):
+) -> CampaignBackupExportRead:
     return CampaignBackupService(db).export(campaign_id)
 
 
@@ -23,7 +24,7 @@ def export_campaign_backup(
 async def import_campaign_backup(
     backup: UploadFile = File(...),
     db: Session = Depends(get_session),
-):
+) -> CampaignRead:
     return CampaignBackupService(db).import_archive(
         await backup.read()
     )

@@ -417,7 +417,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     import_campaign_backup(upload, db)
                 )
                 imported_campaign = db.get(
-                    Campaign, imported_response["id"]
+                    Campaign, imported_response.id
                 )
                 imported_profile = db.get(
                     CharacterProfile,
@@ -544,7 +544,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             )
             inventories = db.exec(
                 select(Inventory).where(
-                    Inventory.campaign_id == imported_response["id"]
+                    Inventory.campaign_id == imported_response.id
                 )
             ).all()
             balances = db.exec(

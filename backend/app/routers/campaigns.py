@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlmodel import Session
 
 from app.database import get_session
+from app.models.api import CampaignRead
 from app.services.campaigns import CampaignService
 
 
@@ -14,16 +15,16 @@ router = APIRouter(
 @router.get("")
 def get_campaigns(
     db: Session = Depends(get_session),
-):
-    return CampaignService(db).list_responses()
+) -> list[CampaignRead]:
+    return CampaignService(db).list_reads()
 
 
 @router.get("/{campaign_id}")
 def get_campaign(
     campaign_id: int,
     db: Session = Depends(get_session),
-):
-    return CampaignService(db).get_response(campaign_id)
+) -> CampaignRead:
+    return CampaignService(db).get_read(campaign_id)
 
 
 @router.post("")
@@ -34,7 +35,7 @@ def create_campaign(
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
-):
+) -> CampaignRead:
     return CampaignService(db).create(
         name=name,
         player_character=player_character,
@@ -53,7 +54,7 @@ def update_campaign(
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
-):
+) -> CampaignRead:
     return CampaignService(db).update(
         campaign_id,
         name=name,

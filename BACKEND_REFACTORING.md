@@ -40,10 +40,11 @@ examples below are starting points, not the limit of the refactor.
 - [x] Made inventory mutations return the refreshed `InventoryRead` aggregate.
 - [x] Moved character portrait persistence into `CharacterService` while
   retaining shared validation and filesystem operations in `file_storage.py`.
+- [x] Replaced campaign and backup-export response dictionaries with explicit
+  `CampaignRead` and `CampaignBackupExportRead` API models.
 
 ### Remaining
 
-- [ ] Replace remaining response dictionaries with explicit API models.
 - [ ] Standardize mutation responses and remove compensating frontend GETs.
 - [ ] Replace untyped `{"deleted": true}` responses.
 - [ ] Complete a final transaction, error, OpenAPI, and frontend-consumer audit.
@@ -289,9 +290,11 @@ which database objects must be flushed in which order.
 
 ### PR 3: Normalize API response construction
 
-Implementation status: partially completed. Resource services and inventory
-return explicit read models, but campaign and deletion responses still include
-ad hoc dictionaries.
+Implementation status: completed for non-deletion responses. Campaign CRUD and
+backup import return `CampaignRead`, and backup export returns
+`CampaignBackupExportRead`. The remaining `{"deleted": true}` dictionaries are
+tracked separately because their replacement adds `deleted_id` and changes the
+mutation contract.
 
 Replace remaining response dictionaries with explicit API models and named
 conversion functions. Keep database-only fields, including canonical copper
@@ -353,7 +356,7 @@ and still would not provide real synchronization between multiple clients.
 
 | Domain | Current backend response | Current frontend behavior | Target |
 | --- | --- | --- | --- |
-| Campaigns | Create/update return an untyped campaign dictionary; delete returns `{"deleted": true}` | Refetches all campaigns | Typed campaign read model; local upsert/remove |
+| Campaigns | Create/update return `CampaignRead`; delete returns `{"deleted": true}` | Refetches all campaigns | Keep campaign read model; typed delete; local upsert/remove |
 | People | Create/update return `PersonRead`; delete returns `{"deleted": true}` | Refetches all people | Keep resource responses; typed delete; local upsert/remove |
 | Locations | Create/update return `LocationRead`; delete returns `{"deleted": true}` | Refetches all locations | Keep resource responses; typed delete; local upsert/remove |
 | Factions | Create/update return `FactionRead`; delete returns `{"deleted": true}` | Refetches all factions | Keep resource responses; typed delete; local upsert/remove |
@@ -362,13 +365,13 @@ and still would not provide real synchronization between multiple clients.
 | Character/backstory notes | Create/update return the note; delete returns `{"deleted": true}` | Already inserts/replaces/removes locally | Add typed delete response; retain local updates |
 | Rolls | Create returns both session and campaign stats; delete returns `{"deleted": true}` | Refetches both statistics after create and delete | One shared roll-mutation response for both operations; assign returned stats |
 | Inventory | Every mutation returns refreshed `InventoryRead` | Replaces the aggregate locally | Complete; retain as reference implementation |
-| Backup import | Returns the created campaign dictionary | Refetches campaigns | Return typed campaign read model and locally insert it |
+| Backup import | Returns `CampaignRead` | Refetches campaigns | Keep campaign read model and locally insert it |
 
 #### Delivery sequence
 
 ##### PR 5a: Shared response models and frontend collection utilities
 
-- Add an explicit campaign read model.
+- Reuse the existing explicit `CampaignRead` model.
 - Add a typed deletion response containing `deleted_id`.
 - Add small frontend utilities or store operations for upserting, removing, and
   sorting resources by ID, name, or session number.
@@ -385,7 +388,7 @@ and still would not provide real synchronization between multiple clients.
 
 ##### PR 5c: Sessions and campaigns
 
-- Migrate campaign dictionaries to the campaign read model.
+- Campaign responses already use `CampaignRead`; preserve that contract.
 - Use returned campaign and session resources to update frontend stores.
 - Replace session and campaign deletion responses with the typed model.
 - Preserve campaign ID ordering and descending session-number ordering.

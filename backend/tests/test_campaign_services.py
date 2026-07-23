@@ -7,6 +7,7 @@ from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.models.api import CampaignBackupExportRead, CampaignRead
 from app.models.database import Campaign, Inventory
 from app.services.campaign_backups import CampaignBackupService
 from app.services.campaigns import CampaignService
@@ -54,7 +55,8 @@ class CampaignServiceTests(unittest.TestCase):
                 name="Test",
                 player_character="Nalia",
             )
-            campaign_id = created["id"]
+            self.assertIsInstance(created, CampaignRead)
+            campaign_id = created.id
 
             updated = campaigns.update(
                 campaign_id,
@@ -63,13 +65,14 @@ class CampaignServiceTests(unittest.TestCase):
                 description="A changed campaign",
             )
 
-            self.assertEqual("Updated", updated["name"])
+            self.assertIsInstance(updated, CampaignRead)
+            self.assertEqual("Updated", updated.name)
             self.assertEqual(
                 "A changed campaign",
-                updated["description"],
+                updated.description,
             )
-            self.assertEqual(0, updated["session_count"])
-            self.assertEqual(1, len(campaigns.list_responses()))
+            self.assertEqual(0, updated.session_count)
+            self.assertEqual(1, len(campaigns.list_reads()))
 
             self.assertEqual(
                 {"deleted": True},
@@ -86,7 +89,7 @@ class CampaignServiceTests(unittest.TestCase):
                     player_character="Nalia",
                     description="An expedition",
                 )
-                campaign_id = created["id"]
+                campaign_id = created.id
                 backups = CampaignBackupService(db)
 
                 with patch(
@@ -100,13 +103,18 @@ class CampaignServiceTests(unittest.TestCase):
                     archive_path.read_bytes()
                 )
 
-                self.assertEqual("campaign.backup", exported["filename"])
-                self.assertEqual("Test", imported["name"])
-                self.assertEqual("Nalia", imported["player_character"])
-                self.assertNotEqual(campaign_id, imported["id"])
+                self.assertIsInstance(
+                    exported,
+                    CampaignBackupExportRead,
+                )
+                self.assertIsInstance(imported, CampaignRead)
+                self.assertEqual("campaign.backup", exported.filename)
+                self.assertEqual("Test", imported.name)
+                self.assertEqual("Nalia", imported.player_character)
+                self.assertNotEqual(campaign_id, imported.id)
                 self.assertEqual(
                     2,
-                    len(CampaignService(db).list_responses()),
+                    len(CampaignService(db).list_reads()),
                 )
 
 

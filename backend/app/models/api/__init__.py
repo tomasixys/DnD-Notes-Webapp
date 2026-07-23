@@ -1,4 +1,5 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
+from .campaign import CampaignRead
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
 from .person import PersonData, PersonRead
@@ -14,6 +15,7 @@ from .location import LocationData, LocationRead
 from .faction import FactionData, FactionRead
 from .backup import (
     CAMPAIGN_BACKUP_SCHEMA_VERSION,
+    CampaignBackupExportRead,
     CampaignBackupCampaign,
     CampaignBackupSession,
     CampaignBackupPerson,
@@ -60,6 +62,7 @@ __all__ = [
     "ResourceType",
     "TagResolutionState",
     "RelationshipType",
+    "CampaignRead",
     "ResourceTagRead",
     "SessionNoteData",
     "SessionNoteRead",
@@ -76,6 +79,7 @@ __all__ = [
     "FactionData",
     "FactionRead",
     "CAMPAIGN_BACKUP_SCHEMA_VERSION",
+    "CampaignBackupExportRead",
     "CampaignBackupCampaign",
     "CampaignBackupSession",
     "CampaignBackupPerson",
