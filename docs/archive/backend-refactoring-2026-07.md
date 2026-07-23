@@ -1,6 +1,10 @@
-# Backend Refactoring Plan
+# Backend Refactoring Record (July 2026)
 
-Status: completed.
+Status: completed on 2026-07-23.
+
+This document is retained as a historical implementation record. The current
+backend design and conventions are documented in
+[`docs/backend-architecture.md`](../backend-architecture.md).
 
 This document records backend cleanup that should be completed in focused,
 behavior-preserving pull requests. Refactoring should not be mixed into feature

@@ -1,53 +1,89 @@
-1. App storage foundation        (Completed)
-   - AppData folders | DONE
-   - uploads directory | DONE
-   - relative file paths | DONE
-   - stable image serving | DONE
+# DnD Notes roadmap
 
-2. Image upload for campaigns    (Completed)
-   - campaign image | DONE
-   - campaign banner | DONE
-   - image preview/edit/delete | DONE
+Updated: 2026-07-23
 
-3. Delete support                (Completed)
-   - delete every entry type | DONE
-   - cascade campaign delete | DONE
-   - uploaded file cleanup | DONE
+DnD Notes is currently a local, single-user application. The completed
+milestones below describe the current application; deferred and planned work is
+listed separately.
 
-4. Campaign backup/import/export (Completed)
-   - zip export | DONE
-   - JSON data | DONE
-   - image files included | DONE
-   - import with ID remapping | DONE
+## Completed
 
-4.5. Application compiler script (Completed)
-   - script for building frontend | DONE
-   - serve webapp from backend server | DONE
-   - use pyinstall for executable application | DONE
+### Application storage
 
-5. Character view (Completed)
-   - notes, backstory, appearance | DONE
-   - image | DONE
-   - tags and related entries | DONE
+- [x] Platform-specific application-data directory
+- [x] Persistent SQLite database outside the executable
+- [x] Upload directories and relative stored paths
+- [x] Stable campaign-image serving
 
-6. Inventory view (Completed)
-   - party inventory first  | DONE
-   - optional owner/location  | DONE
-   - tags  (postponed/on ice)
+### Campaign images
 
-7. Campaign search view (Completed)
-   - basic search first | DONE
-   - grouped by entry type | DONE
-   - later SQLite FTS | POSTPONED
+- [x] Campaign image and banner upload
+- [x] Image preview, replacement, and deletion
+- [x] Uploaded-file cleanup during resource deletion
 
-8. Interactive tags (Completed)
-   - free tags | DONE
-   - typed tags | DONE
-   - linked entry tags | DONE
-   - clickable relationships | DONE
+### Resource deletion
 
-9. Hosted multi-user mode
-   - auth
-   - campaign invites
-   - roles
-   - shared/private visibility
+- [x] Delete support for every implemented entry type
+- [x] Campaign cascade deletion
+- [x] Related uploaded-file cleanup
+
+### Campaign backup and restore
+
+- [x] ZIP-based campaign export
+- [x] JSON campaign data
+- [x] Included campaign and character images
+- [x] Import with ID remapping
+- [x] Tags, relationships, notes, rolls, and inventory round-tripping
+
+### Application packaging
+
+- [x] Frontend compilation from the repository build script
+- [x] Compiled frontend served by FastAPI
+- [x] PyInstaller folder and single-executable builds
+
+### Character profiles
+
+- [x] Character overview, appearance, notes, and backstory
+- [x] Portrait upload
+- [x] Active-character selection
+- [x] Tags and related entries
+
+### Party inventory
+
+- [x] Default campaign party inventory
+- [x] Editable inventory name and description
+- [x] Items with quantities, categories, rarities, and monetary values
+- [x] Multi-denomination purse and calculated wealth totals
+- [x] Active-character ownership and owner/manager access data
+- [x] Backup and restore support
+
+### Campaign search
+
+- [x] Campaign-wide search
+- [x] Results grouped and filtered by entry type
+- [x] Direct links to matching resources
+- [x] Character-note and backstory results
+
+### Interactive tags and relationships
+
+- [x] Shared free-form tags
+- [x] Typed reference tags
+- [x] Linked entry tags
+- [x] Clickable typed relationships
+- [x] Resolved, unresolved, and ambiguous reference states
+
+## Deferred
+
+- SQLite full-text search
+- Inventory item tags
+- Multiple inventories per campaign
+- User-managed inventory owners and managers
+- Inventory location associations
+
+## Planned: hosted multi-user mode
+
+- Authentication
+- Campaign invitations
+- User and campaign roles
+- Shared and private visibility controls
+- Multi-client synchronization

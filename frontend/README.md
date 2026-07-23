@@ -1,38 +1,54 @@
-# DnD Notes App
+# DnD Notes frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+This directory contains the Vue frontend for DnD Notes. It is developed with
+Vite and compiled into static files that the FastAPI application serves in
+production.
 
-## Recommended IDE Setup
+## Requirements
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+Use a Node.js version accepted by the `engines` field in `package.json`.
 
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+Install the locked dependencies from this directory:
 
 ```sh
-npm install
+npm ci
 ```
 
-### Compile and Hot-Reload for Development
+The project currently uses the beta Vue packages together with Vue Router,
+TypeScript, Vite, and the Vue TypeScript checker. Refer to `package.json` for
+the exact versions.
+
+## Development
+
+Start the FastAPI backend on `http://localhost:8000`, then run:
 
 ```sh
 npm run dev
 ```
 
-### Compile and Minify for Production
+Open the URL printed by Vite, normally `http://localhost:5173`. Development API
+requests are sent directly to `http://localhost:8000/api`, so the frontend is
+not useful on its own without the backend.
 
-```sh
-npm run build
-```
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite development server. |
+| `npm run type-check` | Check Vue and TypeScript files without emitting output. |
+| `npm run build` | Compile the production frontend into `frontend/dist`. |
+| `npm run preview` | Preview a previously compiled frontend. |
+
+The repository build script runs the type-check and frontend build before
+packaging the backend. See [BUILDING.md](../BUILDING.md) for the complete
+production workflow.
+
+## Source layout
+
+- `src/views`: route-level campaign, resource, search, character, and inventory
+  views
+- `src/components`: reusable UI components
+- `src/stores`: shared campaign and search state
+- `src/types`: API and UI TypeScript types
+- `src/composables`: reusable route and resource-selection behavior
+- `src/apihelpers.js`: API requests, response normalization, and error handling

@@ -1,14 +1,24 @@
-<!-- # ${workspaceFolder}\\.vscode\\tasks.json  -->
-<!-- Setup:  Run Task: 'Dev: initialize environment' -->
-<!-- Launch: Run task: 'Dev: Start frontend and backend' -->
-<!-- NB: if bash is default shell, then edit paths => '.replace("\\", "/")' -->
+# VS Code tasks template
 
+This Windows-oriented template provides environment setup, development servers,
+verification, and application packaging tasks.
+
+Copy the JSONC block into `${workspaceFolder}\.vscode\tasks.json`, then run
+`Dev: initialize environment` once. Use `Dev: Start frontend and backend` for
+normal development.
+
+The backend setup installs `pytest` as development tooling in addition to the
+pinned runtime requirements. On macOS or Linux, replace the virtual-environment
+executable paths with `.venv/bin/python` and remove the `cmd.exe` wrappers
+around npm.
+
+```jsonc
 {
   "version": "2.0.0",
   "tasks": [
     {
       "label": "Backend: create venv",
-      "type": "shell",
+      "type": "process",
       "command": "python",
       "args": [
         "-m",
@@ -26,8 +36,8 @@
       "problemMatcher": []
     },
     {
-      "label": "Backend: install requirements",
-      "type": "shell",
+      "label": "Backend: install development requirements",
+      "type": "process",
       "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "-m",
@@ -36,10 +46,11 @@
         "--upgrade",
         "pip",
         "-r",
-        "requirements.txt"
+        "requirements.txt",
+        "pytest"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/backend"
+        "cwd": "${workspaceFolder}\\backend"
       },
       "dependsOn": [
         "Backend: create venv"
@@ -54,10 +65,13 @@
     },
     {
       "label": "Frontend: install packages",
-      "type": "shell",
-      "command": "npm",
+      "type": "process",
+      "command": "cmd.exe",
       "args": [
-        "install"
+        "/d",
+        "/c",
+        "npm",
+        "ci"
       ],
       "options": {
         "cwd": "${workspaceFolder}\\frontend"
@@ -72,7 +86,7 @@
     {
       "label": "Dev: initialize environment",
       "dependsOn": [
-        "Backend: install requirements",
+        "Backend: install development requirements",
         "Frontend: install packages"
       ],
       "dependsOrder": "parallel",
@@ -80,13 +94,13 @@
     },
     {
       "label": "Backend: FastAPI",
-      "type": "shell",
+      "type": "process",
       "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
       "args": [
         "-m",
         "uvicorn",
         "app.main:app",
-        "--reload",
+        "--reload"
       ],
       "options": {
         "cwd": "${workspaceFolder}\\backend"
@@ -100,11 +114,14 @@
     },
     {
       "label": "Frontend: Vue",
-      "type": "shell",
-      "command": "npm",
+      "type": "process",
+      "command": "cmd.exe",
       "args": [
+        "/d",
+        "/c",
+        "npm",
         "run",
-        "dev",
+        "dev"
       ],
       "options": {
         "cwd": "${workspaceFolder}\\frontend"
@@ -123,7 +140,58 @@
         "Frontend: Vue"
       ],
       "dependsOrder": "parallel",
-      "problemMatcher": [],
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify: backend tests",
+      "type": "process",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\backend"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "verify",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify: frontend type-check",
+      "type": "process",
+      "command": "cmd.exe",
+      "args": [
+        "/d",
+        "/c",
+        "npm",
+        "run",
+        "type-check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}\\frontend"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "verify",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Verify: all",
+      "dependsOn": [
+        "Verify: backend tests",
+        "Verify: frontend type-check"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     },
     {
       "label": "Build: package application",
@@ -169,3 +237,4 @@
     }
   ]
 }
+```
