@@ -94,7 +94,7 @@ class TagApiIntegrationTests(unittest.TestCase):
                     query="Skummende Seidel",
                     resource_types=[ResourceType.PERSON.value],
                 ),
-                db,
+                context,
             )
             self.assertEqual(search_response.total_count, 1)
             self.assertEqual(search_response.results[0].title, "Nalia")

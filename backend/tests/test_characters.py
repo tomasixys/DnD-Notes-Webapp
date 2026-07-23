@@ -257,7 +257,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     query="urgent",
                     resource_types=[ResourceType.CHARACTER_NOTE.value],
                 ),
-                db,
+                context,
             )
             backstory_results = search_campaign(
                 campaign.id,
@@ -265,7 +265,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     query="aunt",
                     resource_types=[ResourceType.BACKSTORY_NOTE.value],
                 ),
-                db,
+                context,
             )
 
             self.assertEqual(note_results.total_count, 1)

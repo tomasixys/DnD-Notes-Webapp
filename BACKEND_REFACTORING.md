@@ -143,6 +143,11 @@ Both use the same `CampaignContext`, allowing location parentage and faction
 bases to resolve through shared campaign-scoped tags without either service
 depending directly on the other.
 
+`SearchService` owns campaign-scoped matching queries, resource projections,
+field weighting, relevance calculation, filtering, and result ordering. The
+search router resolves the `CampaignContext` and delegates the request without
+accessing the database directly.
+
 Services that participate in larger operations should distinguish between:
 
 - composable `stage_*` methods that flush generated state and apply all domain
