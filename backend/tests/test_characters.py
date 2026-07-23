@@ -1,11 +1,13 @@
 import asyncio
 import io
+import json
 import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import UploadFile
 from sqlalchemy import event, inspect
@@ -25,12 +27,22 @@ from app.models.database import (
     Campaign,
     CharacterNote,
     CharacterProfile,
+    CurrencyBalance,
+    Inventory,
+    InventoryAccess,
+    InventoryItem,
     NoteBase,
     Person,
     SessionNote,
     TagAssignment,
 )
-from app.models.enums import ResourceType
+from app.models.enums import (
+    CurrencyDenomination,
+    InventoryAccessRole,
+    ItemCategory,
+    ItemRarity,
+    ResourceType,
+)
 from app.routers.characters import (
     create_backstory_note,
     create_character,
@@ -353,6 +365,50 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     ),
                     db,
                 )
+                inventory = db.exec(
+                    select(Inventory).where(
+                        Inventory.campaign_id == campaign.id
+                    )
+                ).one()
+                inventory.name = "Company Stores"
+                inventory.description = "Shared expedition supplies"
+                db.add(inventory)
+                db.get(
+                    CurrencyBalance,
+                    (inventory.id, CurrencyDenomination.PLATINUM),
+                ).amount = 3
+                db.get(
+                    CurrencyBalance,
+                    (inventory.id, CurrencyDenomination.GOLD),
+                ).amount = 17
+                db.get(
+                    CurrencyBalance,
+                    (inventory.id, CurrencyDenomination.COPPER),
+                ).amount = 9
+                db.add(
+                    InventoryItem(
+                        inventory_id=inventory.id,
+                        name="Moonstone",
+                        description="Recovered from the old observatory",
+                        category=ItemCategory.VALUABLE,
+                        rarity=ItemRarity.RARE,
+                        quantity=2,
+                        unit_value_cp=1250,
+                    )
+                )
+                manager = Person(campaign_id=campaign.id, name="Sable")
+                db.add(manager)
+                db.flush()
+                db.add(CharacterProfile(person_id=manager.id))
+                db.flush()
+                db.add(
+                    InventoryAccess(
+                        inventory_id=inventory.id,
+                        character_person_id=manager.id,
+                        role=InventoryAccessRole.MANAGER,
+                    )
+                )
+                db.commit()
 
                 with patch(
                     "app.routers.campaigns.make_backup_archive_path",
@@ -385,6 +441,119 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 self.assertEqual(imported_profile.appearance, "Silver hair")
                 self.assertEqual(len(imported_entries), 1)
                 self.assertEqual(imported_entries[0].title, "Family")
+                imported_inventory = db.exec(
+                    select(Inventory).where(
+                        Inventory.campaign_id == imported_campaign.id
+                    )
+                ).one()
+                imported_balances = {
+                    balance.denomination: balance.amount
+                    for balance in db.exec(
+                        select(CurrencyBalance).where(
+                            CurrencyBalance.purse_id
+                            == imported_inventory.id
+                        )
+                    ).all()
+                }
+                imported_items = db.exec(
+                    select(InventoryItem).where(
+                        InventoryItem.inventory_id
+                        == imported_inventory.id
+                    )
+                ).all()
+                imported_access = db.exec(
+                    select(InventoryAccess, Person)
+                    .join(
+                        Person,
+                        Person.id
+                        == InventoryAccess.character_person_id,
+                    )
+                    .where(
+                        InventoryAccess.inventory_id
+                        == imported_inventory.id
+                    )
+                ).all()
+
+                self.assertEqual(imported_inventory.name, "Company Stores")
+                self.assertEqual(
+                    imported_inventory.description,
+                    "Shared expedition supplies",
+                )
+                self.assertEqual(
+                    imported_balances[CurrencyDenomination.PLATINUM],
+                    3,
+                )
+                self.assertEqual(
+                    imported_balances[CurrencyDenomination.GOLD],
+                    17,
+                )
+                self.assertEqual(
+                    imported_balances[CurrencyDenomination.COPPER],
+                    9,
+                )
+                self.assertEqual(len(imported_items), 1)
+                self.assertEqual(imported_items[0].name, "Moonstone")
+                self.assertEqual(
+                    imported_items[0].category,
+                    ItemCategory.VALUABLE,
+                )
+                self.assertEqual(imported_items[0].rarity, ItemRarity.RARE)
+                self.assertEqual(imported_items[0].quantity, 2)
+                self.assertEqual(imported_items[0].unit_value_cp, 1250)
+                self.assertEqual(
+                    {
+                        person.name: access.role
+                        for access, person in imported_access
+                    },
+                    {
+                        "Nalia": InventoryAccessRole.OWNER,
+                        "Sable": InventoryAccessRole.MANAGER,
+                    },
+                )
+
+    def test_version_two_backup_import_creates_default_inventory(self):
+        raw_archive = io.BytesIO()
+        with ZipFile(
+            raw_archive,
+            "w",
+            compression=ZIP_DEFLATED,
+        ) as archive:
+            archive.writestr(
+                "backup.json",
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "campaign": {"name": "Legacy Campaign"},
+                    }
+                ),
+            )
+        raw_archive.seek(0)
+
+        with Session(self.engine) as db:
+            upload = UploadFile(
+                file=raw_archive,
+                filename="legacy.backup",
+            )
+            imported_response = asyncio.run(
+                import_campaign_backup(upload, db)
+            )
+            inventories = db.exec(
+                select(Inventory).where(
+                    Inventory.campaign_id == imported_response["id"]
+                )
+            ).all()
+            balances = db.exec(
+                select(CurrencyBalance).where(
+                    CurrencyBalance.purse_id == inventories[0].id
+                )
+            ).all()
+
+            self.assertEqual(len(inventories), 1)
+            self.assertEqual(inventories[0].name, "Party Inventory")
+            self.assertEqual(len(balances), len(CurrencyDenomination))
+            self.assertTrue(all(balance.amount == 0 for balance in balances))
+
+
 class CharacterMigrationTests(unittest.TestCase):
     def test_v3_migration_adds_character_schema_to_version_two_database(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -1,3 +1,15 @@
+import type {
+  CurrencyDenomination,
+  InventoryAccessRole,
+  ItemCategory,
+  ItemRarity,
+} from "./inventoryTypes"
+import type { ResourceType } from "./resourceTypes"
+import type {
+  RelationshipType,
+  TagResolutionState,
+} from "./tagTypes"
+
 export type CampaignsDto = {
   id: number
   name: string
@@ -8,27 +20,6 @@ export type CampaignsDto = {
   bannerImageUrl: string
   activeCharacterPersonId: number | null
 }
-
-export type ResourceType =
-  | "session"
-  | "person"
-  | "location"
-  | "faction"
-  | "character_note"
-  | "backstory_note"
-
-export type TagResolutionState =
-  | "passive"
-  | "resolved"
-  | "unresolved"
-  | "ambiguous"
-
-export type RelationshipType =
-  | "associated_with"
-  | "member_of"
-  | "located_in"
-  | "part_of"
-  | "based_in"
 
 export type ResourceTagDto = {
   value: string
@@ -182,21 +173,97 @@ export type FactionDataDto = Omit<
   tags: string[]
 }
 
+export type MoneyAmountDto = {
+  amount: string
+  denomination: CurrencyDenomination
+}
+
+export type PurseBalancesDto = {
+  cp: number
+  sp: number
+  ep: number
+  gp: number
+  pp: number
+}
+
+export type PurseBalancesUpdateDto = Partial<PurseBalancesDto>
+
+export type PurseUpdateDto = {
+  balances: PurseBalancesUpdateDto
+}
+
+export type PurseDto = {
+  balances: PurseBalancesDto
+  totalValue: MoneyAmountDto
+}
+
+export type InventoryMemberDto = {
+  characterPersonId: number
+  characterName: string
+  role: InventoryAccessRole
+  isActiveCharacter: boolean
+}
+
+export type InventoryItemDataDto = {
+  name: string
+  description: string
+  category: ItemCategory
+  rarity: ItemRarity | null
+  quantity: number
+  unitValue: MoneyAmountDto | null
+}
+
+export type InventoryItemCreateDto = {
+  name: string
+  description?: string
+  category?: ItemCategory
+  rarity?: ItemRarity | null
+  quantity?: number
+  unitValue?: MoneyAmountDto | null
+}
+
+export type InventoryItemUpdateDto = {
+  name?: string
+  description?: string
+  category?: ItemCategory
+  rarity?: ItemRarity | null
+  quantity?: number
+  unitValue?: MoneyAmountDto | null
+}
+
+export type InventoryItemDto = InventoryItemDataDto & {
+  id: number
+  totalValue: MoneyAmountDto | null
+}
+
+export type InventoryUpdateDto = {
+  name?: string
+  description?: string
+}
+
+export type InventoryDto = {
+  id: number
+  campaignId: number
+  name: string
+  description: string
+  members: InventoryMemberDto[]
+  purse: PurseDto
+  items: InventoryItemDto[]
+}
+
 export type ExportResponse = {
   backupUrl: string
   filename: string
 }
 
-export type SearchResourceType = ResourceType
-
 export type SearchQueryDto = {
   query: string
-  resourceTypes: SearchResourceType[]
+  resourceTypes: ResourceType[]
 }
 
 export type SearchResultDto = {
   campaignId: number
-  resourceType: SearchResourceType
+  resourceType: ResourceType
   resourceId: number
   parentResourceId: number | null
   title: string
@@ -208,7 +275,7 @@ export type SearchResultDto = {
 
 export type SearchResponseDto = {
   query: string
-  searchedResourceTypes: SearchResourceType[]
+  searchedResourceTypes: ResourceType[]
   totalCount: number
   results: SearchResultDto[]
 }

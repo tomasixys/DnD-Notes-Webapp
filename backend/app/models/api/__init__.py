@@ -22,6 +22,10 @@ from .backup import (
     CampaignBackupLegacyCharacterEntry,
     CampaignBackupLocation,
     CampaignBackupFaction,
+    CampaignBackupPurse,
+    CampaignBackupInventoryMember,
+    CampaignBackupInventoryItem,
+    CampaignBackupInventory,
     CampaignBackup,
 )
 from .search import (
@@ -36,6 +40,20 @@ from .rolls import (
     SessionRollStats,
     CampaignRollStats,
     RollCreateResponse,
+)
+from .inventory import (
+    MoneyAmount,
+    PurseBalances,
+    PurseBalancesUpdate,
+    PurseUpdate,
+    PurseRead,
+    InventoryMemberRead,
+    InventoryItemData,
+    InventoryItemCreate,
+    InventoryItemUpdate,
+    InventoryItemRead,
+    InventoryUpdate,
+    InventoryRead,
 )
 
 __all__ = [
@@ -66,6 +84,10 @@ __all__ = [
     "CampaignBackupLegacyCharacterEntry",
     "CampaignBackupLocation",
     "CampaignBackupFaction",
+    "CampaignBackupPurse",
+    "CampaignBackupInventoryMember",
+    "CampaignBackupInventoryItem",
+    "CampaignBackupInventory",
     "CampaignBackup",
     "SearchField",
     "SearchQueryDto",
@@ -76,4 +98,16 @@ __all__ = [
     "CampaignRollStats",
     "RollCreateResponse",
     "ParsedTag",
+    "MoneyAmount",
+    "PurseBalances",
+    "PurseBalancesUpdate",
+    "PurseUpdate",
+    "PurseRead",
+    "InventoryMemberRead",
+    "InventoryItemData",
+    "InventoryItemCreate",
+    "InventoryItemUpdate",
+    "InventoryItemRead",
+    "InventoryUpdate",
+    "InventoryRead",
 ]

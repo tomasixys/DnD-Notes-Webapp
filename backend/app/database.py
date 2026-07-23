@@ -38,6 +38,11 @@ def create_db_and_tables():
         CharacterProfile,
         CharacterNote,
         BackstoryNote,
+        Inventory,
+        InventoryAccess,
+        Purse,
+        CurrencyBalance,
+        InventoryItem,
     )
 
     SQLModel.metadata.create_all(engine)

@@ -13,6 +13,9 @@ function fetchError(x) {
 async function statusCodeHandler(response) {
   switch (response.status) {
     case 200:
+    case 201:
+    case 202:
+    case 204:
       const data = await response.json();
       return keysToCamelCase(data);
     case 400:
@@ -68,34 +71,28 @@ export async function DownloadAPI(endpoint, filename = null)
   .catch(fetchError);
 }
 
-export async function GetAPI(endpoint)
+export async function GetAPI(endpoint, {parseResponseJson = true, method = "GET"} = {})
 {
   return fetch(apiUrl + endpoint, {
-    method: "GET",
+    method: method,
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
-  })
-  .then(statusCodeHandler)
-  .catch(fetchError);
-}
-
-export async function PostAPI(endpoint, data, {parseResponseJson = true} = {})
-{
-  return fetch(apiUrl + endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", },
-    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
-    body: JSON.stringify(keysToSnakeCase(data))
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
   .catch(fetchError);
 }
+export async function DeleteAPI(endpoint, {parseResponseJson = true, method = "DELETE"} = {})
+{
+  return GetAPI(endpoint, {parseResponseJson, method});
+}
 
-export async function PostFormDataAPI(endpoint, formData, {parseResponseJson = true} = {})
+
+export async function PostAPI(endpoint, data, {parseResponseJson = true, method = "POST"} = {})
 {
   return fetch(apiUrl + endpoint, {
-    method: "POST",
+    method: method,
+    headers: { "Content-Type": "application/json", },
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
-    body: formData
+    body: JSON.stringify(keysToSnakeCase(data))
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
   .catch(fetchError);
@@ -103,20 +100,19 @@ export async function PostFormDataAPI(endpoint, formData, {parseResponseJson = t
 
 export async function PutAPI(endpoint, data, {parseResponseJson = true} = {})
 {
-  return fetch(apiUrl + endpoint, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", },
-    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
-    body: JSON.stringify(keysToSnakeCase(data))
-  })
-  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
-  .catch(fetchError);
+  return PostAPI(endpoint, data, {parseResponseJson, method: "PUT"});
 }
 
-export async function PutFormDataAPI(endpoint, formData, {parseResponseJson = true} = {})
+export async function PatchAPI(endpoint, data, {parseResponseJson = true} = {})
+{
+  return PostAPI(endpoint, data, {parseResponseJson, method: "PATCH"});
+}
+
+
+export async function PostFormDataAPI(endpoint, formData, {parseResponseJson = true, method = "POST"} = {})
 {
   return fetch(apiUrl + endpoint, {
-    method: "PUT",
+    method: method,
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined,
     body: formData
   })
@@ -124,21 +120,18 @@ export async function PutFormDataAPI(endpoint, formData, {parseResponseJson = tr
   .catch(fetchError);
 }
 
-export async function DeleteAPI(endpoint, {parseResponseJson = true} = {})
+export async function PutFormDataAPI(endpoint, formData, {parseResponseJson = true, method = "PUT"} = {})
 {
-  return fetch(apiUrl + endpoint, {
-    method: "DELETE",
-    signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
-  })
-  .then(x => parseResponseJson ? statusCodeHandler(x) : x)
-  .catch(fetchError);
+  return PostFormDataAPI(endpoint, formData, {parseResponseJson, method});
 }
+
+
 
 
 function snakeToCamel(key) {
   return key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
 }
-  
+
 export function keysToCamelCase(value) {
   if (Array.isArray(value)) {
     return value.map(keysToCamelCase)
@@ -152,19 +145,19 @@ export function keysToCamelCase(value) {
       ]),
     )
   }
-  
+
     return value
   }
-  
+
   function camelToSnake(key) {
     return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
   }
-  
+
   export function keysToSnakeCase(value) {
     if (Array.isArray(value)) {
       return value.map(keysToSnakeCase)
     }
-  
+
     if (value !== null && typeof value === "object") {
       return Object.fromEntries(
         Object.entries(value).map(([key, nestedValue]) => [
@@ -173,6 +166,6 @@ export function keysToCamelCase(value) {
         ]),
       )
     }
-  
+
     return value
   }

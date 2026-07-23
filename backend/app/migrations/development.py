@@ -8,4 +8,4 @@ function to a no-op.
 
 
 def migrate_development_schema(connection) -> None:
-    pass
+    """Apply unreleased schema changes; currently there are none."""
