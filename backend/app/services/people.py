@@ -73,8 +73,8 @@ class PersonService:
         )
         return self.db.exec(statement).all()
 
-    def add(self, campaign: Campaign, person: PersonData) -> Person:
-        """Add and synchronize a person without committing the transaction."""
+    def stage_create(self, campaign: Campaign, person: PersonData) -> Person:
+        """Create and synchronize a person in the caller-owned transaction."""
         db_person = Person(
             campaign_id=campaign.id,
             name=person.name.strip(),
@@ -122,13 +122,13 @@ class PersonService:
         )
         return db_person
 
-    def apply_changes(
+    def stage_update(
         self,
         campaign: Campaign,
         person_id: int,
         updated_person: PersonData,
     ) -> Person:
-        """Resolve, apply, and flush person changes without committing."""
+        """Update a person in the caller-owned transaction."""
         person = self.get(campaign, person_id)
         previous_name = person.name
         person.name = updated_person.name.strip()
@@ -183,7 +183,7 @@ class PersonService:
     ) -> PersonRead:
         """Create and commit a person as a standalone operation."""
         try:
-            db_person = self.add(campaign, person)
+            db_person = self.stage_create(campaign, person)
             self.db.commit()
             self.db.refresh(db_person)
             return self.to_read(db_person)
@@ -199,7 +199,7 @@ class PersonService:
     ) -> PersonRead:
         """Update and commit a person as a standalone operation."""
         try:
-            person = self.apply_changes(
+            person = self.stage_update(
                 campaign,
                 person_id,
                 updated_person,

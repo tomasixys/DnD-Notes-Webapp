@@ -692,7 +692,7 @@ async def import_campaign_backup(
 
                 people = PersonService(db)
                 for person_backup in cb.people:
-                    person = people.add(
+                    person = people.stage_create(
                         campaign,
                         PersonData(
                             name=person_backup.name,

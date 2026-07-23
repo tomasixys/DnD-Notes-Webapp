@@ -28,14 +28,14 @@ class PersonServiceTests(unittest.TestCase):
     def tearDown(self):
         self.engine.dispose()
 
-    def test_add_flushes_without_committing_for_composed_operations(self):
+    def test_stage_create_flushes_without_committing(self):
         with Session(self.engine) as db:
             campaign = Campaign(name="Test")
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
 
-            person = PersonService(db).add(
+            person = PersonService(db).stage_create(
                 campaign,
                 PersonData(
                     name="  Nalia  ",
@@ -77,7 +77,7 @@ class PersonServiceTests(unittest.TestCase):
             people.delete(campaign, person_id)
             self.assertIsNone(db.get(Person, person_id))
 
-    def test_apply_changes_resolves_by_id_without_committing(self):
+    def test_stage_update_resolves_by_id_without_committing(self):
         with Session(self.engine) as db:
             campaign = Campaign(name="Test")
             db.add(campaign)
@@ -89,7 +89,7 @@ class PersonServiceTests(unittest.TestCase):
                 PersonData(name="Nalia", role="Wizard"),
             ).id
 
-            person = people.apply_changes(
+            person = people.stage_update(
                 campaign,
                 person_id,
                 PersonData(name="Nalia", role="Archmage"),

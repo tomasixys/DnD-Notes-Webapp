@@ -108,8 +108,8 @@ CRUD base class.
 
 Services that participate in larger operations should distinguish between:
 
-- composable methods, such as `add()` or `apply_changes()`, that flush generated
-  state and apply all domain synchronization without committing; and
+- composable `stage_*` methods that flush generated state and apply all domain
+  synchronization without committing; and
 - standalone methods that coordinate a complete mutation and own its commit,
   rollback, refresh, and authoritative response construction.
 
