@@ -13,6 +13,7 @@ from app.models.api import (
     PurseUpdate,
 )
 from app.models.database import Campaign, Inventory, InventoryItem
+from app.services.campaign_context import CampaignContext
 from app.services.inventory import InventoryService
 
 
@@ -41,20 +42,19 @@ class InventoryServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            inventory_service = InventoryService(db)
+            inventory_service = InventoryService(
+                CampaignContext(db, campaign)
+            )
 
             inventory = inventory_service.stage_update_metadata(
-                campaign,
                 InventoryUpdate(name="Shared Pack"),
             )
             inventory_service.stage_update_purse(
-                campaign,
                 PurseUpdate(
                     balances=PurseBalancesUpdate(gp=42),
                 ),
             )
             inventory_service.stage_create_item(
-                campaign,
                 InventoryItemCreate(name="Rope"),
             )
             inventory_id = inventory.id
@@ -73,23 +73,23 @@ class InventoryServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            inventory_service = InventoryService(db)
+            inventory_service = InventoryService(
+                CampaignContext(db, campaign)
+            )
 
             created = inventory_service.create_item(
-                campaign,
                 InventoryItemCreate(name="Rope", quantity=2),
             )
             item_id = created.items[0].id
 
             updated = inventory_service.update_item(
-                campaign,
                 item_id,
                 InventoryItemUpdate(quantity=3),
             )
             self.assertEqual(3, updated.items[0].quantity)
             self.assertIsNotNone(db.get(InventoryItem, item_id))
 
-            deleted = inventory_service.delete_item(campaign, item_id)
+            deleted = inventory_service.delete_item(item_id)
             self.assertEqual([], deleted.items)
             self.assertIsNone(db.get(InventoryItem, item_id))
 
@@ -101,8 +101,9 @@ class InventoryServiceTests(unittest.TestCase):
             db.refresh(campaign)
 
             with self.assertRaises(HTTPException):
-                InventoryService(db).update_metadata(
-                    campaign,
+                InventoryService(
+                    CampaignContext(db, campaign)
+                ).update_metadata(
                     InventoryUpdate(name="   "),
                 )
 

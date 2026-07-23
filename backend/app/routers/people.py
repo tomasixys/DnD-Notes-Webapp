@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
-from sqlmodel import Session
 
-from app.database import get_session
-from app.dependencies.campaigns import verify_campaign
+from app.dependencies.campaigns import get_campaign_context
 from app.models.api import PersonData
+from app.services.campaign_context import CampaignContext
 from app.services.people import PersonService
 
 
@@ -16,32 +15,29 @@ router = APIRouter(
 @router.get("")
 def get_people_for_campaign(
     campaign_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    people = PersonService(db)
-    return [people.to_read(person) for person in people.list(campaign)]
+    people = PersonService(context)
+    return [people.to_read(person) for person in people.list()]
 
 
 @router.get("/{person_id}")
 def get_person(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    people = PersonService(db)
-    return people.to_read(people.get(campaign, person_id))
+    people = PersonService(context)
+    return people.to_read(people.get(person_id))
 
 
 @router.post("")
 def create_person(
     campaign_id: int,
     person: PersonData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    return PersonService(db).create(campaign, person)
+    return PersonService(context).create(person)
 
 
 @router.put("/{person_id}")
@@ -49,18 +45,16 @@ def update_person(
     campaign_id: int,
     person_id: int,
     updated_person: PersonData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    return PersonService(db).update(campaign, person_id, updated_person)
+    return PersonService(context).update(person_id, updated_person)
 
 
 @router.delete("/{person_id}")
 def delete_person(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    PersonService(db).delete(campaign, person_id)
+    PersonService(context).delete(person_id)
     return {"deleted": True}

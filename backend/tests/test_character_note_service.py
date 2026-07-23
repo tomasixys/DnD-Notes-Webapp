@@ -16,6 +16,7 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.characters import CharacterService
 
 
@@ -43,26 +44,24 @@ class CharacterNoteServiceTests(unittest.TestCase):
         db.add(campaign)
         db.commit()
         db.refresh(campaign)
-        characters = CharacterService(db)
+        context = CampaignContext(db, campaign)
+        characters = CharacterService(context)
         character = characters.create(
-            campaign,
             CharacterCreate(person=PersonData(name="Nalia")),
         )
-        return campaign, character.person.id, characters
+        return context, character.person.id, characters
 
     def test_stage_operations_participate_in_the_outer_transaction(self):
         with Session(self.engine) as db:
-            campaign, person_id, characters = self._create_character(db)
-            character_notes = CharacterNoteService(db, characters)
-            backstory_notes = BackstoryNoteService(db, characters)
+            context, person_id, characters = self._create_character(db)
+            character_notes = CharacterNoteService(context, characters)
+            backstory_notes = BackstoryNoteService(context, characters)
 
             note = character_notes.stage_create(
-                campaign,
                 person_id,
                 CharacterNoteData(title="Plan", tags=["urgent"]),
             )
             backstory = backstory_notes.stage_create(
-                campaign,
                 person_id,
                 CharacterNoteData(title="Family", tags=["childhood"]),
             )
@@ -81,28 +80,25 @@ class CharacterNoteServiceTests(unittest.TestCase):
 
     def test_standalone_services_keep_note_types_separate(self):
         with Session(self.engine) as db:
-            campaign, person_id, characters = self._create_character(db)
-            character_notes = CharacterNoteService(db, characters)
-            backstory_notes = BackstoryNoteService(db, characters)
+            context, person_id, characters = self._create_character(db)
+            character_notes = CharacterNoteService(context, characters)
+            backstory_notes = BackstoryNoteService(context, characters)
 
             note = character_notes.create(
-                campaign,
                 person_id,
                 CharacterNoteData(title="Plan", tags=["urgent"]),
             )
             backstory = backstory_notes.create(
-                campaign,
                 person_id,
                 CharacterNoteData(title="Family", tags=["childhood"]),
             )
 
             updated = character_notes.update(
-                campaign,
                 person_id,
                 note.id,
                 CharacterNoteData(title="New plan", tags=["revised"]),
             )
-            character_notes.delete(campaign, person_id, note.id)
+            character_notes.delete(person_id, note.id)
 
             self.assertEqual("New plan", updated.title)
             self.assertIsNone(db.get(CharacterNote, note.id))

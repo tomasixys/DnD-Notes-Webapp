@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, status
-from sqlmodel import Session
 
-from app.database import get_session
-from app.dependencies.campaigns import verify_campaign
+from app.dependencies.campaigns import get_campaign_context
 from app.models.api import (
     InventoryItemCreate,
     InventoryItemUpdate,
@@ -10,6 +8,7 @@ from app.models.api import (
     InventoryUpdate,
     PurseUpdate,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.inventory import InventoryService
 
 
@@ -22,30 +21,27 @@ router = APIRouter(
 @router.get("", response_model=InventoryRead)
 def get_inventory(
     campaign_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).get_default(campaign)
+    return InventoryService(context).get_default()
 
 
 @router.patch("", response_model=InventoryRead)
 def update_inventory(
     campaign_id: int,
     update: InventoryUpdate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).update_metadata(campaign, update)
+    return InventoryService(context).update_metadata(update)
 
 
 @router.patch("/purse", response_model=InventoryRead)
 def update_purse(
     campaign_id: int,
     update: PurseUpdate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).update_purse(campaign, update)
+    return InventoryService(context).update_purse(update)
 
 
 @router.post(
@@ -56,10 +52,9 @@ def update_purse(
 def create_inventory_item(
     campaign_id: int,
     item_data: InventoryItemCreate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).create_item(campaign, item_data)
+    return InventoryService(context).create_item(item_data)
 
 
 @router.patch("/items/{item_id}", response_model=InventoryRead)
@@ -67,21 +62,15 @@ def update_inventory_item(
     campaign_id: int,
     item_id: int,
     update: InventoryItemUpdate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).update_item(
-        campaign,
-        item_id,
-        update,
-    )
+    return InventoryService(context).update_item(item_id, update)
 
 
 @router.delete("/items/{item_id}", response_model=InventoryRead)
 def delete_inventory_item(
     campaign_id: int,
     item_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
-    campaign = verify_campaign(campaign_id, db)
-    return InventoryService(db).delete_item(campaign, item_id)
+    return InventoryService(context).delete_item(item_id)

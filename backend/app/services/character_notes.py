@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Callable, Protocol
 
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import select
 
 from app.models.api import (
     BackstoryNoteRead,
@@ -13,11 +13,11 @@ from app.models.api import (
 )
 from app.models.database import (
     BackstoryNote,
-    Campaign,
     CharacterNote,
     CharacterProfile,
 )
 from app.models.enums import ResourceType
+from app.services.campaign_context import CampaignContext
 from app.tags import (
     get_resource_tag_reads,
     get_resource_tags,
@@ -40,11 +40,7 @@ class _NoteDefinition:
 
 
 class _CharacterProfileResolver(Protocol):
-    def get_profile(
-        self,
-        campaign: Campaign,
-        person_id: int,
-    ) -> CharacterProfile: ...
+    def get_profile(self, person_id: int) -> CharacterProfile: ...
 
 
 class _PersonalNoteOperations:
@@ -52,24 +48,24 @@ class _PersonalNoteOperations:
 
     def __init__(
         self,
-        db: Session,
+        context: CampaignContext,
         characters: _CharacterProfileResolver | None,
         definition: _NoteDefinition,
     ):
-        self.db = db
+        self.context = context
+        self.db = context.db
         self.characters = characters
         self.definition = definition
 
     def _verify_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> None:
         if self.characters is None:
             from app.services.characters import CharacterService
 
-            self.characters = CharacterService(self.db)
-        self.characters.get_profile(campaign, person_id)
+            self.characters = CharacterService(self.context)
+        self.characters.get_profile(person_id)
 
     @staticmethod
     def _normalize_title(title: str) -> str:
@@ -99,15 +95,14 @@ class _PersonalNoteOperations:
 
     def get(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> PersonalNote:
-        self._verify_character(campaign, person_id)
+        self._verify_character(person_id)
         note = self.db.get(self.definition.model, note_id)
         if (
             note is None
-            or note.campaign_id != campaign.id
+            or note.campaign_id != self.context.campaign_id
             or note.character_person_id != person_id
         ):
             raise HTTPException(
@@ -118,15 +113,14 @@ class _PersonalNoteOperations:
 
     def list_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> list[PersonalNoteRead]:
-        self._verify_character(campaign, person_id)
+        self._verify_character(person_id)
         model = self.definition.model
         statement = (
             select(model)
             .where(
-                model.campaign_id == campaign.id,
+                model.campaign_id == self.context.campaign_id,
                 model.character_person_id == person_id,
             )
             .order_by(model.updated_at.desc(), model.id.desc())
@@ -135,7 +129,6 @@ class _PersonalNoteOperations:
 
     def _stage_insert(
         self,
-        campaign: Campaign,
         person_id: int,
         *,
         title: str,
@@ -145,9 +138,9 @@ class _PersonalNoteOperations:
         updated_at: datetime | None = None,
         normalize_text: bool = True,
     ) -> PersonalNote:
-        self._verify_character(campaign, person_id)
+        self._verify_character(person_id)
         values = {
-            "campaign_id": campaign.id,
+            "campaign_id": self.context.campaign_id,
             "character_person_id": person_id,
             "title": (
                 self._normalize_title(title) if normalize_text else title
@@ -164,14 +157,14 @@ class _PersonalNoteOperations:
         self.db.flush()
         sync_resource_tags(
             self.db,
-            campaign.id,
+            self.context.campaign_id,
             self.definition.resource_type,
             note.id,
             tags,
         )
         refresh_reference_tags_for_resource(
             self.db,
-            campaign.id,
+            self.context.campaign_id,
             self.definition.resource_type,
             note.id,
         )
@@ -179,12 +172,10 @@ class _PersonalNoteOperations:
 
     def stage_create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> PersonalNote:
         return self._stage_insert(
-            campaign,
             person_id,
             title=note_data.title,
             content=note_data.content,
@@ -193,12 +184,10 @@ class _PersonalNoteOperations:
 
     def stage_restore(
         self,
-        campaign: Campaign,
         person_id: int,
         note_backup: CampaignBackupCharacterNote,
     ) -> PersonalNote:
         return self._stage_insert(
-            campaign,
             person_id,
             title=note_backup.title,
             content=note_backup.content,
@@ -210,12 +199,11 @@ class _PersonalNoteOperations:
 
     def stage_update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> PersonalNote:
-        note = self.get(campaign, person_id, note_id)
+        note = self.get(person_id, note_id)
         previous_title = note.title
         note.title = self._normalize_title(note_data.title)
         note.content = note_data.content.strip()
@@ -224,14 +212,14 @@ class _PersonalNoteOperations:
         self.db.flush()
         sync_resource_tags(
             self.db,
-            campaign.id,
+            self.context.campaign_id,
             self.definition.resource_type,
             note.id,
             note_data.tags,
         )
         refresh_reference_tags_for_resource(
             self.db,
-            campaign.id,
+            self.context.campaign_id,
             self.definition.resource_type,
             note.id,
             previous_labels=[previous_title],
@@ -240,11 +228,10 @@ class _PersonalNoteOperations:
 
     def stage_delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
-        note = self.get(campaign, person_id, note_id)
+        note = self.get(person_id, note_id)
         handle_tags_of_deleted_resource(
             self.db,
             self.definition.resource_type,
@@ -255,13 +242,12 @@ class _PersonalNoteOperations:
 
     def stage_delete_all_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> None:
         model = self.definition.model
         notes = self.db.exec(
             select(model).where(
-                model.campaign_id == campaign.id,
+                model.campaign_id == self.context.campaign_id,
                 model.character_person_id == person_id,
             )
         ).all()
@@ -289,24 +275,21 @@ class _PersonalNoteOperations:
 
     def create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> PersonalNoteRead:
         return self._commit_note(
-            lambda: self.stage_create(campaign, person_id, note_data)
+            lambda: self.stage_create(person_id, note_data)
         )
 
     def update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> PersonalNoteRead:
         return self._commit_note(
             lambda: self.stage_update(
-                campaign,
                 person_id,
                 note_id,
                 note_data,
@@ -315,12 +298,11 @@ class _PersonalNoteOperations:
 
     def delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
         try:
-            self.stage_delete(campaign, person_id, note_id)
+            self.stage_delete(person_id, note_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -346,11 +328,11 @@ class _PersonalNoteOperations:
 class CharacterNoteService:
     def __init__(
         self,
-        db: Session,
+        context: CampaignContext,
         characters: _CharacterProfileResolver | None = None,
     ):
         self._operations = _PersonalNoteOperations(
-            db,
+            context,
             characters,
             _NoteDefinition(
                 model=CharacterNote,
@@ -365,44 +347,38 @@ class CharacterNoteService:
 
     def get(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> CharacterNote:
-        return self._operations.get(campaign, person_id, note_id)
+        return self._operations.get(person_id, note_id)
 
     def list_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> list[CharacterNoteRead]:
-        return self._operations.list_for_character(campaign, person_id)
+        return self._operations.list_for_character(person_id)
 
     def stage_create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> CharacterNote:
-        return self._operations.stage_create(campaign, person_id, note_data)
+        return self._operations.stage_create(person_id, note_data)
 
     def create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> CharacterNoteRead:
-        return self._operations.create(campaign, person_id, note_data)
+        return self._operations.create(person_id, note_data)
 
     def stage_update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> CharacterNote:
         return self._operations.stage_update(
-            campaign,
             person_id,
             note_id,
             note_data,
@@ -410,13 +386,11 @@ class CharacterNoteService:
 
     def update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> CharacterNoteRead:
         return self._operations.update(
-            campaign,
             person_id,
             note_id,
             note_data,
@@ -424,26 +398,23 @@ class CharacterNoteService:
 
     def stage_delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
-        self._operations.stage_delete(campaign, person_id, note_id)
+        self._operations.stage_delete(person_id, note_id)
 
     def delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
-        self._operations.delete(campaign, person_id, note_id)
+        self._operations.delete(person_id, note_id)
 
     def stage_delete_all_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> None:
-        self._operations.stage_delete_all_for_character(campaign, person_id)
+        self._operations.stage_delete_all_for_character(person_id)
 
     def to_backup(
         self,
@@ -453,12 +424,10 @@ class CharacterNoteService:
 
     def stage_restore(
         self,
-        campaign: Campaign,
         person_id: int,
         note_backup: CampaignBackupCharacterNote,
     ) -> CharacterNote:
         return self._operations.stage_restore(
-            campaign,
             person_id,
             note_backup,
         )
@@ -467,11 +436,11 @@ class CharacterNoteService:
 class BackstoryNoteService:
     def __init__(
         self,
-        db: Session,
+        context: CampaignContext,
         characters: _CharacterProfileResolver | None = None,
     ):
         self._operations = _PersonalNoteOperations(
-            db,
+            context,
             characters,
             _NoteDefinition(
                 model=BackstoryNote,
@@ -486,44 +455,38 @@ class BackstoryNoteService:
 
     def get(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> BackstoryNote:
-        return self._operations.get(campaign, person_id, note_id)
+        return self._operations.get(person_id, note_id)
 
     def list_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> list[BackstoryNoteRead]:
-        return self._operations.list_for_character(campaign, person_id)
+        return self._operations.list_for_character(person_id)
 
     def stage_create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> BackstoryNote:
-        return self._operations.stage_create(campaign, person_id, note_data)
+        return self._operations.stage_create(person_id, note_data)
 
     def create(
         self,
-        campaign: Campaign,
         person_id: int,
         note_data: CharacterNoteData,
     ) -> BackstoryNoteRead:
-        return self._operations.create(campaign, person_id, note_data)
+        return self._operations.create(person_id, note_data)
 
     def stage_update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> BackstoryNote:
         return self._operations.stage_update(
-            campaign,
             person_id,
             note_id,
             note_data,
@@ -531,13 +494,11 @@ class BackstoryNoteService:
 
     def update(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
     ) -> BackstoryNoteRead:
         return self._operations.update(
-            campaign,
             person_id,
             note_id,
             note_data,
@@ -545,26 +506,23 @@ class BackstoryNoteService:
 
     def stage_delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
-        self._operations.stage_delete(campaign, person_id, note_id)
+        self._operations.stage_delete(person_id, note_id)
 
     def delete(
         self,
-        campaign: Campaign,
         person_id: int,
         note_id: int,
     ) -> None:
-        self._operations.delete(campaign, person_id, note_id)
+        self._operations.delete(person_id, note_id)
 
     def stage_delete_all_for_character(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> None:
-        self._operations.stage_delete_all_for_character(campaign, person_id)
+        self._operations.stage_delete_all_for_character(person_id)
 
     def to_backup(
         self,
@@ -574,12 +532,10 @@ class BackstoryNoteService:
 
     def stage_restore(
         self,
-        campaign: Campaign,
         person_id: int,
         note_backup: CampaignBackupCharacterNote,
     ) -> BackstoryNote:
         return self._operations.stage_restore(
-            campaign,
             person_id,
             note_backup,
         )

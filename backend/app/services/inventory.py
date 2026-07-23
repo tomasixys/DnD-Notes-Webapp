@@ -21,7 +21,6 @@ from app.models.api import (
     PurseUpdate,
 )
 from app.models.database import (
-    Campaign,
     CharacterProfile,
     CurrencyBalance,
     Inventory,
@@ -34,14 +33,16 @@ from app.models.enums import (
     CurrencyDenomination,
     InventoryAccessRole,
 )
+from app.services.campaign_context import CampaignContext
 
 
 COPPER_PER_GOLD = Decimal("100")
 
 
 class InventoryService:
-    def __init__(self, db: Session):
-        self.db = db
+    def __init__(self, context: CampaignContext):
+        self.context = context
+        self.db = context.db
 
     @staticmethod
     def money_to_copper(value: MoneyAmount) -> int:
@@ -77,28 +78,28 @@ class InventoryService:
             ]
         )
 
-    def _active_character_belongs_to_campaign(
-        self,
-        campaign: Campaign,
-    ) -> bool:
-        person_id = campaign.active_character_person_id
+    def _active_character_belongs_to_campaign(self) -> bool:
+        person_id = self.context.campaign.active_character_person_id
         if (
             person_id is None
             or self.db.get(CharacterProfile, person_id) is None
         ):
             return False
         person = self.db.get(Person, person_id)
-        return person is not None and person.campaign_id == campaign.id
+        return (
+            person is not None
+            and person.campaign_id == self.context.campaign_id
+        )
 
-    def stage_ensure_default(self, campaign: Campaign) -> Inventory:
+    def stage_ensure_default(self) -> Inventory:
         """Repair the default inventory in the caller-owned transaction."""
         inventory = self.db.exec(
             select(Inventory)
-            .where(Inventory.campaign_id == campaign.id)
+            .where(Inventory.campaign_id == self.context.campaign_id)
             .order_by(Inventory.id)
         ).first()
         if inventory is None:
-            inventory = Inventory(campaign_id=campaign.id)
+            inventory = Inventory(campaign_id=self.context.campaign_id)
             self.db.add(inventory)
             self.db.flush()
 
@@ -127,17 +128,22 @@ class InventoryService:
                 self.db.flush()
 
         if (
-            self._active_character_belongs_to_campaign(campaign)
+            self._active_character_belongs_to_campaign()
             and self.db.get(
                 InventoryAccess,
-                (inventory.id, campaign.active_character_person_id),
+                (
+                    inventory.id,
+                    self.context.campaign.active_character_person_id,
+                ),
             )
             is None
         ):
             self.db.add(
                 InventoryAccess(
                     inventory_id=inventory.id,
-                    character_person_id=campaign.active_character_person_id,
+                    character_person_id=(
+                        self.context.campaign.active_character_person_id
+                    ),
                     role=InventoryAccessRole.OWNER,
                 )
             )
@@ -145,9 +151,9 @@ class InventoryService:
 
         return inventory
 
-    def stage_sync_default_owner(self, campaign: Campaign) -> Inventory:
+    def stage_sync_default_owner(self) -> Inventory:
         """Replace default-inventory grants in the caller-owned transaction."""
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
         grants = self.db.exec(
             select(InventoryAccess).where(
                 InventoryAccess.inventory_id == inventory.id
@@ -157,11 +163,13 @@ class InventoryService:
             self.db.delete(grant)
         self.db.flush()
 
-        if self._active_character_belongs_to_campaign(campaign):
+        if self._active_character_belongs_to_campaign():
             self.db.add(
                 InventoryAccess(
                     inventory_id=inventory.id,
-                    character_person_id=campaign.active_character_person_id,
+                    character_person_id=(
+                        self.context.campaign.active_character_person_id
+                    ),
                     role=InventoryAccessRole.OWNER,
                 )
             )
@@ -171,7 +179,6 @@ class InventoryService:
     def to_read(
         self,
         inventory: Inventory,
-        campaign: Campaign,
     ) -> InventoryRead:
         balances_by_denomination = {
             balance.denomination: balance.amount
@@ -217,7 +224,8 @@ class InventoryService:
                 character_name=person.name,
                 role=grant.role,
                 is_active_character=(
-                    campaign.active_character_person_id == person.id
+                    self.context.campaign.active_character_person_id
+                    == person.id
                 ),
             )
             for grant, person in member_rows
@@ -254,7 +262,7 @@ class InventoryService:
 
         return InventoryRead(
             id=inventory.id,
-            campaign_id=campaign.id,
+            campaign_id=self.context.campaign_id,
             name=inventory.name,
             description=inventory.description,
             members=members,
@@ -270,30 +278,27 @@ class InventoryService:
 
     def _commit_staged(
         self,
-        campaign: Campaign,
         operation: Callable[[], Inventory],
     ) -> InventoryRead:
         try:
             inventory = operation()
             self.db.commit()
             self.db.refresh(inventory)
-            return self.to_read(inventory, campaign)
+            return self.to_read(inventory)
         except Exception:
             self.db.rollback()
             raise
 
-    def get_default(self, campaign: Campaign) -> InventoryRead:
+    def get_default(self) -> InventoryRead:
         return self._commit_staged(
-            campaign,
-            lambda: self.stage_ensure_default(campaign),
+            lambda: self.stage_ensure_default(),
         )
 
     def stage_update_metadata(
         self,
-        campaign: Campaign,
         update: InventoryUpdate,
     ) -> Inventory:
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
 
         if "name" in update.model_fields_set:
             name = update.name.strip()
@@ -312,20 +317,17 @@ class InventoryService:
 
     def update_metadata(
         self,
-        campaign: Campaign,
         update: InventoryUpdate,
     ) -> InventoryRead:
         return self._commit_staged(
-            campaign,
-            lambda: self.stage_update_metadata(campaign, update),
+            lambda: self.stage_update_metadata(update),
         )
 
     def stage_update_purse(
         self,
-        campaign: Campaign,
         update: PurseUpdate,
     ) -> Inventory:
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
         for field_name in update.balances.model_fields_set:
             denomination = CurrencyDenomination(field_name)
             balance = self.db.get(
@@ -339,12 +341,10 @@ class InventoryService:
 
     def update_purse(
         self,
-        campaign: Campaign,
         update: PurseUpdate,
     ) -> InventoryRead:
         return self._commit_staged(
-            campaign,
-            lambda: self.stage_update_purse(campaign, update),
+            lambda: self.stage_update_purse(update),
         )
 
     def get_item(
@@ -375,10 +375,9 @@ class InventoryService:
 
     def stage_create_item(
         self,
-        campaign: Campaign,
         item_data: InventoryItemCreate,
     ) -> Inventory:
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
         name = item_data.name.strip()
         if not name:
             raise HTTPException(
@@ -404,21 +403,18 @@ class InventoryService:
 
     def create_item(
         self,
-        campaign: Campaign,
         item_data: InventoryItemCreate,
     ) -> InventoryRead:
         return self._commit_staged(
-            campaign,
-            lambda: self.stage_create_item(campaign, item_data),
+            lambda: self.stage_create_item(item_data),
         )
 
     def stage_update_item(
         self,
-        campaign: Campaign,
         item_id: int,
         update: InventoryItemUpdate,
     ) -> Inventory:
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
         item = self.get_item(inventory, item_id)
 
         if "name" in update.model_fields_set:
@@ -448,14 +444,11 @@ class InventoryService:
 
     def update_item(
         self,
-        campaign: Campaign,
         item_id: int,
         update: InventoryItemUpdate,
     ) -> InventoryRead:
         return self._commit_staged(
-            campaign,
             lambda: self.stage_update_item(
-                campaign,
                 item_id,
                 update,
             ),
@@ -463,22 +456,19 @@ class InventoryService:
 
     def stage_delete_item(
         self,
-        campaign: Campaign,
         item_id: int,
     ) -> Inventory:
-        inventory = self.stage_ensure_default(campaign)
+        inventory = self.stage_ensure_default()
         self.db.delete(self.get_item(inventory, item_id))
         self.db.flush()
         return inventory
 
     def delete_item(
         self,
-        campaign: Campaign,
         item_id: int,
     ) -> InventoryRead:
         return self._commit_staged(
-            campaign,
-            lambda: self.stage_delete_item(campaign, item_id),
+            lambda: self.stage_delete_item(item_id),
         )
 
     def to_backup(self, inventory: Inventory) -> CampaignBackupInventory:
@@ -532,18 +522,19 @@ class InventoryService:
 
     def stage_restore_backups(
         self,
-        campaign: Campaign,
         inventory_backups: list[CampaignBackupInventory],
         person_id_map: dict[int, int],
     ) -> None:
         """Restore inventories within the backup service transaction."""
-        default_inventory = self.stage_ensure_default(campaign)
+        default_inventory = self.stage_ensure_default()
 
         for index, inventory_backup in enumerate(inventory_backups):
             if index == 0:
                 inventory = default_inventory
             else:
-                inventory = Inventory(campaign_id=campaign.id)
+                inventory = Inventory(
+                    campaign_id=self.context.campaign_id
+                )
                 self.db.add(inventory)
                 self.db.flush()
                 self.db.add(Purse(inventory_id=inventory.id))

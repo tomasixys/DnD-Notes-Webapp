@@ -68,6 +68,7 @@ backend/app/
     inventory.py
     ...
   services/
+    campaign_context.py
     campaign_backups.py
     campaigns.py
     character_notes.py
@@ -100,10 +101,19 @@ clear need for another abstraction.
 
 ## Service structure
 
+Campaign-scoped services receive one resolved `CampaignContext` when they are
+constructed. The context contains the request-scoped database session and the
+verified campaign model. It is resolved once by a FastAPI dependency, then
+shared by composed services. Methods therefore do not repeat `campaign` or
+`campaign_id` parameters, and a service instance cannot accidentally cross
+campaign boundaries. Application-wide operations such as campaign creation and
+backup import establish the context after the new campaign has been flushed.
+
 Prefer request-scoped service classes for resource domains that have several
 related database operations. A service instance should receive the SQLModel
-session in its constructor and expose domain operations such as resolving,
-creating, updating, activating, or synchronizing a resource. Do not create one
+campaign context in its constructor and expose domain operations such as
+resolving, creating, updating, activating, or synchronizing a resource. Do not
+create one
 service mechanically for every database table, and do not introduce a generic
 CRUD base class.
 
@@ -118,6 +128,12 @@ a private shared note implementation because their persistence and tag
 lifecycles are identical, while their database models, resource types, and
 public return models remain distinct. Callers therefore never pass a model
 class or resource-type flag into a generic CRUD service.
+
+`SessionNoteService` owns session numbering, note content, tags, and complete
+session backup conversion. It composes `RollService` for the roll records stored
+under a session. `RollService` separately owns roll validation and statistics,
+so session routes do not absorb roll-specific behavior and roll routes do not
+reimplement session-note persistence.
 
 Services that participate in larger operations should distinguish between:
 

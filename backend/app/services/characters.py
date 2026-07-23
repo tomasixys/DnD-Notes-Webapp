@@ -4,9 +4,9 @@ from sqlmodel import Session
 from app.file_storage import build_upload_url, delete_uploaded_file
 from app.models.api import CharacterCreate, CharacterRead, CharacterUpdate
 from app.models.database import (
-    Campaign,
     CharacterProfile,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
@@ -18,20 +18,20 @@ from app.services.people import PersonService
 class CharacterService:
     def __init__(
         self,
-        db: Session,
+        context: CampaignContext,
         people: PersonService | None = None,
         inventory: InventoryService | None = None,
     ):
-        self.db = db
-        self.people = people or PersonService(db)
-        self.inventory = inventory or InventoryService(db)
+        self.context = context
+        self.db = context.db
+        self.people = people or PersonService(context)
+        self.inventory = inventory or InventoryService(context)
 
     def to_read(
         self,
         profile: CharacterProfile,
-        campaign: Campaign,
     ) -> CharacterRead:
-        person = self.people.get(campaign, profile.person_id)
+        person = self.people.get(profile.person_id)
         return CharacterRead(
             person=self.people.to_read(person),
             short_bio=profile.short_bio,
@@ -42,16 +42,16 @@ class CharacterService:
                 else ""
             ),
             is_active=(
-                campaign.active_character_person_id == profile.person_id
+                self.context.campaign.active_character_person_id
+                == profile.person_id
             ),
         )
 
     def get_profile(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> CharacterProfile:
-        self.people.get(campaign, person_id)
+        self.people.get(person_id)
         profile = self.db.get(CharacterProfile, person_id)
         if profile is None:
             raise HTTPException(
@@ -60,7 +60,8 @@ class CharacterService:
             )
         return profile
 
-    def get_active(self, campaign: Campaign) -> CharacterRead | None:
+    def get_active(self) -> CharacterRead | None:
+        campaign = self.context.campaign
         if campaign.active_character_person_id is None:
             return None
 
@@ -74,11 +75,10 @@ class CharacterService:
             self.db.commit()
             return None
 
-        return self.to_read(profile, campaign)
+        return self.to_read(profile)
 
     def stage_create_profile(
         self,
-        campaign: Campaign,
         person_id: int,
         *,
         short_bio: str = "",
@@ -86,7 +86,7 @@ class CharacterService:
         image_path: str = "",
     ) -> CharacterProfile:
         """Create a profile in the caller-owned transaction."""
-        self.people.get(campaign, person_id)
+        self.people.get(person_id)
         return self._insert_profile(
             person_id,
             short_bio=short_bio,
@@ -121,7 +121,6 @@ class CharacterService:
 
     def stage_create(
         self,
-        campaign: Campaign,
         character: CharacterCreate,
     ) -> CharacterProfile:
         """Create the person/profile aggregate in the caller-owned transaction."""
@@ -134,9 +133,9 @@ class CharacterService:
             )
 
         if character.person_id is not None:
-            person = self.people.get(campaign, character.person_id)
+            person = self.people.get(character.person_id)
         else:
-            person = self.people.stage_create(campaign, character.person)
+            person = self.people.stage_create(character.person)
 
         profile = self._insert_profile(
             person.id,
@@ -144,20 +143,18 @@ class CharacterService:
             appearance=character.appearance,
         )
         if character.make_active:
-            self.set_active_pointer(campaign, profile.person_id)
-            self.inventory.stage_sync_default_owner(campaign)
+            self.set_active_pointer(profile.person_id)
+            self.inventory.stage_sync_default_owner()
         return profile
 
     def stage_update(
         self,
-        campaign: Campaign,
         person_id: int,
         updated_character: CharacterUpdate,
     ) -> CharacterProfile:
         """Update the person/profile aggregate in the caller-owned transaction."""
-        profile = self.get_profile(campaign, person_id)
+        profile = self.get_profile(person_id)
         self.people.stage_update(
-            campaign,
             person_id,
             updated_character.person,
         )
@@ -169,82 +166,77 @@ class CharacterService:
 
     def set_active_pointer(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> CharacterProfile:
         """Set and flush the active profile without synchronizing inventory."""
-        profile = self.get_profile(campaign, person_id)
-        campaign.active_character_person_id = person_id
-        self.db.add(campaign)
+        profile = self.get_profile(person_id)
+        self.context.campaign.active_character_person_id = person_id
+        self.db.add(self.context.campaign)
         self.db.flush()
         return profile
 
     def create(
         self,
-        campaign: Campaign,
         character: CharacterCreate,
     ) -> CharacterRead:
         try:
-            profile = self.stage_create(campaign, character)
+            profile = self.stage_create(character)
             self.db.commit()
             self.db.refresh(profile)
-            self.db.refresh(campaign)
-            return self.to_read(profile, campaign)
+            self.db.refresh(self.context.campaign)
+            return self.to_read(profile)
         except Exception:
             self.db.rollback()
             raise
 
     def update(
         self,
-        campaign: Campaign,
         person_id: int,
         updated_character: CharacterUpdate,
     ) -> CharacterRead:
         try:
             profile = self.stage_update(
-                campaign,
                 person_id,
                 updated_character,
             )
             self.db.commit()
             self.db.refresh(profile)
-            return self.to_read(profile, campaign)
+            return self.to_read(profile)
         except Exception:
             self.db.rollback()
             raise
 
     def activate(
         self,
-        campaign: Campaign,
         person_id: int,
     ) -> CharacterRead:
         try:
-            profile = self.set_active_pointer(campaign, person_id)
-            self.inventory.stage_sync_default_owner(campaign)
+            profile = self.set_active_pointer(person_id)
+            self.inventory.stage_sync_default_owner()
             self.db.commit()
-            self.db.refresh(campaign)
-            return self.to_read(profile, campaign)
+            self.db.refresh(self.context.campaign)
+            return self.to_read(profile)
         except Exception:
             self.db.rollback()
             raise
 
-    def delete(self, campaign: Campaign, person_id: int) -> None:
-        profile = self.get_profile(campaign, person_id)
+    def delete(self, person_id: int) -> None:
+        profile = self.get_profile(person_id)
         portrait_path = profile.image_path
 
         try:
             CharacterNoteService(
-                self.db,
+                self.context,
                 self,
-            ).stage_delete_all_for_character(campaign, person_id)
+            ).stage_delete_all_for_character(person_id)
             BackstoryNoteService(
-                self.db,
+                self.context,
                 self,
-            ).stage_delete_all_for_character(campaign, person_id)
+            ).stage_delete_all_for_character(person_id)
 
-            if campaign.active_character_person_id == person_id:
-                campaign.active_character_person_id = None
-                self.db.add(campaign)
+            if self.context.campaign.active_character_person_id == person_id:
+                self.context.campaign.active_character_person_id = None
+                self.db.add(self.context.campaign)
 
             self.db.delete(profile)
             self.db.commit()

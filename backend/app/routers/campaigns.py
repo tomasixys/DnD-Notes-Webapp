@@ -16,9 +16,11 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.characters import CharacterService
 from app.services.inventory import InventoryService
 from app.services.people import PersonService
+from app.services.sessions import SessionNoteService
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
 from app.tags import (
@@ -112,7 +114,8 @@ def create_campaign(
 
     db.add(campaign)
     db.flush()  # assigns campaign.id without committing yet
-    InventoryService(db).stage_ensure_default(campaign)
+    context = CampaignContext(db, campaign)
+    InventoryService(context).stage_ensure_default()
 
     saved_image_relative_path: str | None = None
     saved_banner_relative_path: str | None = None
@@ -288,10 +291,12 @@ def export_campaign_backup(
         .where(Inventory.campaign_id == campaign_id)
         .order_by(Inventory.id)
     ).all()
-    inventory_service = InventoryService(db)
-    characters = CharacterService(db)
-    character_notes = CharacterNoteService(db, characters)
-    backstory_notes = BackstoryNoteService(db, characters)
+    context = CampaignContext(db, campaign)
+    inventory_service = InventoryService(context)
+    characters = CharacterService(context)
+    character_notes = CharacterNoteService(context, characters)
+    backstory_notes = BackstoryNoteService(context, characters)
+    sessions = SessionNoteService(context)
 
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
@@ -338,22 +343,7 @@ def export_campaign_backup(
                 ),
             ),
             sessions=[
-                CampaignBackupSession(
-                    date=session.date,
-                    title=session.title,
-                    description=session.content,
-                    session_number=session.session_number,
-                    tags=get_resource_tags(
-                        db, ResourceType.SESSION, session.id
-                    ),
-                    rolls=[
-                        roll_entry.roll
-                        for roll_entry in sorted(
-                            session.rolls,
-                            key=lambda roll_entry: roll_entry.id or 0,
-                        )
-                    ],
-                )
+                sessions.to_backup(session)
                 for session in sorted(
                     campaign.sessions,
                     key=lambda session: session.session_number,
@@ -507,8 +497,9 @@ async def import_campaign_backup(
             try:
                 db.add(campaign)
                 db.flush()
-                inventory_service = InventoryService(db)
-                inventory_service.stage_ensure_default(campaign)
+                context = CampaignContext(db, campaign)
+                inventory_service = InventoryService(context)
+                inventory_service.stage_ensure_default()
 
                 original_path = Path(cb.campaign.image_archive_path)
                 if cb.campaign.image_archive_path:
@@ -526,17 +517,23 @@ async def import_campaign_backup(
 
                 db.add(campaign)
 
-                people = PersonService(db)
+                people = PersonService(context)
                 characters = CharacterService(
-                    db,
+                    context,
                     people,
                     inventory_service,
                 )
-                character_notes = CharacterNoteService(db, characters)
-                backstory_notes = BackstoryNoteService(db, characters)
+                character_notes = CharacterNoteService(
+                    context,
+                    characters,
+                )
+                backstory_notes = BackstoryNoteService(
+                    context,
+                    characters,
+                )
+                sessions = SessionNoteService(context)
                 for person_backup in cb.people:
                     person = people.stage_create(
-                        campaign,
                         PersonData(
                             name=person_backup.name,
                             role=person_backup.role,
@@ -614,37 +611,7 @@ async def import_campaign_backup(
                     )
 
                 for session_backup in cb.sessions:
-                    session_note = SessionNote(
-                        campaign_id=campaign.id,
-                        date=session_backup.date,
-                        title=session_backup.title,
-                        content=session_backup.description,
-                        session_number=session_backup.session_number,
-                    )
-
-                    db.add(session_note)
-                    db.flush()
-                    sync_resource_tags(
-                        db,
-                        campaign.id,
-                        ResourceType.SESSION,
-                        session_note.id,
-                        session_backup.tags,
-                    )
-                    refresh_reference_tags_for_resource(
-                        db,
-                        campaign.id,
-                        ResourceType.SESSION,
-                        session_note.id,
-                    )
-
-                    for roll in session_backup.rolls:
-                        db.add(
-                            RollEntry(
-                                session_id=session_note.id,
-                                roll=roll,
-                            )
-                        )
+                    sessions.stage_restore(session_backup)
 
                 for character_backup in cb.characters:
                     person_id = person_id_map.get(
@@ -676,7 +643,6 @@ async def import_campaign_backup(
                         saved_asset_paths.append(image_path)
 
                     characters.stage_create_profile(
-                        campaign,
                         person_id,
                         short_bio=character_backup.short_bio,
                         appearance=character_backup.appearance,
@@ -696,9 +662,9 @@ async def import_campaign_backup(
                     for legacy_entry in character_backup.entries:
                         legacy_type = legacy_entry.entry_type.casefold()
                         if legacy_type == "note":
-                            note_groups[0][2].append(legacy_entry)
+                            note_groups[0][1].append(legacy_entry)
                         elif legacy_type == "backstory":
-                            note_groups[1][2].append(legacy_entry)
+                            note_groups[1][1].append(legacy_entry)
                         else:
                             raise HTTPException(
                                 status_code=400,
@@ -708,7 +674,6 @@ async def import_campaign_backup(
                     for note_service, note_backups in note_groups:
                         for note_backup in note_backups:
                             note_service.stage_restore(
-                                campaign,
                                 person_id,
                                 note_backup,
                             )
@@ -728,7 +693,6 @@ async def import_campaign_backup(
                         )
                     try:
                         characters.set_active_pointer(
-                            campaign,
                             active_person_id,
                         )
                     except HTTPException as error:
@@ -744,12 +708,11 @@ async def import_campaign_backup(
 
                 if cb.inventories:
                     inventory_service.stage_restore_backups(
-                        campaign,
                         cb.inventories,
                         person_id_map,
                     )
                 else:
-                    inventory_service.stage_sync_default_owner(campaign)
+                    inventory_service.stage_sync_default_owner()
 
                 db.commit()
                 db.refresh(campaign)

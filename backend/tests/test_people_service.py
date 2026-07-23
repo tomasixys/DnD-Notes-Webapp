@@ -6,6 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.models.api import PersonData
 from app.models.database import Campaign, Person
+from app.services.campaign_context import CampaignContext
 from app.services.people import PersonService
 
 
@@ -35,8 +36,9 @@ class PersonServiceTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
 
-            person = PersonService(db).stage_create(
-                campaign,
+            person = PersonService(
+                CampaignContext(db, campaign)
+            ).stage_create(
                 PersonData(
                     name="  Nalia  ",
                     role="  Wizard  ",
@@ -58,23 +60,21 @@ class PersonServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            people = PersonService(db)
+            people = PersonService(CampaignContext(db, campaign))
 
             created = people.create(
-                campaign,
                 PersonData(name="Nalia", role="Wizard"),
             )
             person_id = created.id
             self.assertIsNotNone(db.get(Person, person_id))
 
             updated = people.update(
-                campaign,
                 person_id,
                 PersonData(name="Nalia", role="Archmage"),
             )
             self.assertEqual("Archmage", updated.role)
 
-            people.delete(campaign, person_id)
+            people.delete(person_id)
             self.assertIsNone(db.get(Person, person_id))
 
     def test_stage_update_resolves_by_id_without_committing(self):
@@ -83,14 +83,12 @@ class PersonServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            people = PersonService(db)
+            people = PersonService(CampaignContext(db, campaign))
             person_id = people.create(
-                campaign,
                 PersonData(name="Nalia", role="Wizard"),
             ).id
 
             person = people.stage_update(
-                campaign,
                 person_id,
                 PersonData(name="Nalia", role="Archmage"),
             )

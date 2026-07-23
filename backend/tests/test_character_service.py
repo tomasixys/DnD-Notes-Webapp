@@ -11,6 +11,7 @@ from app.models.database import (
     InventoryAccess,
     Person,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.characters import CharacterService
 
 
@@ -40,8 +41,9 @@ class CharacterServiceTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
 
-            profile = CharacterService(db).stage_create(
-                campaign,
+            profile = CharacterService(
+                CampaignContext(db, campaign)
+            ).stage_create(
                 CharacterCreate(
                     person=PersonData(name="Nalia"),
                     short_bio="Wizard",
@@ -65,10 +67,9 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(db)
+            characters = CharacterService(CampaignContext(db, campaign))
 
             created = characters.create(
-                campaign,
                 CharacterCreate(
                     person=PersonData(name="Nalia", role="Wizard"),
                     short_bio="Academy exile",
@@ -77,7 +78,6 @@ class CharacterServiceTests(unittest.TestCase):
             person_id = created.person.id
 
             updated = characters.update(
-                campaign,
                 person_id,
                 CharacterUpdate(
                     person=PersonData(name="Nalia", role="Archmage"),
@@ -87,7 +87,7 @@ class CharacterServiceTests(unittest.TestCase):
             self.assertEqual("Archmage", updated.person.role)
             self.assertEqual("Court mage", updated.short_bio)
 
-            characters.delete(campaign, person_id)
+            characters.delete(person_id)
             self.assertIsNone(db.get(CharacterProfile, person_id))
             self.assertIsNotNone(db.get(Person, person_id))
 
@@ -97,21 +97,19 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(db)
+            characters = CharacterService(CampaignContext(db, campaign))
 
             first = characters.create(
-                campaign,
                 CharacterCreate(person=PersonData(name="Nalia")),
             )
             second = characters.create(
-                campaign,
                 CharacterCreate(
                     person=PersonData(name="Sable"),
                     make_active=False,
                 ),
             )
 
-            characters.set_active_pointer(campaign, second.person.id)
+            characters.set_active_pointer(second.person.id)
             grants = db.exec(select(InventoryAccess)).all()
 
             self.assertEqual(

@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, File, UploadFile
-from sqlmodel import Session
 
-from app.database import get_session
-from app.dependencies.campaigns import verify_campaign
+from app.dependencies.campaigns import get_campaign_context
 from app.file_storage import (
     delete_uploaded_file,
     save_image_from_uploadfile,
@@ -16,9 +14,9 @@ from app.models.api import (
     CharacterUpdate,
 )
 from app.models.database import (
-    Campaign,
     CharacterProfile,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
@@ -34,52 +32,43 @@ router = APIRouter(
 
 def character_to_read(
     profile: CharacterProfile,
-    campaign: Campaign,
-    db: Session,
+    context: CampaignContext,
 ) -> CharacterRead:
-    return CharacterService(db).to_read(profile, campaign)
+    return CharacterService(context).to_read(profile)
 
 
 def get_character_profile(
-    campaign_id: int,
     person_id: int,
-    db: Session,
+    context: CampaignContext,
 ) -> CharacterProfile:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterService(db).get_profile(campaign, person_id)
+    return CharacterService(context).get_profile(person_id)
 
 
 @router.get("/active")
 def get_active_character(
     campaign_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead | None:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterService(db).get_active(campaign)
+    return CharacterService(context).get_active()
 
 
 @router.get("/{person_id}")
 def get_character(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    characters = CharacterService(db)
-    return characters.to_read(
-        characters.get_profile(campaign, person_id),
-        campaign,
-    )
+    characters = CharacterService(context)
+    return characters.to_read(characters.get_profile(person_id))
 
 
 @router.post("")
 def create_character(
     campaign_id: int,
     character: CharacterCreate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterService(db).create(campaign, character)
+    return CharacterService(context).create(character)
 
 
 @router.put("/{person_id}")
@@ -87,34 +76,27 @@ def update_character(
     campaign_id: int,
     person_id: int,
     updated_character: CharacterUpdate,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterService(db).update(
-        campaign,
-        person_id,
-        updated_character,
-    )
+    return CharacterService(context).update(person_id, updated_character)
 
 
 @router.post("/{person_id}/activate")
 def activate_character(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterService(db).activate(campaign, person_id)
+    return CharacterService(context).activate(person_id)
 
 
 @router.delete("/{person_id}")
 def delete_character(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    CharacterService(db).delete(campaign, person_id)
+    CharacterService(context).delete(person_id)
     return {"deleted": True}
 
 
@@ -123,15 +105,18 @@ def update_character_image(
     campaign_id: int,
     person_id: int,
     image: UploadFile = File(...),
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
+    db = context.db
+    profile = get_character_profile(person_id, context)
     old_image_path = profile.image_path
     saved_image_path: str | None = None
 
     try:
-        saved_image_path = save_image_from_uploadfile(campaign_id, image)
+        saved_image_path = save_image_from_uploadfile(
+            context.campaign_id,
+            image,
+        )
         profile.image_path = saved_image_path
         db.add(profile)
         db.commit()
@@ -144,17 +129,17 @@ def update_character_image(
 
     if old_image_path:
         delete_uploaded_file(old_image_path)
-    return character_to_read(profile, campaign, db)
+    return character_to_read(profile, context)
 
 
 @router.delete("/{person_id}/image")
 def delete_character_image(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
+    db = context.db
+    profile = get_character_profile(person_id, context)
     image_path = profile.image_path
     profile.image_path = ""
     db.add(profile)
@@ -162,17 +147,16 @@ def delete_character_image(
     db.refresh(profile)
     if image_path:
         delete_uploaded_file(image_path)
-    return character_to_read(profile, campaign, db)
+    return character_to_read(profile, context)
 
 
 @router.get("/{person_id}/notes")
 def get_character_notes(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> list[CharacterNoteRead]:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterNoteService(db).list_for_character(campaign, person_id)
+    return CharacterNoteService(context).list_for_character(person_id)
 
 
 @router.post("/{person_id}/notes")
@@ -180,10 +164,9 @@ def create_character_note(
     campaign_id: int,
     person_id: int,
     note: CharacterNoteData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterNoteService(db).create(campaign, person_id, note)
+    return CharacterNoteService(context).create(person_id, note)
 
 
 @router.get("/{person_id}/notes/{note_id}")
@@ -191,11 +174,10 @@ def get_character_note(
     campaign_id: int,
     person_id: int,
     note_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    service = CharacterNoteService(db)
-    return service.to_read(service.get(campaign, person_id, note_id))
+    service = CharacterNoteService(context)
+    return service.to_read(service.get(person_id, note_id))
 
 
 @router.put("/{person_id}/notes/{note_id}")
@@ -204,15 +186,9 @@ def update_character_note(
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    return CharacterNoteService(db).update(
-        campaign,
-        person_id,
-        note_id,
-        note,
-    )
+    return CharacterNoteService(context).update(person_id, note_id, note)
 
 
 @router.delete("/{person_id}/notes/{note_id}")
@@ -220,10 +196,9 @@ def delete_character_note(
     campaign_id: int,
     person_id: int,
     note_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    CharacterNoteService(db).delete(campaign, person_id, note_id)
+    CharacterNoteService(context).delete(person_id, note_id)
     return {"deleted": True}
 
 
@@ -231,10 +206,9 @@ def delete_character_note(
 def get_backstory_notes(
     campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> list[BackstoryNoteRead]:
-    campaign = verify_campaign(campaign_id, db)
-    return BackstoryNoteService(db).list_for_character(campaign, person_id)
+    return BackstoryNoteService(context).list_for_character(person_id)
 
 
 @router.post("/{person_id}/backstory")
@@ -242,10 +216,9 @@ def create_backstory_note(
     campaign_id: int,
     person_id: int,
     note: CharacterNoteData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> BackstoryNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    return BackstoryNoteService(db).create(campaign, person_id, note)
+    return BackstoryNoteService(context).create(person_id, note)
 
 
 @router.get("/{person_id}/backstory/{note_id}")
@@ -253,11 +226,10 @@ def get_backstory_note(
     campaign_id: int,
     person_id: int,
     note_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> BackstoryNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    service = BackstoryNoteService(db)
-    return service.to_read(service.get(campaign, person_id, note_id))
+    service = BackstoryNoteService(context)
+    return service.to_read(service.get(person_id, note_id))
 
 
 @router.put("/{person_id}/backstory/{note_id}")
@@ -266,15 +238,9 @@ def update_backstory_note(
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ) -> BackstoryNoteRead:
-    campaign = verify_campaign(campaign_id, db)
-    return BackstoryNoteService(db).update(
-        campaign,
-        person_id,
-        note_id,
-        note,
-    )
+    return BackstoryNoteService(context).update(person_id, note_id, note)
 
 
 @router.delete("/{person_id}/backstory/{note_id}")
@@ -282,8 +248,7 @@ def delete_backstory_note(
     campaign_id: int,
     person_id: int,
     note_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    campaign = verify_campaign(campaign_id, db)
-    BackstoryNoteService(db).delete(campaign, person_id, note_id)
+    BackstoryNoteService(context).delete(person_id, note_id)
     return {"deleted": True}

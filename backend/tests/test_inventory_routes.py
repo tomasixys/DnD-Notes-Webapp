@@ -36,6 +36,7 @@ from app.routers.inventory import (
     update_inventory_item,
     update_purse,
 )
+from app.services.campaign_context import CampaignContext
 
 
 class InventoryRouteIntegrationTests(unittest.TestCase):
@@ -73,7 +74,8 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_inventory_mutations_return_the_complete_updated_inventory(self):
         with Session(self.engine) as db:
-            initial = get_inventory(self.campaign_id, db)
+            context = CampaignContext.resolve(db, self.campaign_id)
+            initial = get_inventory(self.campaign_id, context)
             self.assertEqual(initial.name, "Party Inventory")
             self.assertEqual(
                 initial.purse.balances.model_dump(),
@@ -89,7 +91,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
                     name="Shared Pack",
                     description="Party supplies",
                 ),
-                db,
+                context,
             )
             self.assertEqual(renamed.name, "Shared Pack")
 
@@ -98,7 +100,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
                 PurseUpdate(
                     balances=PurseBalancesUpdate(sp=8, gp=42)
                 ),
-                db,
+                context,
             )
             self.assertEqual(purse_payload.purse.balances.sp, 8)
             self.assertEqual(purse_payload.purse.total_value.amount, Decimal("42.8"))
@@ -115,7 +117,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
                         denomination=CurrencyDenomination.PLATINUM,
                     ),
                 ),
-                db,
+                context,
             )
             item = created_payload.items[0]
             item_id = item.id
@@ -133,7 +135,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
                     rarity=None,
                     unit_value=None,
                 ),
-                db,
+                context,
             )
             updated_item = updated_payload.items[0]
             self.assertEqual(updated_item.quantity, 2)
@@ -144,7 +146,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             deleted_payload = delete_inventory_item(
                 self.campaign_id,
                 item_id,
-                db,
+                context,
             )
             self.assertEqual(deleted_payload.items, [])
             self.assertEqual(deleted_payload.purse.balances.gp, 42)
@@ -152,6 +154,10 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_item_value_must_resolve_to_whole_copper(self):
         with Session(self.engine) as db:
+            campaign_context = CampaignContext.resolve(
+                db,
+                self.campaign_id,
+            )
             with self.assertRaises(HTTPException) as context:
                 create_inventory_item(
                     self.campaign_id,
@@ -162,7 +168,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
                             denomination=CurrencyDenomination.COPPER,
                         ),
                     ),
-                    db,
+                    campaign_context,
                 )
             self.assertEqual(context.exception.status_code, 422)
             self.assertIn("whole number of copper", context.exception.detail)
@@ -170,7 +176,8 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_activating_character_transfers_automatic_ownership(self):
         with Session(self.engine) as db:
-            get_inventory(self.campaign_id, db)
+            context = CampaignContext.resolve(db, self.campaign_id)
+            get_inventory(self.campaign_id, context)
             person = Person(campaign_id=self.campaign_id, name="Sable")
             db.add(person)
             db.flush()
@@ -178,8 +185,8 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             db.commit()
             replacement_id = person.id
 
-            activate_character(self.campaign_id, replacement_id, db)
-            response = get_inventory(self.campaign_id, db)
+            activate_character(self.campaign_id, replacement_id, context)
+            response = get_inventory(self.campaign_id, context)
             self.assertEqual(len(response.members), 1)
             self.assertEqual(
                 response.members[0].character_person_id,

@@ -60,6 +60,7 @@ from app.routers.campaigns import (
     export_campaign_backup,
     import_campaign_backup,
 )
+from app.services.campaign_context import CampaignContext
 from app.services.people import PersonService
 
 
@@ -88,6 +89,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             first = create_character(
                 campaign.id,
@@ -95,7 +97,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     person=PersonData(name="Nalia", role="Wizard"),
                     short_bio="Academy exile",
                 ),
-                db,
+                context,
             )
             second = create_character(
                 campaign.id,
@@ -103,7 +105,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     person=PersonData(name="Sable", role="Rogue"),
                     short_bio="Replacement character",
                 ),
-                db,
+                context,
             )
 
             db.refresh(campaign)
@@ -111,17 +113,17 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 campaign.active_character_person_id,
                 second.person.id,
             )
-            former = get_character(campaign.id, first.person.id, db)
+            former = get_character(campaign.id, first.person.id, context)
             self.assertFalse(former.is_active)
             self.assertTrue(second.is_active)
             self.assertIsNotNone(db.get(CharacterProfile, first.person.id))
             self.assertIsNotNone(db.get(Person, first.person.id))
             self.assertEqual(len(db.exec(select(CharacterProfile)).all()), 2)
 
-            active = get_active_character(campaign.id, db)
+            active = get_active_character(campaign.id, context)
             self.assertEqual(active.person.id, second.person.id)
 
-            former_person = PersonService(db).to_read(
+            former_person = PersonService(context).to_read(
                 db.get(Person, first.person.id)
             )
             self.assertTrue(former_person.character_profile_available)
@@ -137,6 +139,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             response = create_session_note(
                 campaign.id,
@@ -146,7 +149,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     description="Reached the city",
                     session_number=1,
                 ),
-                db,
+                context,
             )
             stored = db.get(SessionNote, response.id)
 
@@ -164,11 +167,12 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
             db.refresh(person)
+            context = CampaignContext(db, campaign)
 
             create_character(
                 campaign.id,
                 CharacterCreate(person_id=person.id),
-                db,
+                context,
             )
             note = create_character_note(
                 campaign.id,
@@ -178,7 +182,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     content="Healing potion",
                     tags=["shopping", "person:Nalia"],
                 ),
-                db,
+                context,
             )
             backstory = create_backstory_note(
                 campaign.id,
@@ -188,7 +192,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     content="Raised by an aunt",
                     tags=["family"],
                 ),
-                db,
+                context,
             )
 
             self.assertEqual(
@@ -200,12 +204,12 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             notes = get_character_notes(
                 campaign.id,
                 person.id,
-                db,
+                context,
             )
             backstories = get_backstory_notes(
                 campaign.id,
                 person.id,
-                db,
+                context,
             )
             self.assertEqual([entry.id for entry in notes], [note.id])
             self.assertEqual(
@@ -219,11 +223,12 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             character = create_character(
                 campaign.id,
                 CharacterCreate(person=PersonData(name="Nalia")),
-                db,
+                context,
             )
             note = create_character_note(
                 campaign.id,
@@ -233,7 +238,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     content="Buy healing potions",
                     tags=["urgent"],
                 ),
-                db,
+                context,
             )
             backstory = create_backstory_note(
                 campaign.id,
@@ -243,7 +248,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     content="Raised by an aunt",
                     tags=["childhood"],
                 ),
-                db,
+                context,
             )
 
             note_results = search_campaign(
@@ -287,11 +292,12 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             character = create_character(
                 campaign.id,
                 CharacterCreate(person=PersonData(name="Nalia")),
-                db,
+                context,
             )
             entry = create_character_note(
                 campaign.id,
@@ -300,10 +306,10 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     title="To do",
                     tags=["urgent"],
                 ),
-                db,
+                context,
             )
 
-            delete_character(campaign.id, character.person.id, db)
+            delete_character(campaign.id, character.person.id, context)
             self.assertIsNotNone(db.get(Person, character.person.id))
             self.assertIsNone(db.get(CharacterProfile, character.person.id))
             self.assertIsNone(db.get(CharacterNote, entry.id))
@@ -322,7 +328,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             replacement = create_character(
                 campaign.id,
                 CharacterCreate(person=PersonData(name="Sable")),
-                db,
+                context,
             )
             create_backstory_note(
                 campaign.id,
@@ -330,9 +336,9 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 CharacterNoteData(
                     title="Earlier work",
                 ),
-                db,
+                context,
             )
-            delete_person(campaign.id, replacement.person.id, db)
+            delete_person(campaign.id, replacement.person.id, context)
             self.assertIsNone(db.get(Person, replacement.person.id))
             self.assertIsNone(db.get(CharacterProfile, replacement.person.id))
             db.refresh(campaign)
@@ -346,6 +352,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 db.add(campaign)
                 db.commit()
                 db.refresh(campaign)
+                context = CampaignContext(db, campaign)
 
                 character = create_character(
                     campaign.id,
@@ -358,7 +365,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                         short_bio="Academy exile",
                         appearance="Silver hair",
                     ),
-                    db,
+                    context,
                 )
                 create_backstory_note(
                     campaign.id,
@@ -368,7 +375,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                         content="Raised by an aunt",
                         tags=["family"],
                     ),
-                    db,
+                    context,
                 )
                 inventory = db.exec(
                     select(Inventory).where(
@@ -435,7 +442,11 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     CharacterProfile,
                     imported_campaign.active_character_person_id,
                 )
-                imported_person = PersonService(db).to_read(
+                imported_context = CampaignContext(
+                    db,
+                    imported_campaign,
+                )
+                imported_person = PersonService(imported_context).to_read(
                     db.get(Person, imported_profile.person_id)
                 )
                 imported_entries = db.exec(
