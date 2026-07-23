@@ -1,7 +1,11 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlmodel import select
 
-from app.file_storage import build_upload_url, delete_uploaded_file
+from app.file_storage import (
+    build_upload_url,
+    delete_uploaded_file,
+    save_image_from_uploadfile,
+)
 from app.models.api import (
     CampaignBackupCharacter,
     CharacterCreate,
@@ -258,6 +262,57 @@ class CharacterService:
         except Exception:
             self.db.rollback()
             raise
+
+    def replace_portrait(
+        self,
+        person_id: int,
+        image: UploadFile,
+    ) -> CharacterRead:
+        profile = self.get_profile(person_id)
+        old_portrait_path = profile.image_path
+        saved_portrait_path: str | None = None
+
+        try:
+            saved_portrait_path = save_image_from_uploadfile(
+                self.context.campaign_id,
+                image,
+            )
+            profile.image_path = saved_portrait_path
+            self.db.add(profile)
+            self.db.commit()
+            self.db.refresh(profile)
+        except Exception:
+            self.db.rollback()
+            if saved_portrait_path:
+                delete_uploaded_file(saved_portrait_path)
+            raise
+
+        if (
+            old_portrait_path
+            and old_portrait_path != saved_portrait_path
+        ):
+            delete_uploaded_file(old_portrait_path)
+        return self.to_read(profile)
+
+    def remove_portrait(
+        self,
+        person_id: int,
+    ) -> CharacterRead:
+        profile = self.get_profile(person_id)
+        old_portrait_path = profile.image_path
+
+        try:
+            profile.image_path = ""
+            self.db.add(profile)
+            self.db.commit()
+            self.db.refresh(profile)
+        except Exception:
+            self.db.rollback()
+            raise
+
+        if old_portrait_path:
+            delete_uploaded_file(old_portrait_path)
+        return self.to_read(profile)
 
     def delete(self, person_id: int) -> None:
         profile = self.get_profile(person_id)

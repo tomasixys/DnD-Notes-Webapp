@@ -38,10 +38,11 @@ examples below are starting points, not the limit of the refactor.
 - [x] Removed redundant `campaign_id` handler arguments where
   `get_campaign_context` owns path resolution.
 - [x] Made inventory mutations return the refreshed `InventoryRead` aggregate.
+- [x] Moved character portrait persistence into `CharacterService` while
+  retaining shared validation and filesystem operations in `file_storage.py`.
 
 ### Remaining
 
-- [ ] Move the remaining character image persistence logic out of the router.
 - [ ] Replace remaining response dictionaries with explicit API models.
 - [ ] Standardize mutation responses and remove compensating frontend GETs.
 - [ ] Replace untyped `{"deleted": true}` responses.
@@ -69,10 +70,10 @@ another router. This pressure point is resolved.
 
 ### Mixed responsibilities
 
-Most route handlers now delegate persistence and transaction behavior to
-services. The main remaining exception is character image persistence. The
-next cross-cutting pressure point is inconsistent mutation responses: several
-views still perform a collection GET immediately after a successful mutation.
+Route handlers now delegate persistence and transaction behavior to services,
+including character portrait replacement and removal. The next cross-cutting
+pressure point is inconsistent mutation responses: several views still perform
+a collection GET immediately after a successful mutation.
 
 Inventory and character notes already demonstrate the preferred frontend
 behavior by applying authoritative mutation responses locally.
@@ -114,6 +115,9 @@ are:
 - `services`: application operations, transaction boundaries, domain
   validation, persistence coordination, and conversion between database and API
   representations.
+- `file_storage.py`: shared uploaded-file validation, path construction, and
+  filesystem operations. Resource services own the database transaction and
+  decide when old or newly saved files must be removed.
 - `models/api`: explicit transport models rather than ad hoc dictionaries.
 - `models/database`: persistence structure and relationships only.
 
@@ -272,9 +276,8 @@ Required verification:
 
 ### PR 2: Thin campaign and character routers
 
-Implementation status: mostly completed. Campaign CRUD and character domain
-operations use services. Character portrait persistence remains in the router
-and should be moved in a focused follow-up.
+Implementation status: completed. Campaign CRUD and character domain
+operations, including portrait replacement and removal, use services.
 
 Move campaign CRUD and character profile operations into focused services.
 Separate character notes, backstory, image handling, and activation where their
@@ -392,8 +395,8 @@ and still would not provide real synchronization between multiple clients.
 
 ##### PR 5d: Characters, notes, and backstory
 
-- Move portrait persistence into the character service before changing its
-  mutation contracts.
+- Portrait persistence is already owned by `CharacterService`; retain that
+  boundary while changing mutation contracts.
 - Remove redundant character reloads where `CharacterRead` is already returned.
 - Add typed character and note deletion responses.
 - Review create/activate/delete for active-character, campaign-summary, person,
