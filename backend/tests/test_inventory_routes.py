@@ -148,6 +148,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(deleted_payload.items, [])
             self.assertEqual(deleted_payload.purse.balances.gp, 42)
+            self.assertIsNone(db.get(InventoryItem, item_id))
 
     def test_item_value_must_resolve_to_whole_copper(self):
         with Session(self.engine) as db:

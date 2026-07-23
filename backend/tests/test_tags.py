@@ -122,6 +122,7 @@ class TagHandlerTests(unittest.TestCase):
             location = Location(campaign_id=campaign.id, name="Missing Inn")
             db.add(location)
             db.flush()
+            location_id = location.id
             resolve_pending_tags_for_resource(
                 db, campaign.id, ResourceType.LOCATION, location.name
             )
@@ -133,6 +134,7 @@ class TagHandlerTests(unittest.TestCase):
             db.delete(location)
             db.flush()
             db.refresh(tag)
+            self.assertIsNone(db.get(Location, location_id))
             self.assertIsNone(tag.reference_id)
             self.assertEqual(tag.resolution_state, "unresolved")
 
