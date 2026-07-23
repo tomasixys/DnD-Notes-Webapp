@@ -14,7 +14,6 @@ router = APIRouter(
 
 @router.post("")
 def search_campaign(
-    campaign_id: int,
     queryDto: SearchQueryDto,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> SearchResponseDto:

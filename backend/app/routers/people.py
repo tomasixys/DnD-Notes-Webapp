@@ -14,7 +14,6 @@ router = APIRouter(
 
 @router.get("")
 def get_people_for_campaign(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
     people = PersonService(context)
@@ -23,7 +22,6 @@ def get_people_for_campaign(
 
 @router.get("/{person_id}")
 def get_person(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -33,7 +31,6 @@ def get_person(
 
 @router.post("")
 def create_person(
-    campaign_id: int,
     person: PersonData,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -42,7 +39,6 @@ def create_person(
 
 @router.put("/{person_id}")
 def update_person(
-    campaign_id: int,
     person_id: int,
     updated_person: PersonData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -52,7 +48,6 @@ def update_person(
 
 @router.delete("/{person_id}")
 def delete_person(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):

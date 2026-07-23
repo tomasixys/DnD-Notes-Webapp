@@ -14,7 +14,6 @@ router = APIRouter(
 
 @router.get("")
 def get_factions_for_campaign(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
     factions = FactionService(context)
@@ -23,7 +22,6 @@ def get_factions_for_campaign(
 
 @router.get("/{faction_id}")
 def get_faction(
-    campaign_id: int,
     faction_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -33,7 +31,6 @@ def get_faction(
 
 @router.post("")
 def create_faction(
-    campaign_id: int,
     faction: FactionData,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -42,7 +39,6 @@ def create_faction(
 
 @router.put("/{faction_id}")
 def update_faction(
-    campaign_id: int,
     faction_id: int,
     updated_faction: FactionData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -55,7 +51,6 @@ def update_faction(
 
 @router.delete("/{faction_id}")
 def delete_faction(
-    campaign_id: int,
     faction_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):

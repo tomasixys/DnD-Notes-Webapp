@@ -19,7 +19,6 @@ router = APIRouter(
 
 @router.get("/campaign-stats")
 def get_campaign_roll_stats(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CampaignRollStats:
     return RollService(context).get_campaign_stats()
@@ -27,7 +26,6 @@ def get_campaign_roll_stats(
 
 @router.get("/sessions/{session_id}")
 def get_session_roll_stats(
-    campaign_id: int,
     session_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> SessionRollStats:
@@ -36,7 +34,6 @@ def get_session_roll_stats(
 
 @router.post("")
 def create_roll(
-    campaign_id: int,
     roll_create: RollCreate,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> RollCreateResponse:
@@ -45,7 +42,6 @@ def create_roll(
 
 @router.delete("/sessions/{session_id}")
 def delete_session_rolls(
-    campaign_id: int,
     session_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> dict[str, bool]:

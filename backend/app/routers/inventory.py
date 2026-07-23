@@ -20,7 +20,6 @@ router = APIRouter(
 
 @router.get("", response_model=InventoryRead)
 def get_inventory(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
     return InventoryService(context).get_default()
@@ -28,7 +27,6 @@ def get_inventory(
 
 @router.patch("", response_model=InventoryRead)
 def update_inventory(
-    campaign_id: int,
     update: InventoryUpdate,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
@@ -37,7 +35,6 @@ def update_inventory(
 
 @router.patch("/purse", response_model=InventoryRead)
 def update_purse(
-    campaign_id: int,
     update: PurseUpdate,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
@@ -50,7 +47,6 @@ def update_purse(
     status_code=status.HTTP_201_CREATED,
 )
 def create_inventory_item(
-    campaign_id: int,
     item_data: InventoryItemCreate,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:
@@ -59,7 +55,6 @@ def create_inventory_item(
 
 @router.patch("/items/{item_id}", response_model=InventoryRead)
 def update_inventory_item(
-    campaign_id: int,
     item_id: int,
     update: InventoryItemUpdate,
     context: CampaignContext = Depends(get_campaign_context),
@@ -69,7 +64,6 @@ def update_inventory_item(
 
 @router.delete("/items/{item_id}", response_model=InventoryRead)
 def delete_inventory_item(
-    campaign_id: int,
     item_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> InventoryRead:

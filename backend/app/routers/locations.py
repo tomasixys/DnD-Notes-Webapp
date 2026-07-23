@@ -14,7 +14,6 @@ router = APIRouter(
 
 @router.get("")
 def get_locations_for_campaign(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
     locations = LocationService(context)
@@ -23,7 +22,6 @@ def get_locations_for_campaign(
 
 @router.get("/{location_id}")
 def get_location(
-    campaign_id: int,
     location_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -33,7 +31,6 @@ def get_location(
 
 @router.post("")
 def create_location(
-    campaign_id: int,
     location: LocationData,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -42,7 +39,6 @@ def create_location(
 
 @router.put("/{location_id}")
 def update_location(
-    campaign_id: int,
     location_id: int,
     updated_location: LocationData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -55,7 +51,6 @@ def update_location(
 
 @router.delete("/{location_id}")
 def delete_location(
-    campaign_id: int,
     location_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):

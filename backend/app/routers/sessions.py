@@ -14,7 +14,6 @@ router = APIRouter(
 
 @router.get("")
 def get_sessions_for_campaign(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
     return SessionNoteService(context).list_for_campaign()
@@ -22,7 +21,6 @@ def get_sessions_for_campaign(
 
 @router.get("/{session_note_id}")
 def get_session_note(
-    campaign_id: int,
     session_note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -32,7 +30,6 @@ def get_session_note(
 
 @router.post("")
 def create_session_note(
-    campaign_id: int,
     session_note: SessionNoteData,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -41,7 +38,6 @@ def create_session_note(
 
 @router.put("/{session_note_id}")
 def update_session_note(
-    campaign_id: int,
     session_note_id: int,
     updated_session: SessionNoteData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -53,7 +49,6 @@ def update_session_note(
 
 @router.delete("/{session_note_id}")
 def delete_session_note(
-    campaign_id: int,
     session_note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):

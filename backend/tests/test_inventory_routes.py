@@ -75,7 +75,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
     def test_inventory_mutations_return_the_complete_updated_inventory(self):
         with Session(self.engine) as db:
             context = CampaignContext.resolve(db, self.campaign_id)
-            initial = get_inventory(self.campaign_id, context)
+            initial = get_inventory(context)
             self.assertEqual(initial.name, "Party Inventory")
             self.assertEqual(
                 initial.purse.balances.model_dump(),
@@ -86,7 +86,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             self.assertTrue(initial.members[0].is_active_character)
 
             renamed = update_inventory(
-                self.campaign_id,
                 InventoryUpdate(
                     name="Shared Pack",
                     description="Party supplies",
@@ -96,7 +95,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             self.assertEqual(renamed.name, "Shared Pack")
 
             purse_payload = update_purse(
-                self.campaign_id,
                 PurseUpdate(
                     balances=PurseBalancesUpdate(sp=8, gp=42)
                 ),
@@ -106,7 +104,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             self.assertEqual(purse_payload.purse.total_value.amount, Decimal("42.8"))
 
             created_payload = create_inventory_item(
-                self.campaign_id,
                 InventoryItemCreate(
                     name="Healing Potion",
                     category=ItemCategory.CONSUMABLE,
@@ -128,7 +125,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             self.assertEqual(stored_item.unit_value_cp, 500)
 
             updated_payload = update_inventory_item(
-                self.campaign_id,
                 item_id,
                 InventoryItemUpdate(
                     quantity=2,
@@ -144,7 +140,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             self.assertIsNone(updated_item.total_value)
 
             deleted_payload = delete_inventory_item(
-                self.campaign_id,
                 item_id,
                 context,
             )
@@ -160,7 +155,6 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             )
             with self.assertRaises(HTTPException) as context:
                 create_inventory_item(
-                    self.campaign_id,
                     InventoryItemCreate(
                         name="Impossible fraction",
                         unit_value=MoneyAmount(
@@ -177,7 +171,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
     def test_activating_character_transfers_automatic_ownership(self):
         with Session(self.engine) as db:
             context = CampaignContext.resolve(db, self.campaign_id)
-            get_inventory(self.campaign_id, context)
+            get_inventory(context)
             person = Person(campaign_id=self.campaign_id, name="Sable")
             db.add(person)
             db.flush()
@@ -185,8 +179,8 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
             db.commit()
             replacement_id = person.id
 
-            activate_character(self.campaign_id, replacement_id, context)
-            response = get_inventory(self.campaign_id, context)
+            activate_character(replacement_id, context)
+            response = get_inventory(context)
             self.assertEqual(len(response.members), 1)
             self.assertEqual(
                 response.members[0].character_person_id,

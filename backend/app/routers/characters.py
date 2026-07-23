@@ -46,7 +46,6 @@ def get_character_profile(
 
 @router.get("/active")
 def get_active_character(
-    campaign_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead | None:
     return CharacterService(context).get_active()
@@ -54,7 +53,6 @@ def get_active_character(
 
 @router.get("/{person_id}")
 def get_character(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
@@ -64,7 +62,6 @@ def get_character(
 
 @router.post("")
 def create_character(
-    campaign_id: int,
     character: CharacterCreate,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
@@ -73,7 +70,6 @@ def create_character(
 
 @router.put("/{person_id}")
 def update_character(
-    campaign_id: int,
     person_id: int,
     updated_character: CharacterUpdate,
     context: CampaignContext = Depends(get_campaign_context),
@@ -83,7 +79,6 @@ def update_character(
 
 @router.post("/{person_id}/activate")
 def activate_character(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
@@ -92,7 +87,6 @@ def activate_character(
 
 @router.delete("/{person_id}")
 def delete_character(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ):
@@ -102,7 +96,6 @@ def delete_character(
 
 @router.put("/{person_id}/image")
 def update_character_image(
-    campaign_id: int,
     person_id: int,
     image: UploadFile = File(...),
     context: CampaignContext = Depends(get_campaign_context),
@@ -134,7 +127,6 @@ def update_character_image(
 
 @router.delete("/{person_id}/image")
 def delete_character_image(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
@@ -152,7 +144,6 @@ def delete_character_image(
 
 @router.get("/{person_id}/notes")
 def get_character_notes(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> list[CharacterNoteRead]:
@@ -161,7 +152,6 @@ def get_character_notes(
 
 @router.post("/{person_id}/notes")
 def create_character_note(
-    campaign_id: int,
     person_id: int,
     note: CharacterNoteData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -171,7 +161,6 @@ def create_character_note(
 
 @router.get("/{person_id}/notes/{note_id}")
 def get_character_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
@@ -182,7 +171,6 @@ def get_character_note(
 
 @router.put("/{person_id}/notes/{note_id}")
 def update_character_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
@@ -193,7 +181,6 @@ def update_character_note(
 
 @router.delete("/{person_id}/notes/{note_id}")
 def delete_character_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
@@ -204,7 +191,6 @@ def delete_character_note(
 
 @router.get("/{person_id}/backstory")
 def get_backstory_notes(
-    campaign_id: int,
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> list[BackstoryNoteRead]:
@@ -213,7 +199,6 @@ def get_backstory_notes(
 
 @router.post("/{person_id}/backstory")
 def create_backstory_note(
-    campaign_id: int,
     person_id: int,
     note: CharacterNoteData,
     context: CampaignContext = Depends(get_campaign_context),
@@ -223,7 +208,6 @@ def create_backstory_note(
 
 @router.get("/{person_id}/backstory/{note_id}")
 def get_backstory_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
@@ -234,7 +218,6 @@ def get_backstory_note(
 
 @router.put("/{person_id}/backstory/{note_id}")
 def update_backstory_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
@@ -245,7 +228,6 @@ def update_backstory_note(
 
 @router.delete("/{person_id}/backstory/{note_id}")
 def delete_backstory_note(
-    campaign_id: int,
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
