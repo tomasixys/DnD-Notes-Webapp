@@ -19,21 +19,14 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
-from app.tags import (
-    get_resource_relationship,
-    get_resource_tag_reads,
-    get_resource_tags,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_relationship,
-    sync_resource_tags,
-)
+from app.services.tags import TagService
 
 
 class PersonService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.tags = TagService(context)
 
     def to_read(self, person: Person) -> PersonRead:
         character_profile = self.db.get(CharacterProfile, person.id)
@@ -42,21 +35,18 @@ class PersonService:
             campaign_id=person.campaign_id,
             name=person.name,
             role=person.role,
-            faction=get_resource_relationship(
-                self.db,
+            faction=self.tags.get_relationship(
                 ResourceType.PERSON,
                 person.id,
                 RelationshipType.MEMBER_OF,
             ),
-            location=get_resource_relationship(
-                self.db,
+            location=self.tags.get_relationship(
                 ResourceType.PERSON,
                 person.id,
                 RelationshipType.LOCATED_IN,
             ),
             description=person.description,
-            tags=get_resource_tag_reads(
-                self.db,
+            tags=self.tags.list_tag_reads(
                 ResourceType.PERSON,
                 person.id,
             ),
@@ -85,14 +75,12 @@ class PersonService:
         return self.db.exec(statement).all()
 
     def to_backup(self, person: Person) -> CampaignBackupPerson:
-        faction = get_resource_relationship(
-            self.db,
+        faction = self.tags.get_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.MEMBER_OF,
         )
-        location = get_resource_relationship(
-            self.db,
+        location = self.tags.get_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.LOCATED_IN,
@@ -104,8 +92,7 @@ class PersonService:
             faction=faction.label if faction else "",
             location=location.label if location else "",
             description=person.description,
-            tags=get_resource_tags(
-                self.db,
+            tags=self.tags.list_values(
                 ResourceType.PERSON,
                 person.id,
             ),
@@ -134,34 +121,26 @@ class PersonService:
 
         self.db.add(db_person)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.PERSON,
             db_person.id,
             person.tags,
         )
-        sync_resource_relationship(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.PERSON,
             db_person.id,
             RelationshipType.MEMBER_OF,
             ResourceType.FACTION,
             person.faction,
         )
-        sync_resource_relationship(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.PERSON,
             db_person.id,
             RelationshipType.LOCATED_IN,
             ResourceType.LOCATION,
             person.location,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.PERSON,
             db_person.id,
         )
@@ -186,34 +165,26 @@ class PersonService:
 
         self.db.add(person)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            person.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.PERSON,
             person.id,
             updated_person.tags,
         )
-        sync_resource_relationship(
-            self.db,
-            person.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.MEMBER_OF,
             ResourceType.FACTION,
             updated_person.faction,
         )
-        sync_resource_relationship(
-            self.db,
-            person.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.LOCATED_IN,
             ResourceType.LOCATION,
             updated_person.location,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            person.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.PERSON,
             person.id,
             previous_labels=[previous_name],
@@ -270,8 +241,7 @@ class PersonService:
                 self.context.campaign.active_character_person_id = None
                 self.db.add(self.context.campaign)
 
-            handle_tags_of_deleted_resource(
-                self.db,
+            self.tags.stage_handle_resource_deletion(
                 ResourceType.PERSON,
                 person.id,
             )

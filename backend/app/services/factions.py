@@ -11,22 +11,14 @@ from app.models.api import (
 from app.models.database import Faction
 from app.models.enums import RelationshipType, ResourceType
 from app.services.campaign_context import CampaignContext
-from app.tags import (
-    get_resource_relationship,
-    get_resource_tag_reads,
-    get_resource_tags,
-    get_resources_referencing_tag,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_relationship,
-    sync_resource_tags,
-)
+from app.services.tags import TagService
 
 
 class FactionService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.tags = TagService(context)
 
     def to_read(self, faction: Faction) -> FactionRead:
         return FactionRead(
@@ -34,23 +26,19 @@ class FactionService:
             campaign_id=faction.campaign_id,
             name=faction.name,
             type=faction.type,
-            location=get_resource_relationship(
-                self.db,
+            location=self.tags.get_relationship(
                 ResourceType.FACTION,
                 faction.id,
                 RelationshipType.BASED_IN,
             ),
-            members=get_resources_referencing_tag(
-                self.db,
-                self.context.campaign_id,
-                ResourceType.FACTION,
-                faction.id,
-                ResourceType.PERSON,
-                RelationshipType.MEMBER_OF,
+            members=self.tags.list_referencing_resources(
+                target_type=ResourceType.FACTION,
+                target_id=faction.id,
+                owner_type=ResourceType.PERSON,
+                relationship_type=RelationshipType.MEMBER_OF,
             ),
             description=faction.description,
-            tags=get_resource_tag_reads(
-                self.db,
+            tags=self.tags.list_tag_reads(
                 ResourceType.FACTION,
                 faction.id,
             ),
@@ -90,25 +78,19 @@ class FactionService:
         )
         self.db.add(faction)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.FACTION,
             faction.id,
             tags,
         )
-        sync_resource_relationship(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.FACTION,
             faction.id,
             RelationshipType.BASED_IN,
             ResourceType.LOCATION,
             location,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.FACTION,
             faction.id,
         )
@@ -145,25 +127,19 @@ class FactionService:
         faction.description = faction_data.description
         self.db.add(faction)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.FACTION,
             faction.id,
             faction_data.tags,
         )
-        sync_resource_relationship(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_relationship(
             ResourceType.FACTION,
             faction.id,
             RelationshipType.BASED_IN,
             ResourceType.LOCATION,
             faction_data.location,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.FACTION,
             faction.id,
             previous_labels=[previous_name],
@@ -186,8 +162,7 @@ class FactionService:
 
     def stage_delete(self, faction_id: int) -> None:
         faction = self.get(faction_id)
-        handle_tags_of_deleted_resource(
-            self.db,
+        self.tags.stage_handle_resource_deletion(
             ResourceType.FACTION,
             faction.id,
         )
@@ -203,8 +178,7 @@ class FactionService:
             raise
 
     def to_backup(self, faction: Faction) -> CampaignBackupFaction:
-        relationship = get_resource_relationship(
-            self.db,
+        relationship = self.tags.get_relationship(
             ResourceType.FACTION,
             faction.id,
             RelationshipType.BASED_IN,
@@ -214,8 +188,7 @@ class FactionService:
             type=faction.type,
             location=relationship.label if relationship else "",
             description=faction.description,
-            tags=get_resource_tags(
-                self.db,
+            tags=self.tags.list_values(
                 ResourceType.FACTION,
                 faction.id,
             ),

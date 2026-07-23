@@ -10,13 +10,7 @@ from app.models.database import SessionNote
 from app.models.enums import ResourceType
 from app.services.campaign_context import CampaignContext
 from app.services.rolls import RollService
-from app.tags import (
-    get_resource_tag_reads,
-    get_resource_tags,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_tags,
-)
+from app.services.tags import TagService
 
 
 class SessionNoteService:
@@ -28,6 +22,7 @@ class SessionNoteService:
         self.context = context
         self.db = context.db
         self.rolls = rolls or RollService(context)
+        self.tags = TagService(context)
 
     def to_read(self, session_note: SessionNote) -> SessionNoteRead:
         return SessionNoteRead(
@@ -37,8 +32,7 @@ class SessionNoteService:
             title=session_note.title,
             description=session_note.content,
             session_number=session_note.session_number,
-            tags=get_resource_tag_reads(
-                self.db,
+            tags=self.tags.list_tag_reads(
                 ResourceType.SESSION,
                 session_note.id,
             ),
@@ -104,16 +98,12 @@ class SessionNoteService:
         )
         self.db.add(session_note)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.SESSION,
             session_note.id,
             tags,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.SESSION,
             session_note.id,
         )
@@ -174,16 +164,12 @@ class SessionNoteService:
         session_note.content = session_data.description
         self.db.add(session_note)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.SESSION,
             session_note.id,
             session_data.tags,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.SESSION,
             session_note.id,
             previous_labels=previous_labels,
@@ -212,8 +198,7 @@ class SessionNoteService:
         session_note_id: int,
     ) -> None:
         session_note = self.get(session_note_id)
-        handle_tags_of_deleted_resource(
-            self.db,
+        self.tags.stage_handle_resource_deletion(
             ResourceType.SESSION,
             session_note.id,
         )
@@ -240,8 +225,7 @@ class SessionNoteService:
             title=session_note.title,
             description=session_note.content,
             session_number=session_note.session_number,
-            tags=get_resource_tags(
-                self.db,
+            tags=self.tags.list_values(
                 ResourceType.SESSION,
                 session_note.id,
             ),

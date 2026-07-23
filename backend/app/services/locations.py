@@ -11,22 +11,14 @@ from app.models.api import (
 from app.models.database import Location
 from app.models.enums import RelationshipType, ResourceType
 from app.services.campaign_context import CampaignContext
-from app.tags import (
-    get_resource_relationship,
-    get_resource_tag_reads,
-    get_resource_tags,
-    get_resources_referencing_tag,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_relationship,
-    sync_resource_tags,
-)
+from app.services.tags import TagService
 
 
 class LocationService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.tags = TagService(context)
 
     def to_read(self, location: Location) -> LocationRead:
         return LocationRead(
@@ -34,23 +26,19 @@ class LocationService:
             campaign_id=location.campaign_id,
             name=location.name,
             type=location.type,
-            parent_location=get_resource_relationship(
-                self.db,
+            parent_location=self.tags.get_relationship(
                 ResourceType.LOCATION,
                 location.id,
                 RelationshipType.PART_OF,
             ),
-            people=get_resources_referencing_tag(
-                self.db,
-                self.context.campaign_id,
-                ResourceType.LOCATION,
-                location.id,
-                ResourceType.PERSON,
-                RelationshipType.LOCATED_IN,
+            people=self.tags.list_referencing_resources(
+                target_type=ResourceType.LOCATION,
+                target_id=location.id,
+                owner_type=ResourceType.PERSON,
+                relationship_type=RelationshipType.LOCATED_IN,
             ),
             description=location.description,
-            tags=get_resource_tag_reads(
-                self.db,
+            tags=self.tags.list_tag_reads(
                 ResourceType.LOCATION,
                 location.id,
             ),
@@ -79,9 +67,7 @@ class LocationService:
         parent_location: str,
     ) -> None:
         try:
-            sync_resource_relationship(
-                self.db,
-                self.context.campaign_id,
+            self.tags.stage_sync_relationship(
                 ResourceType.LOCATION,
                 location_id,
                 RelationshipType.PART_OF,
@@ -108,17 +94,13 @@ class LocationService:
         )
         self.db.add(location)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.LOCATION,
             location.id,
             tags,
         )
         self._sync_parent(location.id, parent_location)
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.LOCATION,
             location.id,
         )
@@ -155,17 +137,13 @@ class LocationService:
         location.description = location_data.description
         self.db.add(location)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             ResourceType.LOCATION,
             location.id,
             location_data.tags,
         )
         self._sync_parent(location.id, location_data.parent_location)
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             ResourceType.LOCATION,
             location.id,
             previous_labels=[previous_name],
@@ -188,8 +166,7 @@ class LocationService:
 
     def stage_delete(self, location_id: int) -> None:
         location = self.get(location_id)
-        handle_tags_of_deleted_resource(
-            self.db,
+        self.tags.stage_handle_resource_deletion(
             ResourceType.LOCATION,
             location.id,
         )
@@ -205,8 +182,7 @@ class LocationService:
             raise
 
     def to_backup(self, location: Location) -> CampaignBackupLocation:
-        relationship = get_resource_relationship(
-            self.db,
+        relationship = self.tags.get_relationship(
             ResourceType.LOCATION,
             location.id,
             RelationshipType.PART_OF,
@@ -216,8 +192,7 @@ class LocationService:
             type=location.type,
             parent_location=relationship.label if relationship else "",
             description=location.description,
-            tags=get_resource_tags(
-                self.db,
+            tags=self.tags.list_values(
                 ResourceType.LOCATION,
                 location.id,
             ),

@@ -18,13 +18,7 @@ from app.models.database import (
 )
 from app.models.enums import ResourceType
 from app.services.campaign_context import CampaignContext
-from app.tags import (
-    get_resource_tag_reads,
-    get_resource_tags,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_tags,
-)
+from app.services.tags import TagService
 
 
 PersonalNote = CharacterNote | BackstoryNote
@@ -56,6 +50,7 @@ class _PersonalNoteOperations:
         self.db = context.db
         self.characters = characters
         self.definition = definition
+        self.tags = TagService(context)
 
     def _verify_character(
         self,
@@ -86,8 +81,7 @@ class _PersonalNoteOperations:
             content=note.content,
             created_at=note.created_at,
             updated_at=note.updated_at,
-            tags=get_resource_tag_reads(
-                self.db,
+            tags=self.tags.list_tag_reads(
                 self.definition.resource_type,
                 note.id,
             ),
@@ -155,16 +149,12 @@ class _PersonalNoteOperations:
         note = self.definition.model(**values)
         self.db.add(note)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             self.definition.resource_type,
             note.id,
             tags,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             self.definition.resource_type,
             note.id,
         )
@@ -210,16 +200,12 @@ class _PersonalNoteOperations:
         note.updated_at = datetime.now(timezone.utc)
         self.db.add(note)
         self.db.flush()
-        sync_resource_tags(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_sync_tags(
             self.definition.resource_type,
             note.id,
             note_data.tags,
         )
-        refresh_reference_tags_for_resource(
-            self.db,
-            self.context.campaign_id,
+        self.tags.stage_refresh_references(
             self.definition.resource_type,
             note.id,
             previous_labels=[previous_title],
@@ -232,8 +218,7 @@ class _PersonalNoteOperations:
         note_id: int,
     ) -> None:
         note = self.get(person_id, note_id)
-        handle_tags_of_deleted_resource(
-            self.db,
+        self.tags.stage_handle_resource_deletion(
             self.definition.resource_type,
             note.id,
         )
@@ -252,8 +237,7 @@ class _PersonalNoteOperations:
             )
         ).all()
         for note in notes:
-            handle_tags_of_deleted_resource(
-                self.db,
+            self.tags.stage_handle_resource_deletion(
                 self.definition.resource_type,
                 note.id,
             )
@@ -315,8 +299,7 @@ class _PersonalNoteOperations:
         return CampaignBackupCharacterNote(
             title=note.title,
             content=note.content,
-            tags=get_resource_tags(
-                self.db,
+            tags=self.tags.list_values(
                 self.definition.resource_type,
                 note.id,
             ),

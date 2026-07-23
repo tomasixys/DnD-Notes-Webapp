@@ -148,6 +148,13 @@ field weighting, relevance calculation, filtering, and result ordering. The
 search router resolves the `CampaignContext` and delegates the request without
 accessing the database directly.
 
+`TagService` is the campaign-scoped component for database-backed tag values,
+structured tag reads, relationships, reverse references, search matching,
+synchronization, reference refresh, and deletion cleanup. Its mutation methods
+use the `stage_*` convention and never commit, allowing resource services to
+retain their transaction boundaries. Stateless tag parsing and formatting
+remain pure functions in `app/tags`.
+
 Services that participate in larger operations should distinguish between:
 
 - composable `stage_*` methods that flush generated state and apply all domain

@@ -20,11 +20,7 @@ from app.models.database import (
 )
 from app.models.enums import RelationshipType, ResourceType
 from app.services.campaign_context import CampaignContext
-from app.tags import (
-    get_resource_relationship,
-    get_resource_tags,
-    get_tag_matching_owner_ids,
-)
+from app.services.tags import TagService
 
 
 SEARCHABLE_RESOURCE_TYPES = tuple(ResourceType)
@@ -85,6 +81,7 @@ class SearchService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.tags = TagService(context)
 
     def search(self, request: SearchQueryDto) -> SearchResponseDto:
         query = request.query.strip()
@@ -177,9 +174,7 @@ class SearchService:
         resource_type: ResourceType,
         pattern: str,
     ) -> list[int]:
-        return get_tag_matching_owner_ids(
-            self.db,
-            self.context.campaign_id,
+        return self.tags.find_matching_owner_ids(
             resource_type,
             pattern,
         )
@@ -335,14 +330,12 @@ class SearchService:
         person: Person,
         query: str,
     ) -> SearchResultDto:
-        faction = get_resource_relationship(
-            self.db,
+        faction = self.tags.get_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.MEMBER_OF,
         )
-        location = get_resource_relationship(
-            self.db,
+        location = self.tags.get_relationship(
             ResourceType.PERSON,
             person.id,
             RelationshipType.LOCATED_IN,
@@ -386,8 +379,7 @@ class SearchService:
         faction: Faction,
         query: str,
     ) -> SearchResultDto:
-        location = get_resource_relationship(
-            self.db,
+        location = self.tags.get_relationship(
             ResourceType.FACTION,
             faction.id,
             RelationshipType.BASED_IN,
@@ -426,8 +418,7 @@ class SearchService:
         location: Location,
         query: str,
     ) -> SearchResultDto:
-        parent_location = get_resource_relationship(
-            self.db,
+        parent_location = self.tags.get_relationship(
             ResourceType.LOCATION,
             location.id,
             RelationshipType.PART_OF,
@@ -542,8 +533,7 @@ class SearchService:
         return SearchField(
             "tags",
             " ".join(
-                get_resource_tags(
-                    self.db,
+                self.tags.list_values(
                     resource_type,
                     resource_id,
                 )
