@@ -6,9 +6,7 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.dependencies.campaigns import verify_campaign
-from app.inventory_service import sync_default_inventory_owner
 from app.file_storage import (
-    build_upload_url,
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
@@ -27,7 +25,7 @@ from app.models.database import (
     CharacterProfile,
 )
 from app.models.enums import ResourceType
-from app.services.people import PersonService
+from app.services.characters import CharacterService
 from app.tags import (
     get_resource_tag_reads,
     handle_tags_of_deleted_resource,
@@ -58,19 +56,7 @@ def character_to_read(
     campaign: Campaign,
     db: Session,
 ) -> CharacterRead:
-    people = PersonService(db)
-    person = people.get(campaign, profile.person_id)
-    return CharacterRead(
-        person=people.to_read(person),
-        short_bio=profile.short_bio,
-        appearance=profile.appearance,
-        image_url=(
-            build_upload_url(profile.image_path)
-            if profile.image_path
-            else ""
-        ),
-        is_active=campaign.active_character_person_id == profile.person_id,
-    )
+    return CharacterService(db).to_read(profile, campaign)
 
 
 def get_character_profile(
@@ -79,11 +65,7 @@ def get_character_profile(
     db: Session,
 ) -> CharacterProfile:
     campaign = verify_campaign(campaign_id, db)
-    PersonService(db).get(campaign, person_id)
-    profile = db.get(CharacterProfile, person_id)
-    if profile is None:
-        raise HTTPException(status_code=404, detail="Character profile not found")
-    return profile
+    return CharacterService(db).get_profile(campaign, person_id)
 
 
 def personal_note_to_read(
@@ -239,17 +221,7 @@ def get_active_character(
     db: Session = Depends(get_session),
 ) -> CharacterRead | None:
     campaign = verify_campaign(campaign_id, db)
-    if campaign.active_character_person_id is None:
-        return None
-
-    profile = db.get(CharacterProfile, campaign.active_character_person_id)
-    if profile is None:
-        campaign.active_character_person_id = None
-        db.add(campaign)
-        db.commit()
-        return None
-
-    return character_to_read(profile, campaign, db)
+    return CharacterService(db).get_active(campaign)
 
 
 @router.get("/{person_id}")
@@ -259,8 +231,11 @@ def get_character(
     db: Session = Depends(get_session),
 ) -> CharacterRead:
     campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
-    return character_to_read(profile, campaign, db)
+    characters = CharacterService(db)
+    return characters.to_read(
+        characters.get_profile(campaign, person_id),
+        campaign,
+    )
 
 
 @router.post("")
@@ -270,43 +245,7 @@ def create_character(
     db: Session = Depends(get_session),
 ) -> CharacterRead:
     campaign = verify_campaign(campaign_id, db)
-    has_person_id = character.person_id is not None
-    has_person_data = character.person is not None
-    if has_person_id == has_person_data:
-        raise HTTPException(
-            status_code=422,
-            detail="Provide either person_id or person, but not both",
-        )
-
-    people = PersonService(db)
-    if character.person_id is not None:
-        person = people.get(campaign, character.person_id)
-    else:
-        person = people.add(campaign, character.person)
-
-    if db.get(CharacterProfile, person.id) is not None:
-        raise HTTPException(
-            status_code=409,
-            detail="This person already has a character profile",
-        )
-
-    profile = CharacterProfile(
-        person_id=person.id,
-        short_bio=character.short_bio.strip(),
-        appearance=character.appearance.strip(),
-    )
-    db.add(profile)
-    db.flush()
-
-    if character.make_active:
-        campaign.active_character_person_id = person.id
-        db.add(campaign)
-        sync_default_inventory_owner(campaign, db)
-
-    db.commit()
-    db.refresh(profile)
-    db.refresh(campaign)
-    return character_to_read(profile, campaign, db)
+    return CharacterService(db).create(campaign, character)
 
 
 @router.put("/{person_id}")
@@ -317,20 +256,11 @@ def update_character(
     db: Session = Depends(get_session),
 ) -> CharacterRead:
     campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
-
-    people = PersonService(db)
-    people.apply_changes(
+    return CharacterService(db).update(
         campaign,
         person_id,
-        updated_character.person,
+        updated_character,
     )
-    profile.short_bio = updated_character.short_bio.strip()
-    profile.appearance = updated_character.appearance.strip()
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return character_to_read(profile, campaign, db)
 
 
 @router.post("/{person_id}/activate")
@@ -340,13 +270,7 @@ def activate_character(
     db: Session = Depends(get_session),
 ) -> CharacterRead:
     campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
-    campaign.active_character_person_id = person_id
-    db.add(campaign)
-    sync_default_inventory_owner(campaign, db)
-    db.commit()
-    db.refresh(campaign)
-    return character_to_read(profile, campaign, db)
+    return CharacterService(db).activate(campaign, person_id)
 
 
 @router.delete("/{person_id}")
@@ -356,28 +280,7 @@ def delete_character(
     db: Session = Depends(get_session),
 ):
     campaign = verify_campaign(campaign_id, db)
-    profile = get_character_profile(campaign_id, person_id, db)
-    portrait_path = profile.image_path
-    for note_model, resource_type in (
-        (CharacterNote, ResourceType.CHARACTER_NOTE),
-        (BackstoryNote, ResourceType.BACKSTORY_NOTE),
-    ):
-        notes = db.exec(
-            select(note_model).where(
-                note_model.character_person_id == person_id
-            )
-        ).all()
-        for note in notes:
-            handle_tags_of_deleted_resource(db, resource_type, note.id)
-
-    if campaign.active_character_person_id == person_id:
-        campaign.active_character_person_id = None
-        db.add(campaign)
-
-    db.delete(profile)
-    db.commit()
-    if portrait_path:
-        delete_uploaded_file(portrait_path)
+    CharacterService(db).delete(campaign, person_id)
     return {"deleted": True}
 
 

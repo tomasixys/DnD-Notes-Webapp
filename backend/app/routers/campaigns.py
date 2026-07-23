@@ -17,6 +17,7 @@ from app.inventory_service import (
 from app.models.database import *
 from app.models.api import *
 from app.models.enums import CurrencyDenomination
+from app.services.characters import CharacterService
 from app.services.people import PersonService
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
@@ -691,6 +692,7 @@ async def import_campaign_backup(
                 db.add(campaign)
 
                 people = PersonService(db)
+                characters = CharacterService(db, people)
                 for person_backup in cb.people:
                     person = people.stage_create(
                         campaign,
@@ -816,12 +818,7 @@ async def import_campaign_backup(
                             ),
                         )
 
-                    profile = CharacterProfile(
-                        person_id=person_id,
-                        short_bio=character_backup.short_bio,
-                        appearance=character_backup.appearance,
-                        image_path="",
-                    )
+                    image_path = ""
 
                     if character_backup.image_archive_path:
                         original_path = Path(
@@ -830,15 +827,20 @@ async def import_campaign_backup(
                         image_data = read_archive_member(
                             archive, character_backup.image_archive_path
                         )
-                        profile.image_path = write_image_from_bytes(
+                        image_path = write_image_from_bytes(
                             campaign.id,
                             original_path.suffix.lower(),
                             image_data,
                         )
-                        saved_asset_paths.append(profile.image_path)
+                        saved_asset_paths.append(image_path)
 
-                    db.add(profile)
-                    db.flush()
+                    characters.stage_create_profile(
+                        campaign,
+                        person_id,
+                        short_bio=character_backup.short_bio,
+                        appearance=character_backup.appearance,
+                        image_path=image_path,
+                    )
 
                     note_groups = [
                         (
@@ -895,10 +897,7 @@ async def import_campaign_backup(
                 )
                 if active_backup_id is not None:
                     active_person_id = person_id_map.get(active_backup_id)
-                    if (
-                        active_person_id is None
-                        or db.get(CharacterProfile, active_person_id) is None
-                    ):
+                    if active_person_id is None:
                         raise HTTPException(
                             status_code=400,
                             detail=(
@@ -906,8 +905,21 @@ async def import_campaign_backup(
                                 "character profile"
                             ),
                         )
-                    campaign.active_character_person_id = active_person_id
-                    db.add(campaign)
+                    try:
+                        characters.set_active_pointer(
+                            campaign,
+                            active_person_id,
+                        )
+                    except HTTPException as error:
+                        if error.status_code != 404:
+                            raise
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "Active character references a missing "
+                                "character profile"
+                            ),
+                        ) from error
 
                 if cb.inventories:
                     restore_inventory_backups(

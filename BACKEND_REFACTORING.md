@@ -106,6 +106,11 @@ creating, updating, activating, or synchronizing a resource. Do not create one
 service mechanically for every database table, and do not introduce a generic
 CRUD base class.
 
+When one resource builds on another, services should use composition rather
+than inheritance. For example, `CharacterService` composes `PersonService`
+because a character profile coordinates person operations, but is not a
+specialized kind of person service.
+
 Services that participate in larger operations should distinguish between:
 
 - composable `stage_*` methods that flush generated state and apply all domain
