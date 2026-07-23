@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Campaign Notes are documented in this file.
+All notable changes to DnD Notes are documented in this file.
 
 The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html),
 and this changelog follows the structure described by
@@ -20,6 +20,10 @@ and this changelog follows the structure described by
   links back to the related person entries.
 - Added private character profiles backed by People entries, including active
   character selection, portraits, personal notes, and backstory entries.
+- Added a default party inventory with editable metadata, item quantities,
+  categories, rarities, values, and campaign wealth totals.
+- Added a purse with copper, silver, electrum, gold, and platinum balances.
+- Added inventory ownership metadata tied to campaign characters.
 
 ### Changed
 
@@ -36,6 +40,15 @@ and this changelog follows the structure described by
   database columns.
 - Promoted the character and shared-note schema into the version 2 to version 3
   database migration and restored the development migration hook to a no-op.
+- Added the version 3 to version 4 database migration for inventories, access
+  grants, purses, currency balances, and items.
+- Updated campaign backup import and export to preserve inventory contents,
+  balances, and access grants.
+- Moved campaign-scoped backend operations into focused services with explicit
+  transaction ownership while preserving existing API paths.
+- Standardized mutation and deletion responses with explicit API models.
+- Updated frontend mutation handling to apply authoritative response data
+  locally instead of immediately fetching the same resource again.
 
 ### Fixed
 
@@ -45,6 +58,11 @@ and this changelog follows the structure described by
   resource URL no longer redirects away while its persisted campaign is valid.
 - Added campaign search filters and direct results for character notes and
   backstory entries, including entries belonging to former characters.
+- Made frontend API failures expose consistent `error` and `message` values,
+  including validation failures.
+- Made invalid backup imports return a consistent client error without leaving
+  a partially created campaign.
+- Corrected location deletion to send the selected location ID.
 
 ## [0.2.0] - 2026-07-18
 
@@ -110,7 +128,7 @@ and this changelog follows the structure described by
 - Added SQLite relationships, foreign-key enforcement, cascade deletion, and
   cleanup of campaign-owned records.
 - Added a production setup in which FastAPI serves the compiled web frontend.
-- Added PyInstaller support for building Campaign Notes as a standalone
+- Added PyInstaller support for building DnD Notes as a standalone
   application.
 
 ### Changed
