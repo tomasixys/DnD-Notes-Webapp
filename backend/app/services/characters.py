@@ -1,18 +1,18 @@
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.file_storage import build_upload_url, delete_uploaded_file
 from app.models.api import CharacterCreate, CharacterRead, CharacterUpdate
 from app.models.database import (
-    BackstoryNote,
     Campaign,
-    CharacterNote,
     CharacterProfile,
 )
-from app.models.enums import ResourceType
+from app.services.character_notes import (
+    BackstoryNoteService,
+    CharacterNoteService,
+)
 from app.services.inventory import InventoryService
 from app.services.people import PersonService
-from app.tags import handle_tags_of_deleted_resource
 
 
 class CharacterService:
@@ -233,21 +233,14 @@ class CharacterService:
         portrait_path = profile.image_path
 
         try:
-            for note_model, resource_type in (
-                (CharacterNote, ResourceType.CHARACTER_NOTE),
-                (BackstoryNote, ResourceType.BACKSTORY_NOTE),
-            ):
-                notes = self.db.exec(
-                    select(note_model).where(
-                        note_model.character_person_id == person_id
-                    )
-                ).all()
-                for note in notes:
-                    handle_tags_of_deleted_resource(
-                        self.db,
-                        resource_type,
-                        note.id,
-                    )
+            CharacterNoteService(
+                self.db,
+                self,
+            ).stage_delete_all_for_character(campaign, person_id)
+            BackstoryNoteService(
+                self.db,
+                self,
+            ).stage_delete_all_for_character(campaign, person_id)
 
             if campaign.active_character_person_id == person_id:
                 campaign.active_character_person_id = None

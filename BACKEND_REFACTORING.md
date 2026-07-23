@@ -70,6 +70,7 @@ backend/app/
   services/
     campaign_backups.py
     campaigns.py
+    character_notes.py
     characters.py
     inventory.py
     sessions.py
@@ -110,6 +111,13 @@ When one resource builds on another, services should use composition rather
 than inheritance. For example, `CharacterService` composes `PersonService`
 because a character profile coordinates person operations, but is not a
 specialized kind of person service.
+
+Character notes and backstory notes expose separate `CharacterNoteService` and
+`BackstoryNoteService` APIs from `app/services/character_notes.py`. They compose
+a private shared note implementation because their persistence and tag
+lifecycles are identical, while their database models, resource types, and
+public return models remain distinct. Callers therefore never pass a model
+class or resource-type flag into a generic CRUD service.
 
 Services that participate in larger operations should distinguish between:
 

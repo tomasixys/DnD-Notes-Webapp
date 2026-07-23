@@ -12,6 +12,10 @@ from app.database import get_session
 from app.dependencies.campaigns import verify_campaign
 from app.models.database import *
 from app.models.api import *
+from app.services.character_notes import (
+    BackstoryNoteService,
+    CharacterNoteService,
+)
 from app.services.characters import CharacterService
 from app.services.inventory import InventoryService
 from app.services.people import PersonService
@@ -285,6 +289,9 @@ def export_campaign_backup(
         .order_by(Inventory.id)
     ).all()
     inventory_service = InventoryService(db)
+    characters = CharacterService(db)
+    character_notes = CharacterNoteService(db, characters)
+    backstory_notes = BackstoryNoteService(db, characters)
 
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
@@ -393,34 +400,14 @@ def export_campaign_backup(
                         profile.person_id, ""
                     ),
                     notes=[
-                        CampaignBackupCharacterNote(
-                            title=note.title,
-                            content=note.content,
-                            tags=get_resource_tags(
-                                db,
-                                ResourceType.CHARACTER_NOTE,
-                                note.id,
-                            ),
-                            created_at=note.created_at,
-                            updated_at=note.updated_at,
-                        )
+                        character_notes.to_backup(note)
                         for note in sorted(
                             profile.notes,
                             key=lambda item: (item.created_at, item.id or 0),
                         )
                     ],
                     backstory_notes=[
-                        CampaignBackupCharacterNote(
-                            title=note.title,
-                            content=note.content,
-                            tags=get_resource_tags(
-                                db,
-                                ResourceType.BACKSTORY_NOTE,
-                                note.id,
-                            ),
-                            created_at=note.created_at,
-                            updated_at=note.updated_at,
-                        )
+                        backstory_notes.to_backup(note)
                         for note in sorted(
                             profile.backstory_notes,
                             key=lambda item: (item.created_at, item.id or 0),
@@ -545,6 +532,8 @@ async def import_campaign_backup(
                     people,
                     inventory_service,
                 )
+                character_notes = CharacterNoteService(db, characters)
+                backstory_notes = BackstoryNoteService(db, characters)
                 for person_backup in cb.people:
                     person = people.stage_create(
                         campaign,
@@ -696,13 +685,11 @@ async def import_campaign_backup(
 
                     note_groups = [
                         (
-                            CharacterNote,
-                            ResourceType.CHARACTER_NOTE,
+                            character_notes,
                             list(character_backup.notes),
                         ),
                         (
-                            BackstoryNote,
-                            ResourceType.BACKSTORY_NOTE,
+                            backstory_notes,
                             list(character_backup.backstory_notes),
                         ),
                     ]
@@ -718,30 +705,12 @@ async def import_campaign_backup(
                                 detail="Unknown character entry type in backup",
                             )
 
-                    for note_model, resource_type, note_backups in note_groups:
+                    for note_service, note_backups in note_groups:
                         for note_backup in note_backups:
-                            note = note_model(
-                                campaign_id=campaign.id,
-                                character_person_id=person_id,
-                                title=note_backup.title,
-                                content=note_backup.content,
-                                created_at=note_backup.created_at,
-                                updated_at=note_backup.updated_at,
-                            )
-                            db.add(note)
-                            db.flush()
-                            sync_resource_tags(
-                                db,
-                                campaign.id,
-                                resource_type,
-                                note.id,
-                                note_backup.tags,
-                            )
-                            refresh_reference_tags_for_resource(
-                                db,
-                                campaign.id,
-                                resource_type,
-                                note.id,
+                            note_service.stage_restore(
+                                campaign,
+                                person_id,
+                                note_backup,
                             )
 
                 active_backup_id = (

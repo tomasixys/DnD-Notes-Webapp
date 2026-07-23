@@ -1,8 +1,5 @@
-from datetime import datetime, timezone
-from typing import TypeVar
-
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends, File, UploadFile
+from sqlmodel import Session
 
 from app.database import get_session
 from app.dependencies.campaigns import verify_campaign
@@ -19,35 +16,19 @@ from app.models.api import (
     CharacterUpdate,
 )
 from app.models.database import (
-    BackstoryNote,
     Campaign,
-    CharacterNote,
     CharacterProfile,
 )
-from app.models.enums import ResourceType
-from app.services.characters import CharacterService
-from app.tags import (
-    get_resource_tag_reads,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_tags,
+from app.services.character_notes import (
+    BackstoryNoteService,
+    CharacterNoteService,
 )
+from app.services.characters import CharacterService
 
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/characters",
     tags=["characters"],
-)
-
-PersonalNoteModel = TypeVar(
-    "PersonalNoteModel",
-    CharacterNote,
-    BackstoryNote,
-)
-PersonalNoteRead = TypeVar(
-    "PersonalNoteRead",
-    CharacterNoteRead,
-    BackstoryNoteRead,
 )
 
 
@@ -66,153 +47,6 @@ def get_character_profile(
 ) -> CharacterProfile:
     campaign = verify_campaign(campaign_id, db)
     return CharacterService(db).get_profile(campaign, person_id)
-
-
-def personal_note_to_read(
-    note: CharacterNote | BackstoryNote,
-    resource_type: ResourceType,
-    read_model: type[PersonalNoteRead],
-    db: Session,
-) -> PersonalNoteRead:
-    return read_model(
-        id=note.id,
-        campaign_id=note.campaign_id,
-        character_person_id=note.character_person_id,
-        title=note.title,
-        content=note.content,
-        created_at=note.created_at,
-        updated_at=note.updated_at,
-        tags=get_resource_tag_reads(db, resource_type, note.id),
-    )
-
-
-def get_personal_note(
-    campaign_id: int,
-    person_id: int,
-    note_id: int,
-    note_model: type[PersonalNoteModel],
-    db: Session,
-) -> PersonalNoteModel:
-    get_character_profile(campaign_id, person_id, db)
-    note = db.get(note_model, note_id)
-    if (
-        note is None
-        or note.campaign_id != campaign_id
-        or note.character_person_id != person_id
-    ):
-        raise HTTPException(status_code=404, detail="Character note not found")
-    return note
-
-
-def list_personal_notes(
-    campaign_id: int,
-    person_id: int,
-    note_model: type[PersonalNoteModel],
-    resource_type: ResourceType,
-    read_model: type[PersonalNoteRead],
-    db: Session,
-) -> list[PersonalNoteRead]:
-    get_character_profile(campaign_id, person_id, db)
-    statement = (
-        select(note_model)
-        .where(
-            note_model.campaign_id == campaign_id,
-            note_model.character_person_id == person_id,
-        )
-        .order_by(note_model.updated_at.desc(), note_model.id.desc())
-    )
-    return [
-        personal_note_to_read(note, resource_type, read_model, db)
-        for note in db.exec(statement).all()
-    ]
-
-
-def create_personal_note(
-    campaign_id: int,
-    person_id: int,
-    note_data: CharacterNoteData,
-    note_model: type[PersonalNoteModel],
-    resource_type: ResourceType,
-    read_model: type[PersonalNoteRead],
-    db: Session,
-) -> PersonalNoteRead:
-    get_character_profile(campaign_id, person_id, db)
-    title = note_data.title.strip()
-    if not title:
-        raise HTTPException(status_code=422, detail="Note title cannot be blank")
-
-    note = note_model(
-        campaign_id=campaign_id,
-        character_person_id=person_id,
-        title=title,
-        content=note_data.content.strip(),
-    )
-    db.add(note)
-    db.flush()
-    sync_resource_tags(
-        db, campaign_id, resource_type, note.id, note_data.tags
-    )
-    refresh_reference_tags_for_resource(
-        db, campaign_id, resource_type, note.id
-    )
-    db.commit()
-    db.refresh(note)
-    return personal_note_to_read(note, resource_type, read_model, db)
-
-
-def update_personal_note(
-    campaign_id: int,
-    person_id: int,
-    note_id: int,
-    note_data: CharacterNoteData,
-    note_model: type[PersonalNoteModel],
-    resource_type: ResourceType,
-    read_model: type[PersonalNoteRead],
-    db: Session,
-) -> PersonalNoteRead:
-    note = get_personal_note(
-        campaign_id, person_id, note_id, note_model, db
-    )
-    title = note_data.title.strip()
-    if not title:
-        raise HTTPException(status_code=422, detail="Note title cannot be blank")
-
-    previous_title = note.title
-    note.title = title
-    note.content = note_data.content.strip()
-    note.updated_at = datetime.now(timezone.utc)
-    db.add(note)
-    db.flush()
-    sync_resource_tags(
-        db, campaign_id, resource_type, note.id, note_data.tags
-    )
-    refresh_reference_tags_for_resource(
-        db,
-        campaign_id,
-        resource_type,
-        note.id,
-        previous_labels=[previous_title],
-    )
-    db.commit()
-    db.refresh(note)
-    return personal_note_to_read(note, resource_type, read_model, db)
-
-
-def delete_personal_note(
-    campaign_id: int,
-    person_id: int,
-    note_id: int,
-    note_model: type[PersonalNoteModel],
-    resource_type: ResourceType,
-    db: Session,
-):
-    note = get_personal_note(
-        campaign_id, person_id, note_id, note_model, db
-    )
-    handle_tags_of_deleted_resource(db, resource_type, note.id)
-    db.delete(note)
-    db.commit()
-    return {"deleted": True}
 
 
 @router.get("/active")
@@ -337,14 +171,8 @@ def get_character_notes(
     person_id: int,
     db: Session = Depends(get_session),
 ) -> list[CharacterNoteRead]:
-    return list_personal_notes(
-        campaign_id,
-        person_id,
-        CharacterNote,
-        ResourceType.CHARACTER_NOTE,
-        CharacterNoteRead,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    return CharacterNoteService(db).list_for_character(campaign, person_id)
 
 
 @router.post("/{person_id}/notes")
@@ -354,15 +182,8 @@ def create_character_note(
     note: CharacterNoteData,
     db: Session = Depends(get_session),
 ) -> CharacterNoteRead:
-    return create_personal_note(
-        campaign_id,
-        person_id,
-        note,
-        CharacterNote,
-        ResourceType.CHARACTER_NOTE,
-        CharacterNoteRead,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    return CharacterNoteService(db).create(campaign, person_id, note)
 
 
 @router.get("/{person_id}/notes/{note_id}")
@@ -372,12 +193,9 @@ def get_character_note(
     note_id: int,
     db: Session = Depends(get_session),
 ) -> CharacterNoteRead:
-    note = get_personal_note(
-        campaign_id, person_id, note_id, CharacterNote, db
-    )
-    return personal_note_to_read(
-        note, ResourceType.CHARACTER_NOTE, CharacterNoteRead, db
-    )
+    campaign = verify_campaign(campaign_id, db)
+    service = CharacterNoteService(db)
+    return service.to_read(service.get(campaign, person_id, note_id))
 
 
 @router.put("/{person_id}/notes/{note_id}")
@@ -388,15 +206,12 @@ def update_character_note(
     note: CharacterNoteData,
     db: Session = Depends(get_session),
 ) -> CharacterNoteRead:
-    return update_personal_note(
-        campaign_id,
+    campaign = verify_campaign(campaign_id, db)
+    return CharacterNoteService(db).update(
+        campaign,
         person_id,
         note_id,
         note,
-        CharacterNote,
-        ResourceType.CHARACTER_NOTE,
-        CharacterNoteRead,
-        db,
     )
 
 
@@ -407,14 +222,9 @@ def delete_character_note(
     note_id: int,
     db: Session = Depends(get_session),
 ):
-    return delete_personal_note(
-        campaign_id,
-        person_id,
-        note_id,
-        CharacterNote,
-        ResourceType.CHARACTER_NOTE,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    CharacterNoteService(db).delete(campaign, person_id, note_id)
+    return {"deleted": True}
 
 
 @router.get("/{person_id}/backstory")
@@ -423,14 +233,8 @@ def get_backstory_notes(
     person_id: int,
     db: Session = Depends(get_session),
 ) -> list[BackstoryNoteRead]:
-    return list_personal_notes(
-        campaign_id,
-        person_id,
-        BackstoryNote,
-        ResourceType.BACKSTORY_NOTE,
-        BackstoryNoteRead,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    return BackstoryNoteService(db).list_for_character(campaign, person_id)
 
 
 @router.post("/{person_id}/backstory")
@@ -440,15 +244,8 @@ def create_backstory_note(
     note: CharacterNoteData,
     db: Session = Depends(get_session),
 ) -> BackstoryNoteRead:
-    return create_personal_note(
-        campaign_id,
-        person_id,
-        note,
-        BackstoryNote,
-        ResourceType.BACKSTORY_NOTE,
-        BackstoryNoteRead,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    return BackstoryNoteService(db).create(campaign, person_id, note)
 
 
 @router.get("/{person_id}/backstory/{note_id}")
@@ -458,12 +255,9 @@ def get_backstory_note(
     note_id: int,
     db: Session = Depends(get_session),
 ) -> BackstoryNoteRead:
-    note = get_personal_note(
-        campaign_id, person_id, note_id, BackstoryNote, db
-    )
-    return personal_note_to_read(
-        note, ResourceType.BACKSTORY_NOTE, BackstoryNoteRead, db
-    )
+    campaign = verify_campaign(campaign_id, db)
+    service = BackstoryNoteService(db)
+    return service.to_read(service.get(campaign, person_id, note_id))
 
 
 @router.put("/{person_id}/backstory/{note_id}")
@@ -474,15 +268,12 @@ def update_backstory_note(
     note: CharacterNoteData,
     db: Session = Depends(get_session),
 ) -> BackstoryNoteRead:
-    return update_personal_note(
-        campaign_id,
+    campaign = verify_campaign(campaign_id, db)
+    return BackstoryNoteService(db).update(
+        campaign,
         person_id,
         note_id,
         note,
-        BackstoryNote,
-        ResourceType.BACKSTORY_NOTE,
-        BackstoryNoteRead,
-        db,
     )
 
 
@@ -493,11 +284,6 @@ def delete_backstory_note(
     note_id: int,
     db: Session = Depends(get_session),
 ):
-    return delete_personal_note(
-        campaign_id,
-        person_id,
-        note_id,
-        BackstoryNote,
-        ResourceType.BACKSTORY_NOTE,
-        db,
-    )
+    campaign = verify_campaign(campaign_id, db)
+    BackstoryNoteService(db).delete(campaign, person_id, note_id)
+    return {"deleted": True}

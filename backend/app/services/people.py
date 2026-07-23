@@ -4,13 +4,15 @@ from sqlmodel import Session, select
 from app.file_storage import delete_uploaded_file
 from app.models.api import PersonData, PersonRead
 from app.models.database import (
-    BackstoryNote,
     Campaign,
-    CharacterNote,
     CharacterProfile,
     Person,
 )
 from app.models.enums import RelationshipType, ResourceType
+from app.services.character_notes import (
+    BackstoryNoteService,
+    CharacterNoteService,
+)
 from app.tags import (
     get_resource_relationship,
     get_resource_tag_reads,
@@ -218,21 +220,12 @@ class PersonService:
 
         try:
             if profile is not None:
-                for note_model, resource_type in (
-                    (CharacterNote, ResourceType.CHARACTER_NOTE),
-                    (BackstoryNote, ResourceType.BACKSTORY_NOTE),
-                ):
-                    notes = self.db.exec(
-                        select(note_model).where(
-                            note_model.character_person_id == person.id
-                        )
-                    ).all()
-                    for note in notes:
-                        handle_tags_of_deleted_resource(
-                            self.db,
-                            resource_type,
-                            note.id,
-                        )
+                CharacterNoteService(
+                    self.db,
+                ).stage_delete_all_for_character(campaign, person.id)
+                BackstoryNoteService(
+                    self.db,
+                ).stage_delete_all_for_character(campaign, person.id)
 
             if campaign.active_character_person_id == person.id:
                 campaign.active_character_person_id = None
