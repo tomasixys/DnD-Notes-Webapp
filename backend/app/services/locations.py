@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.models.api import (
     CampaignBackupLocation,
+    DeleteResponse,
     LocationData,
     LocationRead,
 )
@@ -57,7 +59,7 @@ class LocationService:
         statement = (
             select(Location)
             .where(Location.campaign_id == self.context.campaign_id)
-            .order_by(Location.name)
+            .order_by(func.lower(Location.name), Location.id)
         )
         return self.db.exec(statement).all()
 
@@ -173,13 +175,14 @@ class LocationService:
         self.db.delete(location)
         self.db.flush()
 
-    def delete(self, location_id: int) -> None:
+    def delete(self, location_id: int) -> DeleteResponse:
         try:
             self.stage_delete(location_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
+        return DeleteResponse(deleted_id=location_id)
 
     def to_backup(self, location: Location) -> CampaignBackupLocation:
         relationship = self.tags.get_relationship(

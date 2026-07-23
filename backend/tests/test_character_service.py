@@ -89,7 +89,9 @@ class CharacterServiceTests(unittest.TestCase):
             self.assertEqual("Archmage", updated.person.role)
             self.assertEqual("Court mage", updated.short_bio)
 
-            characters.delete(person_id)
+            deleted = characters.delete(person_id)
+            self.assertEqual(person_id, deleted.deleted_id)
+            self.assertIsNone(deleted.active_character)
             self.assertIsNone(db.get(CharacterProfile, person_id))
             self.assertIsNotNone(db.get(Person, person_id))
 
@@ -124,6 +126,34 @@ class CharacterServiceTests(unittest.TestCase):
             )
 
             db.rollback()
+
+    def test_delete_returns_the_remaining_active_character(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Test")
+            db.add(campaign)
+            db.commit()
+            db.refresh(campaign)
+            characters = CharacterService(CampaignContext(db, campaign))
+
+            active = characters.create(
+                CharacterCreate(person=PersonData(name="Nalia")),
+            )
+            inactive = characters.create(
+                CharacterCreate(
+                    person=PersonData(name="Sable"),
+                    make_active=False,
+                ),
+            )
+            inactive_id = inactive.person.id
+
+            deleted = characters.delete(inactive_id)
+
+            self.assertEqual(inactive_id, deleted.deleted_id)
+            self.assertEqual(
+                active.person.id,
+                deleted.active_character.person.id,
+            )
+            self.assertIsNone(db.get(CharacterProfile, inactive_id))
 
     def test_portrait_replacement_and_removal_update_storage_after_commit(
         self,

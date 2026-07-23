@@ -74,10 +74,8 @@ class CampaignServiceTests(unittest.TestCase):
             self.assertEqual(0, updated.session_count)
             self.assertEqual(1, len(campaigns.list_reads()))
 
-            self.assertEqual(
-                {"deleted": True},
-                campaigns.delete(campaign_id),
-            )
+            deleted = campaigns.delete(campaign_id)
+            self.assertEqual(campaign_id, deleted.deleted_id)
             self.assertIsNone(db.get(Campaign, campaign_id))
 
     def test_backup_service_exports_and_imports_campaign_archive(self):

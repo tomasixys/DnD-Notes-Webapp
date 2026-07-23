@@ -8,6 +8,7 @@ from app.file_storage import (
 )
 from app.models.api import (
     CampaignBackupCharacter,
+    CharacterDeleteResponse,
     CharacterCreate,
     CharacterRead,
     CharacterUpdate,
@@ -314,7 +315,7 @@ class CharacterService:
             delete_uploaded_file(old_portrait_path)
         return self.to_read(profile)
 
-    def delete(self, person_id: int) -> None:
+    def delete(self, person_id: int) -> CharacterDeleteResponse:
         profile = self.get_profile(person_id)
         portrait_path = profile.image_path
 
@@ -340,3 +341,7 @@ class CharacterService:
 
         if portrait_path:
             delete_uploaded_file(portrait_path)
+        return CharacterDeleteResponse(
+            deleted_id=person_id,
+            active_character=self.get_active(),
+        )

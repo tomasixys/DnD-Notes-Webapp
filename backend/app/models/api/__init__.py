@@ -1,5 +1,6 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
 from .campaign import CampaignRead
+from .mutation import DeleteResponse
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
 from .person import PersonData, PersonRead
@@ -7,6 +8,7 @@ from .character import (
     CharacterCreate,
     CharacterUpdate,
     CharacterRead,
+    CharacterDeleteResponse,
     CharacterNoteData,
     CharacterNoteRead,
     BackstoryNoteRead,
@@ -41,7 +43,7 @@ from .rolls import (
     RollCreate,
     SessionRollStats,
     CampaignRollStats,
-    RollCreateResponse,
+    RollMutationResponse,
 )
 from .inventory import (
     MoneyAmount,
@@ -63,6 +65,7 @@ __all__ = [
     "TagResolutionState",
     "RelationshipType",
     "CampaignRead",
+    "DeleteResponse",
     "ResourceTagRead",
     "SessionNoteData",
     "SessionNoteRead",
@@ -71,6 +74,7 @@ __all__ = [
     "CharacterCreate",
     "CharacterUpdate",
     "CharacterRead",
+    "CharacterDeleteResponse",
     "CharacterNoteData",
     "CharacterNoteRead",
     "BackstoryNoteRead",
@@ -100,7 +104,7 @@ __all__ = [
     "RollCreate",
     "SessionRollStats",
     "CampaignRollStats",
-    "RollCreateResponse",
+    "RollMutationResponse",
     "ParsedTag",
     "MoneyAmount",
     "PurseBalances",

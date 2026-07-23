@@ -7,7 +7,7 @@ from app.file_storage import (
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
-from app.models.api import CampaignRead
+from app.models.api import CampaignRead, DeleteResponse
 from app.models.database import (
     Campaign,
     CharacterProfile,
@@ -212,7 +212,7 @@ class CampaignService:
             self.count_sessions(campaign_id),
         )
 
-    def delete(self, campaign_id: int) -> dict[str, bool]:
+    def delete(self, campaign_id: int) -> DeleteResponse:
         campaign = self.get(campaign_id)
         uploaded_paths = {
             path
@@ -245,4 +245,4 @@ class CampaignService:
         for path in uploaded_paths:
             delete_uploaded_file(path)
 
-        return {"deleted": True}
+        return DeleteResponse(deleted_id=campaign_id)

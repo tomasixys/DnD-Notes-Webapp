@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies.campaigns import get_campaign_context
-from app.models.api import FactionData
+from app.models.api import DeleteResponse, FactionData, FactionRead
 from app.services.campaign_context import CampaignContext
 from app.services.factions import FactionService
 
@@ -33,7 +33,7 @@ def get_faction(
 def create_faction(
     faction: FactionData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> FactionRead:
     return FactionService(context).create(faction)
 
 
@@ -42,7 +42,7 @@ def update_faction(
     faction_id: int,
     updated_faction: FactionData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> FactionRead:
     return FactionService(context).update(
         faction_id,
         updated_faction,
@@ -53,6 +53,5 @@ def update_faction(
 def delete_faction(
     faction_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    FactionService(context).delete(faction_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return FactionService(context).delete(faction_id)

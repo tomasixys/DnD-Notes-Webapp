@@ -3,6 +3,7 @@ from sqlmodel import select
 
 from app.models.api import (
     CampaignBackupSession,
+    DeleteResponse,
     SessionNoteData,
     SessionNoteRead,
 )
@@ -208,13 +209,14 @@ class SessionNoteService:
     def delete(
         self,
         session_note_id: int,
-    ) -> None:
+    ) -> DeleteResponse:
         try:
             self.stage_delete(session_note_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
+        return DeleteResponse(deleted_id=session_note_id)
 
     def to_backup(
         self,

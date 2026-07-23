@@ -98,9 +98,10 @@ class CharacterNoteServiceTests(unittest.TestCase):
                 note.id,
                 CharacterNoteData(title="New plan", tags=["revised"]),
             )
-            character_notes.delete(person_id, note.id)
+            deleted = character_notes.delete(person_id, note.id)
 
             self.assertEqual("New plan", updated.title)
+            self.assertEqual(note.id, deleted.deleted_id)
             self.assertIsNone(db.get(CharacterNote, note.id))
             self.assertIsNotNone(db.get(BackstoryNote, backstory.id))
             remaining_assignments = db.exec(select(TagAssignment)).all()

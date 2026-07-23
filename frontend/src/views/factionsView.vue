@@ -3,8 +3,17 @@ import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import type { FactionDataDto, FactionDto } from "@/types/DataTransferObjects"
+import type {
+  DeleteResponseDto,
+  FactionDataDto,
+  FactionDto,
+} from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import {
+  compareByName,
+  removeById,
+  upsertById,
+} from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
 
 
@@ -129,7 +138,11 @@ async function createFaction() {
   }
   const createdFaction = response as FactionDto
 
-  await fetchFactions()
+  factions.value = upsertById(
+    factions.value,
+    createdFaction,
+    compareByName,
+  )
   resetFactionForm()
   await openEntry(createdFaction.id)
 }
@@ -156,7 +169,12 @@ async function updateFaction() {
     return
   }
 
-  await fetchFactions()
+  const savedFaction = response as FactionDto
+  factions.value = upsertById(
+    factions.value,
+    savedFaction,
+    compareByName,
+  )
   resetFactionForm()
   viewMode.value = ViewModes.Details
 }
@@ -174,7 +192,8 @@ async function deleteFaction(factionId: number) {
     return
   }
 
-  await fetchFactions()
+  const deleted = response as DeleteResponseDto
+  factions.value = removeById(factions.value, deleted.deletedId)
   await replaceWithFirstEntry()
 }
 

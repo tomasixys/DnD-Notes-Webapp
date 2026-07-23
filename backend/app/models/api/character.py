@@ -30,6 +30,11 @@ class CharacterRead(SQLModel):
     is_active: bool = False
 
 
+class CharacterDeleteResponse(SQLModel):
+    deleted_id: int
+    active_character: CharacterRead | None = None
+
+
 class CharacterNoteData(SQLModel):
     title: str
     content: str = ""

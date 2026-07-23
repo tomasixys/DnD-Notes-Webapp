@@ -7,6 +7,7 @@ import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CampaignRollDto,
   RollEntryDto,
+  RollMutationDto,
   SessionRollDto,
 } from "@/types/DataTransferObjects"
 
@@ -68,8 +69,10 @@ async function addRoll() {
     console.error("Failed to add roll:", response.error)
     return
   }
+  const mutation = response as RollMutationDto
+  sessionRolls.value = mutation.sessionStats
+  campaignRollStats.value = mutation.campaignStats
   rollInput.value = null
-  await Promise.all([fetchSessionRolls(), fetchCampaignStats()])
 }
 
 async function deleteRolls() {
@@ -86,8 +89,10 @@ async function deleteRolls() {
     console.error("Failed to delete rolls:", response.error)
     return
   }
+  const mutation = response as RollMutationDto
+  sessionRolls.value = mutation.sessionStats
+  campaignRollStats.value = mutation.campaignStats
   rollInput.value = null
-  await Promise.all([fetchSessionRolls(), fetchCampaignStats()])
 }
 
 watch(selectedCampaignId, () => void fetchCampaignStats(), { immediate: true })

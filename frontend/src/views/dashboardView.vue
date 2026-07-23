@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { reactive, computed, ref, onBeforeMount } from "vue"
-import { CampaignsDto, ExportResponse } from "@/types/DataTransferObjects";
+import type {
+  CampaignsDto,
+  DeleteResponseDto,
+  ExportResponse,
+} from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
 import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
@@ -14,6 +18,8 @@ const {
     selectedCampaignBannerUrl,
     hasSelectedCampaign,
     setCampaigns,
+    upsertCampaign,
+    removeCampaign,
     selectCampaign,
     clearSelectedCampaign,
 } = useCampaignStore()
@@ -146,7 +152,7 @@ async function createCampaign() {
     return
   }
 
-  await fetchCampaigns();
+  upsertCampaign(created)
   switchCampaign(created.id)
 
   clearNewCampaignForm()
@@ -163,7 +169,7 @@ async function updateCampaign(campaignId: number) {
     return
   }
   const updatedCampaign = response as CampaignsDto;
-  await fetchCampaigns();
+  upsertCampaign(updatedCampaign)
   switchCampaign(updatedCampaign.id)
 
   clearNewCampaignForm()
@@ -176,7 +182,8 @@ async function deleteCampaign(campaignId: number) {
     console.error("Failed to delete campaign:", response.error)
     return
   }
-  await fetchCampaigns();
+  const deleted = response as DeleteResponseDto
+  removeCampaign(deleted.deletedId)
 }
 
 async function exportCampaign(campaignId: number) {
@@ -213,7 +220,9 @@ async function importCampaign() {
       return
     }
     console.log("Imported campaign:", response)
-    await fetchCampaigns();
+    const importedCampaign = response as CampaignsDto
+    upsertCampaign(importedCampaign)
+    switchCampaign(importedCampaign.id)
   }
   input.click()
 }

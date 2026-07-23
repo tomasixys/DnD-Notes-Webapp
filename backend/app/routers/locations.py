@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies.campaigns import get_campaign_context
-from app.models.api import LocationData
+from app.models.api import DeleteResponse, LocationData, LocationRead
 from app.services.campaign_context import CampaignContext
 from app.services.locations import LocationService
 
@@ -33,7 +33,7 @@ def get_location(
 def create_location(
     location: LocationData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> LocationRead:
     return LocationService(context).create(location)
 
 
@@ -42,7 +42,7 @@ def update_location(
     location_id: int,
     updated_location: LocationData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> LocationRead:
     return LocationService(context).update(
         location_id,
         updated_location,
@@ -53,6 +53,5 @@ def update_location(
 def delete_location(
     location_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    LocationService(context).delete(location_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return LocationService(context).delete(location_id)

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlmodel import Session
 
 from app.database import get_session
-from app.models.api import CampaignRead
+from app.models.api import CampaignRead, DeleteResponse
 from app.services.campaigns import CampaignService
 
 
@@ -69,5 +69,5 @@ def update_campaign(
 def delete_campaign(
     campaign_id: int,
     db: Session = Depends(get_session),
-):
+) -> DeleteResponse:
     return CampaignService(db).delete(campaign_id)

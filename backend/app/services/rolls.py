@@ -5,7 +5,7 @@ from sqlmodel import select
 from app.models.api import (
     CampaignRollStats,
     RollCreate,
-    RollCreateResponse,
+    RollMutationResponse,
     SessionRollStats,
 )
 from app.models.database import RollEntry, SessionNote
@@ -125,10 +125,10 @@ class RollService:
     def create(
         self,
         roll_create: RollCreate,
-    ) -> RollCreateResponse:
+    ) -> RollMutationResponse:
         try:
             self.stage_create(roll_create)
-            response = RollCreateResponse(
+            response = RollMutationResponse(
                 campaign_stats=self.get_campaign_stats(),
                 session_stats=self.get_session_stats(
                     roll_create.session_id,
@@ -152,10 +152,17 @@ class RollService:
     def delete_for_session(
         self,
         session_note_id: int,
-    ) -> None:
+    ) -> RollMutationResponse:
         try:
             self.stage_delete_for_session(session_note_id)
+            response = RollMutationResponse(
+                campaign_stats=self.get_campaign_stats(),
+                session_stats=self.get_session_stats(
+                    session_note_id,
+                ),
+            )
             self.db.commit()
+            return response
         except Exception:
             self.db.rollback()
             raise

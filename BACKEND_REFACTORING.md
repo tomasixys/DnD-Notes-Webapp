@@ -42,11 +42,13 @@ examples below are starting points, not the limit of the refactor.
   retaining shared validation and filesystem operations in `file_storage.py`.
 - [x] Replaced campaign and backup-export response dictionaries with explicit
   `CampaignRead` and `CampaignBackupExportRead` API models.
+- [x] Standardized mutation responses and replaced compensating frontend GETs
+  with ordered local upsert/remove operations.
+- [x] Replaced untyped deletion dictionaries with `DeleteResponse`; character
+  deletion and roll mutations use typed domain-specific envelopes.
 
 ### Remaining
 
-- [ ] Standardize mutation responses and remove compensating frontend GETs.
-- [ ] Replace untyped `{"deleted": true}` responses.
 - [ ] Complete a final transaction, error, OpenAPI, and frontend-consumer audit.
 
 ## Current pressure points
@@ -71,13 +73,10 @@ another router. This pressure point is resolved.
 
 ### Mixed responsibilities
 
-Route handlers now delegate persistence and transaction behavior to services,
-including character portrait replacement and removal. The next cross-cutting
-pressure point is inconsistent mutation responses: several views still perform
-a collection GET immediately after a successful mutation.
-
-Inventory and character notes already demonstrate the preferred frontend
-behavior by applying authoritative mutation responses locally.
+Route handlers delegate persistence and transaction behavior to services,
+including character portrait replacement and removal. Mutation endpoints now
+return authoritative typed state, and their active frontend consumers apply
+that state locally. The remaining work is the final cross-cutting audit.
 
 ## Intended module boundaries
 
@@ -292,9 +291,8 @@ which database objects must be flushed in which order.
 
 Implementation status: completed for non-deletion responses. Campaign CRUD and
 backup import return `CampaignRead`, and backup export returns
-`CampaignBackupExportRead`. The remaining `{"deleted": true}` dictionaries are
-tracked separately because their replacement adds `deleted_id` and changes the
-mutation contract.
+`CampaignBackupExportRead`. Deletion responses were subsequently migrated to
+the typed mutation contracts described in PR 5.
 
 Replace remaining response dictionaries with explicit API models and named
 conversion functions. Keep database-only fields, including canonical copper
@@ -319,9 +317,9 @@ tag synchronization, reference refreshes, uploaded assets, or cascade rules.
 
 ### PR 5: Standardize mutation responses across every router
 
-Implementation status: planned. Inventory is complete and character-note
-create/update/delete already update their view locally, but most top-level
-resource views still refetch their collection after mutations.
+Implementation status: completed. All database mutations return explicit API
+models. Active frontend consumers apply returned resources, deletion IDs,
+aggregates, or mutation envelopes locally without compensating GET requests.
 
 This track is intentionally split into several PRs because it changes backend
 response contracts and frontend state handling together.
@@ -356,77 +354,74 @@ and still would not provide real synchronization between multiple clients.
 
 | Domain | Current backend response | Current frontend behavior | Target |
 | --- | --- | --- | --- |
-| Campaigns | Create/update return `CampaignRead`; delete returns `{"deleted": true}` | Refetches all campaigns | Keep campaign read model; typed delete; local upsert/remove |
-| People | Create/update return `PersonRead`; delete returns `{"deleted": true}` | Refetches all people | Keep resource responses; typed delete; local upsert/remove |
-| Locations | Create/update return `LocationRead`; delete returns `{"deleted": true}` | Refetches all locations | Keep resource responses; typed delete; local upsert/remove |
-| Factions | Create/update return `FactionRead`; delete returns `{"deleted": true}` | Refetches all factions | Keep resource responses; typed delete; local upsert/remove |
-| Sessions | Create/update return `SessionNoteRead`; delete returns `{"deleted": true}` | Refetches all sessions | Keep resource responses; typed delete; local upsert/remove and session-number ordering |
-| Character profiles | Most writes return `CharacterRead`; delete returns `{"deleted": true}` | Mostly uses returned state, with some compensating reloads | Typed delete and explicit handling of active-character side effects |
-| Character/backstory notes | Create/update return the note; delete returns `{"deleted": true}` | Already inserts/replaces/removes locally | Add typed delete response; retain local updates |
-| Rolls | Create returns both session and campaign stats; delete returns `{"deleted": true}` | Refetches both statistics after create and delete | One shared roll-mutation response for both operations; assign returned stats |
-| Inventory | Every mutation returns refreshed `InventoryRead` | Replaces the aggregate locally | Complete; retain as reference implementation |
-| Backup import | Returns `CampaignRead` | Refetches campaigns | Keep campaign read model and locally insert it |
+| Campaigns | Create/update return `CampaignRead`; delete returns `DeleteResponse` | Ordered local upsert/remove | Complete |
+| People | Create/update return `PersonRead`; delete returns `DeleteResponse` | Name-ordered local upsert/remove | Complete |
+| Locations | Create/update return `LocationRead`; delete returns `DeleteResponse` | Name-ordered local upsert/remove | Complete |
+| Factions | Create/update return `FactionRead`; delete returns `DeleteResponse` | Name-ordered local upsert/remove | Complete |
+| Sessions | Create/update return `SessionNoteRead`; delete returns `DeleteResponse` | Session-number-ordered local upsert/remove | Complete |
+| Character profiles | Writes return `CharacterRead`; delete returns `CharacterDeleteResponse` | Applies character and active-character state locally | Complete |
+| Character/backstory notes | Create/update return the note; delete returns `DeleteResponse` | Updated-time-ordered local upsert/remove | Complete |
+| Rolls | Create/delete return `RollMutationResponse` | Assigns returned session and campaign statistics | Complete |
+| Inventory | Every mutation returns refreshed `InventoryRead` | Replaces the aggregate locally | Complete |
+| Backup import | Returns `CampaignRead` | Inserts and selects the returned campaign locally | Complete |
 
 #### Delivery sequence
 
 ##### PR 5a: Shared response models and frontend collection utilities
 
-- Reuse the existing explicit `CampaignRead` model.
-- Add a typed deletion response containing `deleted_id`.
-- Add small frontend utilities or store operations for upserting, removing, and
+- [x] Reuse the existing explicit `CampaignRead` model.
+- [x] Add a typed deletion response containing `deleted_id`.
+- [x] Add small frontend utilities or store operations for upserting, removing, and
   sorting resources by ID, name, or session number.
-- Do not change every endpoint in this PR; establish and test the shared
-  contracts first.
 
 ##### PR 5b: People, locations, and factions
 
-- Preserve their existing create/update read responses.
-- Change deletion to the typed deletion response.
-- Replace collection refetches with local upsert/remove operations.
-- Preserve case-insensitive name ordering after local changes.
-- Test relationship/tag fields in returned resources after writes.
+- [x] Preserve their existing create/update read responses.
+- [x] Change deletion to the typed deletion response.
+- [x] Replace collection refetches with local upsert/remove operations.
+- [x] Preserve case-insensitive name ordering after local changes.
+- [x] Test relationship/tag fields in returned resources after writes.
 
 ##### PR 5c: Sessions and campaigns
 
-- Campaign responses already use `CampaignRead`; preserve that contract.
-- Use returned campaign and session resources to update frontend stores.
-- Replace session and campaign deletion responses with the typed model.
-- Preserve campaign ID ordering and descending session-number ordering.
-- Decide whether session mutations need a campaign-summary envelope only if the
-  active frontend state consumes `session_count` without reloading the
-  dashboard.
+- [x] Campaign responses already use `CampaignRead`; preserve that contract.
+- [x] Use returned campaign and session resources to update frontend stores.
+- [x] Replace session and campaign deletion responses with the typed model.
+- [x] Preserve campaign ID ordering and descending session-number ordering.
+- [x] Keep session mutations resource-scoped because the dashboard summary is
+  not mounted as an active consumer of session writes.
 
 ##### PR 5d: Characters, notes, and backstory
 
-- Portrait persistence is already owned by `CharacterService`; retain that
+- [x] Portrait persistence is already owned by `CharacterService`; retain that
   boundary while changing mutation contracts.
-- Remove redundant character reloads where `CharacterRead` is already returned.
-- Add typed character and note deletion responses.
-- Review create/activate/delete for active-character, campaign-summary, person,
+- [x] Remove redundant character reloads where `CharacterRead` is already returned.
+- [x] Add typed character and note deletion responses.
+- [x] Review create/activate/delete for active-character, campaign-summary, person,
   and inventory-ownership side effects. Return a typed envelope only for state
   the active frontend store must update immediately.
-- Keep note and backstory collection updates local.
+- [x] Keep note and backstory collection updates local.
 
 ##### PR 5e: Rolls and inventory
 
-- Rename or generalize the current roll-create response as a roll-mutation
+- [x] Rename or generalize the current roll-create response as a roll-mutation
   response containing both session and campaign statistics.
-- Return that response from roll deletion as well as creation.
-- Replace the two follow-up statistics GETs with direct response assignment.
-- Make no inventory response-shape change; verify it remains the aggregate
+- [x] Return that response from roll deletion as well as creation.
+- [x] Replace the two follow-up statistics GETs with direct response assignment.
+- [x] Make no inventory response-shape change; verify it remains the aggregate
   reference implementation.
 
 ##### PR 5f: Final mutation audit
 
-- Inspect every `POST`, `PUT`, `PATCH`, and `DELETE` endpoint by semantics;
+- [x] Inspect every `POST`, `PUT`, `PATCH`, and `DELETE` endpoint by semantics;
   exclude read-only POST operations.
-- Confirm each database mutation returns an explicit API model.
-- Confirm services construct responses after flush or commit using the same
+- [x] Confirm each database mutation returns an explicit API model.
+- [x] Confirm services construct responses after flush or commit using the same
   conversion as GET routes.
-- Confirm frontend success handlers do not issue compensating GETs for state
+- [x] Confirm frontend success handlers do not issue compensating GETs for state
   already present in the mutation response.
-- Compare OpenAPI paths and intentionally review all changed response schemas.
-- Run backend tests and the frontend production build.
+- [x] Compare OpenAPI paths and intentionally review all changed response schemas.
+- [x] Run backend tests and the frontend production build.
 
 #### Per-PR acceptance criteria
 

@@ -8,6 +8,8 @@ export type SessionContext = {
   selectedSessionId: ComputedRef<number | null>
   selectionRevision: Ref<number>
   loadSessions: () => Promise<void>
+  upsertSession: (session: SessionListItemDto) => void
+  removeSession: (sessionId: number) => void
   openSession: (sessionId: number, replace?: boolean) => Promise<void>
   replaceWithFirstSession: () => Promise<void>
 }

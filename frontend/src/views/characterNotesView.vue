@@ -9,7 +9,13 @@ import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CharacterNoteDataDto,
   CharacterNoteDto,
+  DeleteResponseDto,
 } from "@/types/DataTransferObjects"
+import {
+  compareByUpdatedAtDescending,
+  removeById,
+  upsertById,
+} from "@/utils/resourceCollections"
 
 const props = defineProps<{
   kind: "notes" | "backstory"
@@ -146,7 +152,11 @@ async function createEntry() {
     return
   }
   const created = response as CharacterNoteDto
-  entries.value = [created, ...entries.value]
+  entries.value = upsertById(
+    entries.value,
+    created,
+    compareByUpdatedAtDescending,
+  )
   mode.value = "details"
   resetForm()
   await openEntry(created.id)
@@ -163,9 +173,11 @@ async function updateEntry() {
     return
   }
   const updated = response as CharacterNoteDto
-  entries.value = entries.value
-    .map((entry) => entry.id === updated.id ? updated : entry)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  entries.value = upsertById(
+    entries.value,
+    updated,
+    compareByUpdatedAtDescending,
+  )
   mode.value = "details"
   resetForm()
 }
@@ -178,7 +190,8 @@ async function deleteEntry() {
     requestError.value = `The ${singularTitle.value} could not be deleted.`
     return
   }
-  entries.value = entries.value.filter((entry) => entry.id !== deletedId)
+  const deleted = response as DeleteResponseDto
+  entries.value = removeById(entries.value, deleted.deletedId)
   const firstEntry = entries.value[0]
   await router.replace({
     name: routeName.value,

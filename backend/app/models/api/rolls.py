@@ -21,6 +21,6 @@ class CampaignRollStats(SQLModel):
     roll_luck: float
 
 
-class RollCreateResponse(SQLModel):
+class RollMutationResponse(SQLModel):
     campaign_stats: CampaignRollStats
     session_stats: SessionRollStats

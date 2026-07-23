@@ -10,6 +10,7 @@ from app.models.api import (
     CampaignBackupCharacterNote,
     CharacterNoteData,
     CharacterNoteRead,
+    DeleteResponse,
 )
 from app.models.database import (
     BackstoryNote,
@@ -284,13 +285,14 @@ class _PersonalNoteOperations:
         self,
         person_id: int,
         note_id: int,
-    ) -> None:
+    ) -> DeleteResponse:
         try:
             self.stage_delete(person_id, note_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
+        return DeleteResponse(deleted_id=note_id)
 
     def to_backup(
         self,
@@ -406,8 +408,8 @@ class CharacterNoteService:
         self,
         person_id: int,
         note_id: int,
-    ) -> None:
-        self._operations.delete(person_id, note_id)
+    ) -> DeleteResponse:
+        return self._operations.delete(person_id, note_id)
 
     def stage_delete_all_for_character(
         self,
@@ -520,8 +522,8 @@ class BackstoryNoteService:
         self,
         person_id: int,
         note_id: int,
-    ) -> None:
-        self._operations.delete(person_id, note_id)
+    ) -> DeleteResponse:
+        return self._operations.delete(person_id, note_id)
 
     def stage_delete_all_for_character(
         self,

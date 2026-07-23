@@ -5,7 +5,11 @@ import { DeleteAPI, PostAPI, PutAPI } from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useSessionContext } from "@/composables/useSessionContext"
 import { useCampaignStore } from "@/stores/campaignStore"
-import type { SessionDataDto } from "@/types/DataTransferObjects"
+import type {
+  DeleteResponseDto,
+  SessionDataDto,
+  SessionListItemDto,
+} from "@/types/DataTransferObjects"
 import { ViewModes } from "@/types/viewTypes"
 
 const { selectedCampaignId } = useCampaignStore()
@@ -13,7 +17,8 @@ const {
   sessions,
   selectedSession,
   selectionRevision,
-  loadSessions,
+  upsertSession,
+  removeSession,
   openSession,
   replaceWithFirstSession,
 } = useSessionContext()
@@ -84,11 +89,11 @@ async function createSession() {
     return
   }
 
-  const sessionId = Number(response.id)
-  await loadSessions()
+  const createdSession = response as SessionListItemDto
+  upsertSession(createdSession)
   resetSessionForm()
   viewMode.value = ViewModes.Details
-  if (Number.isInteger(sessionId)) await openSession(sessionId)
+  await openSession(createdSession.id)
 }
 
 async function updateSession() {
@@ -103,7 +108,8 @@ async function updateSession() {
     return
   }
 
-  await loadSessions()
+  const updatedSession = response as SessionListItemDto
+  upsertSession(updatedSession)
   resetSessionForm()
   viewMode.value = ViewModes.Details
   await openSession(sessionId)
@@ -119,7 +125,8 @@ async function deleteSession() {
     return
   }
 
-  await loadSessions()
+  const deleted = response as DeleteResponseDto
+  removeSession(deleted.deletedId)
   await replaceWithFirstSession()
 }
 

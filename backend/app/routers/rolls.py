@@ -4,7 +4,7 @@ from app.dependencies.campaigns import get_campaign_context
 from app.models.api.rolls import (
     CampaignRollStats,
     RollCreate,
-    RollCreateResponse,
+    RollMutationResponse,
     SessionRollStats,
 )
 from app.services.campaign_context import CampaignContext
@@ -36,7 +36,7 @@ def get_session_roll_stats(
 def create_roll(
     roll_create: RollCreate,
     context: CampaignContext = Depends(get_campaign_context),
-) -> RollCreateResponse:
+) -> RollMutationResponse:
     return RollService(context).create(roll_create)
 
 
@@ -44,6 +44,5 @@ def create_roll(
 def delete_session_rolls(
     session_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-) -> dict[str, bool]:
-    RollService(context).delete_for_session(session_id)
-    return {"deleted": True}
+) -> RollMutationResponse:
+    return RollService(context).delete_for_session(session_id)

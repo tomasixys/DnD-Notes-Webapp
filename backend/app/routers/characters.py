@@ -3,11 +3,13 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from app.dependencies.campaigns import get_campaign_context
 from app.models.api import (
     BackstoryNoteRead,
+    CharacterDeleteResponse,
     CharacterCreate,
     CharacterNoteData,
     CharacterNoteRead,
     CharacterRead,
     CharacterUpdate,
+    DeleteResponse,
 )
 from app.services.campaign_context import CampaignContext
 from app.services.character_notes import (
@@ -68,9 +70,8 @@ def activate_character(
 def delete_character(
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    CharacterService(context).delete(person_id)
-    return {"deleted": True}
+) -> CharacterDeleteResponse:
+    return CharacterService(context).delete(person_id)
 
 
 @router.put("/{person_id}/image")
@@ -135,9 +136,8 @@ def delete_character_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    CharacterNoteService(context).delete(person_id, note_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return CharacterNoteService(context).delete(person_id, note_id)
 
 
 @router.get("/{person_id}/backstory")
@@ -182,6 +182,5 @@ def delete_backstory_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    BackstoryNoteService(context).delete(person_id, note_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return BackstoryNoteService(context).delete(person_id, note_id)

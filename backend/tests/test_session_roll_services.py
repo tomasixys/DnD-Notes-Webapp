@@ -109,11 +109,23 @@ class SessionAndRollServiceTests(unittest.TestCase):
             )
             self.assertEqual(2, updated.session_number)
 
-            rolls.delete_for_session(session_note_id)
+            deleted_rolls = rolls.delete_for_session(session_note_id)
+            self.assertEqual(
+                0,
+                deleted_rolls.campaign_stats.num_rolls,
+            )
+            self.assertEqual(
+                [],
+                deleted_rolls.session_stats.rolls,
+            )
             self.assertEqual([], db.exec(select(RollEntry)).all())
             self.assertIsNotNone(db.get(SessionNote, session_note_id))
 
-            sessions.delete(session_note_id)
+            deleted_session = sessions.delete(session_note_id)
+            self.assertEqual(
+                session_note_id,
+                deleted_session.deleted_id,
+            )
             self.assertIsNone(db.get(SessionNote, session_note_id))
 
     def test_roll_mutations_reject_a_session_from_another_campaign(self):

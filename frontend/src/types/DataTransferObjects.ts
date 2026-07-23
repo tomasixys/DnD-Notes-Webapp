@@ -21,6 +21,10 @@ export type CampaignsDto = {
   activeCharacterPersonId: number | null
 }
 
+export type DeleteResponseDto = {
+  deletedId: number
+}
+
 export type ResourceTagDto = {
   value: string
   label: string
@@ -68,6 +72,11 @@ export type RollEntryDto = {
   roll: number
 }
 
+export type RollMutationDto = {
+  campaignStats: CampaignRollDto
+  sessionStats: SessionRollDto
+}
+
 export type PersonDto = {
   id: number
   campaignId: number
@@ -102,6 +111,10 @@ export type CharacterDto = {
   appearance: string
   imageUrl: string
   isActive: boolean
+}
+
+export type CharacterDeleteResponseDto = DeleteResponseDto & {
+  activeCharacter: CharacterDto | null
 }
 
 export type CharacterCreateDto = {

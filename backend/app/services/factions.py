@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlmodel import select
 
 from app.models.api import (
     CampaignBackupFaction,
+    DeleteResponse,
     FactionData,
     FactionRead,
 )
@@ -57,7 +59,7 @@ class FactionService:
         statement = (
             select(Faction)
             .where(Faction.campaign_id == self.context.campaign_id)
-            .order_by(Faction.name)
+            .order_by(func.lower(Faction.name), Faction.id)
         )
         return self.db.exec(statement).all()
 
@@ -169,13 +171,14 @@ class FactionService:
         self.db.delete(faction)
         self.db.flush()
 
-    def delete(self, faction_id: int) -> None:
+    def delete(self, faction_id: int) -> DeleteResponse:
         try:
             self.stage_delete(faction_id)
             self.db.commit()
         except Exception:
             self.db.rollback()
             raise
+        return DeleteResponse(deleted_id=faction_id)
 
     def to_backup(self, faction: Faction) -> CampaignBackupFaction:
         relationship = self.tags.get_relationship(
