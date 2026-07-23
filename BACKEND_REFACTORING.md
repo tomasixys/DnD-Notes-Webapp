@@ -23,6 +23,30 @@ examples below are starting points, not the limit of the refactor.
   while code is being reorganized.
 - Keep each refactoring pull request small enough to review confidently.
 
+## Progress summary
+
+### Completed
+
+- [x] Introduced `CampaignContext` and campaign-scoped service construction.
+- [x] Extracted services for campaigns, backup, people, characters, character
+  notes, backstory notes, sessions, rolls, inventory, locations, and factions.
+- [x] Moved campaign backup import/export into `CampaignBackupService` and a
+  separate router without changing API paths or backup layout.
+- [x] Moved backup collection queries and conversion into their domain
+  services.
+- [x] Extracted campaign-scoped `SearchService` and `TagService` components.
+- [x] Removed redundant `campaign_id` handler arguments where
+  `get_campaign_context` owns path resolution.
+- [x] Made inventory mutations return the refreshed `InventoryRead` aggregate.
+
+### Remaining
+
+- [ ] Move the remaining character image persistence logic out of the router.
+- [ ] Replace remaining response dictionaries with explicit API models.
+- [ ] Standardize mutation responses and remove compensating frontend GETs.
+- [ ] Replace untyped `{"deleted": true}` responses.
+- [ ] Complete a final transaction, error, OpenAPI, and frontend-consumer audit.
+
 ## Current pressure points
 
 ### Campaign backups
@@ -34,28 +58,24 @@ The backup service owns archive creation, asset collection, serialization,
 parsing, ID remapping, and the encompassing import transaction.
 
 Backup behavior is substantial enough to be its own backend feature. Keeping it
-inside the campaign CRUD router makes both areas harder to understand and test.
+inside the campaign CRUD router made both areas harder to understand and test.
+This pressure point is resolved.
 
 ### Shared campaign lookup
 
-Several routers import `verify_campaign` from the campaign router. A router
-should not be used as a shared dependency module. This creates unnecessary
-coupling and makes import cycles more likely as the application grows.
+Campaign lookup now lives in `app/dependencies/campaigns.py` and
+`CampaignContext`. Campaign-scoped routers no longer import lookup behavior from
+another router. This pressure point is resolved.
 
 ### Mixed responsibilities
 
-Some route handlers currently perform all of the following:
+Most route handlers now delegate persistence and transaction behavior to
+services. The main remaining exception is character image persistence. The
+next cross-cutting pressure point is inconsistent mutation responses: several
+views still perform a collection GET immediately after a successful mutation.
 
-- HTTP validation and error selection
-- database lookup and mutation
-- transaction commit or rollback
-- file storage operations
-- tag and relationship synchronization
-- API response construction
-
-The inventory implementation has started separating response composition and
-domain conversion from HTTP routing. That is a useful direction, but it should
-be applied gradually rather than through a repository-wide rewrite.
+Inventory and character notes already demonstrate the preferred frontend
+behavior by applying authoritative mutation responses locally.
 
 ## Intended module boundaries
 
@@ -234,7 +254,7 @@ service, backup service, and composed resource services are now in place.
 Non-goals for this refactor track:
 
 - Changing backup schema versions or archive layout
-- Adding inventory data to campaign backups
+- Changing inventory backup behavior as part of the structural extraction
 - Changing campaign CRUD behavior
 - Renaming API paths
 - Reformatting unrelated router files
@@ -252,6 +272,10 @@ Required verification:
 
 ### PR 2: Thin campaign and character routers
 
+Implementation status: mostly completed. Campaign CRUD and character domain
+operations use services. Character portrait persistence remains in the router
+and should be moved in a focused follow-up.
+
 Move campaign CRUD and character profile operations into focused services.
 Separate character notes, backstory, image handling, and activation where their
 lifecycle or transaction boundaries differ.
@@ -261,6 +285,10 @@ mutation owns its commit and rollback behavior. Routers should not need to know
 which database objects must be flushed in which order.
 
 ### PR 3: Normalize API response construction
+
+Implementation status: partially completed. Resource services and inventory
+return explicit read models, but campaign and deletion responses still include
+ad hoc dictionaries.
 
 Replace remaining response dictionaries with explicit API models and named
 conversion functions. Keep database-only fields, including canonical copper
@@ -272,6 +300,10 @@ operations to that service.
 
 ### PR 4: Consolidate repeated resource operations
 
+Implementation status: substantially completed. Resource-specific services
+remain separate, while genuinely shared tag and personal-note mechanics are
+centralized behind explicit components.
+
 Review people, locations, factions, sessions, and character entries for actual
 duplication. Extract shared operations only where the resource semantics and
 error behavior are genuinely the same.
@@ -281,36 +313,126 @@ tag synchronization, reference refreshes, uploaded assets, or cascade rules.
 
 ### PR 5: Standardize mutation responses across every router
 
-Every endpoint that changes database state should return a typed, freshly read
-representation that gives the frontend everything affected by the mutation.
-The response must be constructed after the mutation has been flushed or
-committed, using the same read conversion used by the corresponding GET route.
+Implementation status: planned. Inventory is complete and character-note
+create/update/delete already update their view locally, but most top-level
+resource views still refetch their collection after mutations.
 
-Apply this contract to campaigns, sessions, people, locations, factions,
-characters, notes, backstory, rolls, inventory, and future mutable resources.
-The inventory API is the initial example: changing the purse or an item returns
-the complete refreshed inventory.
+This track is intentionally split into several PRs because it changes backend
+response contracts and frontend state handling together.
 
-Use the following response rules:
+#### Response contract decision
+
+Return the smallest authoritative state required to update the active view.
+Do not return an entire resource collection after every mutation by default.
 
 - Creating a top-level resource returns its complete read model.
 - Updating a top-level resource returns its complete refreshed read model.
-- Mutating a nested resource returns the refreshed aggregate normally displayed
-  by the frontend when that aggregate is small, such as an inventory after an
-  item or purse mutation.
-- When returning an entire aggregate would be excessive, return a typed response
-  containing the refreshed resource and any changed summary or parent state.
-- Deleting a nested resource returns the refreshed parent aggregate or
-  collection required to remove it from the current view.
-- Deleting a top-level resource returns a typed deletion response containing its
-  identifier and any refreshed parent or collection state the current view
-  requires.
-- Avoid untyped `{\"deleted\": true}` responses when they force the frontend to
-  perform a follow-up fetch to discover the new state.
+- Deleting a resource returns a typed response containing `deleted_id`.
+- The frontend inserts, replaces, or removes the affected entry locally and
+  applies the same ordering as the corresponding GET collection.
+- A nested mutation returns the refreshed aggregate when several displayed
+  values change together and the aggregate is reasonably small. Inventory is
+  the reference implementation.
+- When one mutation changes multiple independently useful view models, return a
+  typed response envelope containing those models. Roll statistics are the
+  clearest example.
+- Return a full collection only for a true bulk operation, server-owned
+  reordering, or another case where a local deterministic update is unsafe.
+- Read-only endpoints that happen to use `POST`, such as search, are outside
+  this mutation contract.
 
-This is an API behavior change and should not be hidden inside file-movement
-refactors. Define the response models and migrate one resource group at a time,
-with frontend consumers and route tests updated in the same PR.
+Returning a full collection after every write would simplify individual
+frontend handlers, but it would add a collection query and an increasingly
+large response to each mutation, couple resource endpoints to one list view,
+and still would not provide real synchronization between multiple clients.
+
+#### Current mutation inventory
+
+| Domain | Current backend response | Current frontend behavior | Target |
+| --- | --- | --- | --- |
+| Campaigns | Create/update return an untyped campaign dictionary; delete returns `{"deleted": true}` | Refetches all campaigns | Typed campaign read model; local upsert/remove |
+| People | Create/update return `PersonRead`; delete returns `{"deleted": true}` | Refetches all people | Keep resource responses; typed delete; local upsert/remove |
+| Locations | Create/update return `LocationRead`; delete returns `{"deleted": true}` | Refetches all locations | Keep resource responses; typed delete; local upsert/remove |
+| Factions | Create/update return `FactionRead`; delete returns `{"deleted": true}` | Refetches all factions | Keep resource responses; typed delete; local upsert/remove |
+| Sessions | Create/update return `SessionNoteRead`; delete returns `{"deleted": true}` | Refetches all sessions | Keep resource responses; typed delete; local upsert/remove and session-number ordering |
+| Character profiles | Most writes return `CharacterRead`; delete returns `{"deleted": true}` | Mostly uses returned state, with some compensating reloads | Typed delete and explicit handling of active-character side effects |
+| Character/backstory notes | Create/update return the note; delete returns `{"deleted": true}` | Already inserts/replaces/removes locally | Add typed delete response; retain local updates |
+| Rolls | Create returns both session and campaign stats; delete returns `{"deleted": true}` | Refetches both statistics after create and delete | One shared roll-mutation response for both operations; assign returned stats |
+| Inventory | Every mutation returns refreshed `InventoryRead` | Replaces the aggregate locally | Complete; retain as reference implementation |
+| Backup import | Returns the created campaign dictionary | Refetches campaigns | Return typed campaign read model and locally insert it |
+
+#### Delivery sequence
+
+##### PR 5a: Shared response models and frontend collection utilities
+
+- Add an explicit campaign read model.
+- Add a typed deletion response containing `deleted_id`.
+- Add small frontend utilities or store operations for upserting, removing, and
+  sorting resources by ID, name, or session number.
+- Do not change every endpoint in this PR; establish and test the shared
+  contracts first.
+
+##### PR 5b: People, locations, and factions
+
+- Preserve their existing create/update read responses.
+- Change deletion to the typed deletion response.
+- Replace collection refetches with local upsert/remove operations.
+- Preserve case-insensitive name ordering after local changes.
+- Test relationship/tag fields in returned resources after writes.
+
+##### PR 5c: Sessions and campaigns
+
+- Migrate campaign dictionaries to the campaign read model.
+- Use returned campaign and session resources to update frontend stores.
+- Replace session and campaign deletion responses with the typed model.
+- Preserve campaign ID ordering and descending session-number ordering.
+- Decide whether session mutations need a campaign-summary envelope only if the
+  active frontend state consumes `session_count` without reloading the
+  dashboard.
+
+##### PR 5d: Characters, notes, and backstory
+
+- Move portrait persistence into the character service before changing its
+  mutation contracts.
+- Remove redundant character reloads where `CharacterRead` is already returned.
+- Add typed character and note deletion responses.
+- Review create/activate/delete for active-character, campaign-summary, person,
+  and inventory-ownership side effects. Return a typed envelope only for state
+  the active frontend store must update immediately.
+- Keep note and backstory collection updates local.
+
+##### PR 5e: Rolls and inventory
+
+- Rename or generalize the current roll-create response as a roll-mutation
+  response containing both session and campaign statistics.
+- Return that response from roll deletion as well as creation.
+- Replace the two follow-up statistics GETs with direct response assignment.
+- Make no inventory response-shape change; verify it remains the aggregate
+  reference implementation.
+
+##### PR 5f: Final mutation audit
+
+- Inspect every `POST`, `PUT`, `PATCH`, and `DELETE` endpoint by semantics;
+  exclude read-only POST operations.
+- Confirm each database mutation returns an explicit API model.
+- Confirm services construct responses after flush or commit using the same
+  conversion as GET routes.
+- Confirm frontend success handlers do not issue compensating GETs for state
+  already present in the mutation response.
+- Compare OpenAPI paths and intentionally review all changed response schemas.
+- Run backend tests and the frontend production build.
+
+#### Per-PR acceptance criteria
+
+- Backend and frontend changes for a resource group land together.
+- Create/update tests verify generated IDs, relationships, tags, timestamps,
+  summaries, and other refreshed fields as applicable.
+- Delete tests save the created ID, delete it, verify the typed response, and
+  verify the record no longer exists.
+- Frontend tests or focused code assertions verify local upsert/remove behavior
+  and the absence of a compensating GET.
+- No endpoint returns a full collection unless the PR documents why local state
+  replacement is unsafe.
 
 ## Transaction and error guidelines
 
@@ -343,8 +465,9 @@ with frontend consumers and route tests updated in the same PR.
 The following questions should be answered when the relevant feature work makes
 them concrete:
 
-- Whether campaign backup should include inventories, purse balances, access
-  grants, and items in the next backup schema version.
+- Whether future backup versions need additional inventory authorization or
+  configuration fields beyond the inventories, balances, access grants, and
+  items already included.
 - Whether `/inventory` remains a permanent shortcut for the default campaign
   inventory after multiple inventories are introduced.
 - Whether inventory managers and owners require authorization enforcement in
