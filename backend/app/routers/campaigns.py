@@ -10,14 +10,10 @@ from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
 from app.dependencies.campaigns import verify_campaign
-from app.inventory_service import (
-    ensure_default_inventory,
-    sync_default_inventory_owner,
-)
 from app.models.database import *
 from app.models.api import *
-from app.models.enums import CurrencyDenomination
 from app.services.characters import CharacterService
+from app.services.inventory import InventoryService
 from app.services.people import PersonService
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
@@ -55,156 +51,6 @@ def sqlmodel_to_dict(model: SQLModel):
         return model.model_dump(mode="json")
 
     return model.dict()
-
-
-def inventory_to_backup(
-    inventory: Inventory,
-    db: Session,
-) -> CampaignBackupInventory:
-    balances = {
-        balance.denomination: balance.amount
-        for balance in db.exec(
-            select(CurrencyBalance).where(
-                CurrencyBalance.purse_id == inventory.id
-            )
-        ).all()
-    }
-    members = db.exec(
-        select(InventoryAccess)
-        .where(InventoryAccess.inventory_id == inventory.id)
-        .order_by(InventoryAccess.character_person_id)
-    ).all()
-    items = db.exec(
-        select(InventoryItem)
-        .where(InventoryItem.inventory_id == inventory.id)
-        .order_by(InventoryItem.id)
-    ).all()
-
-    return CampaignBackupInventory(
-        name=inventory.name,
-        description=inventory.description,
-        purse=CampaignBackupPurse(
-            **{
-                denomination.value: balances.get(denomination, 0)
-                for denomination in CurrencyDenomination
-            }
-        ),
-        members=[
-            CampaignBackupInventoryMember(
-                person_backup_id=member.character_person_id,
-                role=member.role,
-            )
-            for member in members
-        ],
-        items=[
-            CampaignBackupInventoryItem(
-                name=item.name,
-                description=item.description,
-                category=item.category,
-                rarity=item.rarity,
-                quantity=item.quantity,
-                unit_value_cp=item.unit_value_cp,
-            )
-            for item in items
-        ],
-    )
-
-
-def restore_inventory_backups(
-    campaign: Campaign,
-    inventory_backups: list[CampaignBackupInventory],
-    default_inventory: Inventory,
-    person_id_map: dict[int, int],
-    db: Session,
-) -> None:
-    for index, inventory_backup in enumerate(inventory_backups):
-        if index == 0:
-            inventory = default_inventory
-        else:
-            inventory = Inventory(campaign_id=campaign.id)
-            db.add(inventory)
-            db.flush()
-            db.add(Purse(inventory_id=inventory.id))
-            db.flush()
-
-        inventory.name = inventory_backup.name
-        inventory.description = inventory_backup.description
-        db.add(inventory)
-        db.flush()
-
-        existing_balances = {
-            balance.denomination: balance
-            for balance in db.exec(
-                select(CurrencyBalance).where(
-                    CurrencyBalance.purse_id == inventory.id
-                )
-            ).all()
-        }
-        for denomination in CurrencyDenomination:
-            balance = existing_balances.get(denomination)
-            amount = getattr(inventory_backup.purse, denomination.value)
-            if balance is None:
-                balance = CurrencyBalance(
-                    purse_id=inventory.id,
-                    denomination=denomination,
-                )
-            balance.amount = amount
-            db.add(balance)
-
-        existing_items = db.exec(
-            select(InventoryItem).where(
-                InventoryItem.inventory_id == inventory.id
-            )
-        ).all()
-        for item in existing_items:
-            db.delete(item)
-
-        existing_grants = db.exec(
-            select(InventoryAccess).where(
-                InventoryAccess.inventory_id == inventory.id
-            )
-        ).all()
-        for grant in existing_grants:
-            db.delete(grant)
-        db.flush()
-
-        for item_backup in inventory_backup.items:
-            db.add(
-                InventoryItem(
-                    inventory_id=inventory.id,
-                    name=item_backup.name,
-                    description=item_backup.description,
-                    category=item_backup.category,
-                    rarity=item_backup.rarity,
-                    quantity=item_backup.quantity,
-                    unit_value_cp=item_backup.unit_value_cp,
-                )
-            )
-
-        for member_backup in inventory_backup.members:
-            character_person_id = person_id_map.get(
-                member_backup.person_backup_id
-            )
-            if (
-                character_person_id is None
-                or db.get(CharacterProfile, character_person_id) is None
-            ):
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "Inventory access references a missing "
-                        "character profile"
-                    ),
-                )
-            db.add(
-                InventoryAccess(
-                    inventory_id=inventory.id,
-                    character_person_id=character_person_id,
-                    role=member_backup.role,
-                )
-            )
-        db.flush()
-
 
 
 @router.get("")
@@ -262,7 +108,7 @@ def create_campaign(
 
     db.add(campaign)
     db.flush()  # assigns campaign.id without committing yet
-    ensure_default_inventory(campaign, db)
+    InventoryService(db).stage_ensure_default(campaign)
 
     saved_image_relative_path: str | None = None
     saved_banner_relative_path: str | None = None
@@ -438,6 +284,7 @@ def export_campaign_backup(
         .where(Inventory.campaign_id == campaign_id)
         .order_by(Inventory.id)
     ).all()
+    inventory_service = InventoryService(db)
 
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
@@ -625,7 +472,7 @@ def export_campaign_backup(
                 for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
             ],
             inventories=[
-                inventory_to_backup(inventory, db)
+                inventory_service.to_backup(inventory)
                 for inventory in inventories
             ],
         )
@@ -673,7 +520,8 @@ async def import_campaign_backup(
             try:
                 db.add(campaign)
                 db.flush()
-                default_inventory = ensure_default_inventory(campaign, db)
+                inventory_service = InventoryService(db)
+                inventory_service.stage_ensure_default(campaign)
 
                 original_path = Path(cb.campaign.image_archive_path)
                 if cb.campaign.image_archive_path:
@@ -692,7 +540,11 @@ async def import_campaign_backup(
                 db.add(campaign)
 
                 people = PersonService(db)
-                characters = CharacterService(db, people)
+                characters = CharacterService(
+                    db,
+                    people,
+                    inventory_service,
+                )
                 for person_backup in cb.people:
                     person = people.stage_create(
                         campaign,
@@ -922,15 +774,13 @@ async def import_campaign_backup(
                         ) from error
 
                 if cb.inventories:
-                    restore_inventory_backups(
+                    inventory_service.stage_restore_backups(
                         campaign,
                         cb.inventories,
-                        default_inventory,
                         person_id_map,
-                        db,
                     )
                 else:
-                    sync_default_inventory_owner(campaign, db)
+                    inventory_service.stage_sync_default_owner(campaign)
 
                 db.commit()
                 db.refresh(campaign)

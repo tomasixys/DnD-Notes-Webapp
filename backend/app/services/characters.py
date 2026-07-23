@@ -2,7 +2,6 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.file_storage import build_upload_url, delete_uploaded_file
-from app.inventory_service import sync_default_inventory_owner
 from app.models.api import CharacterCreate, CharacterRead, CharacterUpdate
 from app.models.database import (
     BackstoryNote,
@@ -11,6 +10,7 @@ from app.models.database import (
     CharacterProfile,
 )
 from app.models.enums import ResourceType
+from app.services.inventory import InventoryService
 from app.services.people import PersonService
 from app.tags import handle_tags_of_deleted_resource
 
@@ -20,9 +20,11 @@ class CharacterService:
         self,
         db: Session,
         people: PersonService | None = None,
+        inventory: InventoryService | None = None,
     ):
         self.db = db
         self.people = people or PersonService(db)
+        self.inventory = inventory or InventoryService(db)
 
     def to_read(
         self,
@@ -143,7 +145,7 @@ class CharacterService:
         )
         if character.make_active:
             self.set_active_pointer(campaign, profile.person_id)
-            sync_default_inventory_owner(campaign, self.db)
+            self.inventory.stage_sync_default_owner(campaign)
         return profile
 
     def stage_update(
@@ -218,7 +220,7 @@ class CharacterService:
     ) -> CharacterRead:
         try:
             profile = self.set_active_pointer(campaign, person_id)
-            sync_default_inventory_owner(campaign, self.db)
+            self.inventory.stage_sync_default_owner(campaign)
             self.db.commit()
             self.db.refresh(campaign)
             return self.to_read(profile, campaign)

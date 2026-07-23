@@ -211,9 +211,9 @@ Replace remaining response dictionaries with explicit API models and named
 conversion functions. Keep database-only fields, including canonical copper
 values, out of public responses.
 
-This is also the appropriate point to move `inventory_service.py` into the
-eventual services package. Moving it during unrelated inventory feature work
-would add noise without changing behavior.
+Inventory response composition and persistence now live in
+`app/services/inventory.py`; the inventory router delegates its aggregate
+operations to that service.
 
 ### PR 4: Consolidate repeated resource operations
 
