@@ -248,6 +248,19 @@ class SessionNoteService:
             rolls=self.rolls.get_values_for_session(session_note.id),
         )
 
+    def list_backup_entries(self) -> list[CampaignBackupSession]:
+        session_notes = self.db.exec(
+            select(SessionNote)
+            .where(
+                SessionNote.campaign_id == self.context.campaign_id
+            )
+            .order_by(SessionNote.session_number, SessionNote.id)
+        ).all()
+        return [
+            self.to_backup(session_note)
+            for session_note in session_notes
+        ]
+
     def stage_restore(
         self,
         session_backup: CampaignBackupSession,

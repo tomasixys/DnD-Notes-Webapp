@@ -324,6 +324,22 @@ class _PersonalNoteOperations:
             updated_at=note.updated_at,
         )
 
+    def list_backup_entries(
+        self,
+        person_id: int,
+    ) -> list[CampaignBackupCharacterNote]:
+        self._verify_character(person_id)
+        model = self.definition.model
+        notes = self.db.exec(
+            select(model)
+            .where(
+                model.campaign_id == self.context.campaign_id,
+                model.character_person_id == person_id,
+            )
+            .order_by(model.created_at, model.id)
+        ).all()
+        return [self.to_backup(note) for note in notes]
+
 
 class CharacterNoteService:
     def __init__(
@@ -421,6 +437,12 @@ class CharacterNoteService:
         note: CharacterNote,
     ) -> CampaignBackupCharacterNote:
         return self._operations.to_backup(note)
+
+    def list_backup_entries(
+        self,
+        person_id: int,
+    ) -> list[CampaignBackupCharacterNote]:
+        return self._operations.list_backup_entries(person_id)
 
     def stage_restore(
         self,
@@ -529,6 +551,12 @@ class BackstoryNoteService:
         note: BackstoryNote,
     ) -> CampaignBackupCharacterNote:
         return self._operations.to_backup(note)
+
+    def list_backup_entries(
+        self,
+        person_id: int,
+    ) -> list[CampaignBackupCharacterNote]:
+        return self._operations.list_backup_entries(person_id)
 
     def stage_restore(
         self,

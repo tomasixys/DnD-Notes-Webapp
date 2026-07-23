@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.file_storage import delete_uploaded_file
-from app.models.api import PersonData, PersonRead
+from app.models.api import (
+    CampaignBackupPerson,
+    PersonData,
+    PersonRead,
+)
 from app.models.database import (
     CharacterProfile,
     Person,
@@ -16,6 +22,7 @@ from app.services.character_notes import (
 from app.tags import (
     get_resource_relationship,
     get_resource_tag_reads,
+    get_resource_tags,
     handle_tags_of_deleted_resource,
     refresh_reference_tags_for_resource,
     sync_resource_relationship,
@@ -76,6 +83,40 @@ class PersonService:
             .order_by(Person.name)
         )
         return self.db.exec(statement).all()
+
+    def to_backup(self, person: Person) -> CampaignBackupPerson:
+        faction = get_resource_relationship(
+            self.db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.MEMBER_OF,
+        )
+        location = get_resource_relationship(
+            self.db,
+            ResourceType.PERSON,
+            person.id,
+            RelationshipType.LOCATED_IN,
+        )
+        return CampaignBackupPerson(
+            backup_id=person.id,
+            name=person.name,
+            role=person.role,
+            faction=faction.label if faction else "",
+            location=location.label if location else "",
+            description=person.description,
+            tags=get_resource_tags(
+                self.db,
+                ResourceType.PERSON,
+                person.id,
+            ),
+        )
+
+    def list_backup_entries(self) -> list[CampaignBackupPerson]:
+        people = sorted(
+            self.list(),
+            key=lambda person: (person.name.lower(), person.id or 0),
+        )
+        return [self.to_backup(person) for person in people]
 
     def stage_create(self, person: PersonData) -> Person:
         """Create and synchronize a person in the caller-owned transaction."""

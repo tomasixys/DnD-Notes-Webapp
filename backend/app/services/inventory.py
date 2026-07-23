@@ -520,6 +520,16 @@ class InventoryService:
             ],
         )
 
+    def list_backup_entries(self) -> list[CampaignBackupInventory]:
+        inventories = self.db.exec(
+            select(Inventory)
+            .where(
+                Inventory.campaign_id == self.context.campaign_id
+            )
+            .order_by(Inventory.id)
+        ).all()
+        return [self.to_backup(inventory) for inventory in inventories]
+
     def stage_restore_backups(
         self,
         inventory_backups: list[CampaignBackupInventory],

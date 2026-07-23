@@ -221,6 +221,16 @@ class FactionService:
             ),
         )
 
+    def list_backup_entries(self) -> list[CampaignBackupFaction]:
+        factions = sorted(
+            self.list(),
+            key=lambda faction: (
+                faction.name.lower(),
+                faction.id or 0,
+            ),
+        )
+        return [self.to_backup(faction) for faction in factions]
+
     def stage_restore(
         self,
         faction_backup: CampaignBackupFaction,

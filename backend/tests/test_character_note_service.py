@@ -110,6 +110,37 @@ class CharacterNoteServiceTests(unittest.TestCase):
                 remaining_assignments[0].owner_type,
             )
 
+    def test_character_backup_list_composes_both_note_services(self):
+        with Session(self.engine) as db:
+            context, person_id, characters = self._create_character(db)
+            CharacterNoteService(context, characters).create(
+                person_id,
+                CharacterNoteData(title="Plan", tags=["urgent"]),
+            )
+            BackstoryNoteService(context, characters).create(
+                person_id,
+                CharacterNoteData(title="Family", tags=["childhood"]),
+            )
+
+            backups = characters.list_backup_entries(
+                {person_id: "assets/characters/nalia.png"}
+            )
+
+            self.assertEqual(1, len(backups))
+            self.assertEqual(person_id, backups[0].person_backup_id)
+            self.assertEqual(
+                "assets/characters/nalia.png",
+                backups[0].image_archive_path,
+            )
+            self.assertEqual(
+                ["Plan"],
+                [note.title for note in backups[0].notes],
+            )
+            self.assertEqual(
+                ["Family"],
+                [note.title for note in backups[0].backstory_notes],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

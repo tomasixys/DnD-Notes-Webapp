@@ -147,6 +147,44 @@ class LocationAndFactionServiceTests(unittest.TestCase):
             self.assertEqual(400, error.exception.status_code)
             self.assertEqual([], db.exec(select(Location)).all())
 
+    def test_backup_lists_are_campaign_scoped_and_name_ordered(self):
+        with Session(self.engine) as db:
+            context = self._create_context(db)
+            locations = LocationService(context)
+            factions = FactionService(context)
+
+            locations.create(LocationData(name="zeta"))
+            locations.create(LocationData(name="Alpha"))
+            factions.create(FactionData(name="wolves"))
+            factions.create(FactionData(name="Bards"))
+
+            other_campaign = Campaign(name="Other")
+            db.add(other_campaign)
+            db.commit()
+            db.refresh(other_campaign)
+            other_context = CampaignContext(db, other_campaign)
+            LocationService(other_context).create(
+                LocationData(name="Hidden")
+            )
+            FactionService(other_context).create(
+                FactionData(name="Hidden")
+            )
+
+            self.assertEqual(
+                ["Alpha", "zeta"],
+                [
+                    entry.name
+                    for entry in locations.list_backup_entries()
+                ],
+            )
+            self.assertEqual(
+                ["Bards", "wolves"],
+                [
+                    entry.name
+                    for entry in factions.list_backup_entries()
+                ],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

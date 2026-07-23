@@ -223,6 +223,16 @@ class LocationService:
             ),
         )
 
+    def list_backup_entries(self) -> list[CampaignBackupLocation]:
+        locations = sorted(
+            self.list(),
+            key=lambda location: (
+                location.name.lower(),
+                location.id or 0,
+            ),
+        )
+        return [self.to_backup(location) for location in locations]
+
     def stage_restore(
         self,
         location_backup: CampaignBackupLocation,

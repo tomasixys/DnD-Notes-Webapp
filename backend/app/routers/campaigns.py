@@ -5,7 +5,6 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
@@ -25,10 +24,6 @@ from app.services.people import PersonService
 from app.services.sessions import SessionNoteService
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
-from app.tags import (
-    get_resource_relationship,
-    get_resource_tags,
-)
 
 router = APIRouter(
     prefix="/api/campaigns",
@@ -263,38 +258,22 @@ def export_campaign_backup(
     campaign_id: int,
     db: Session = Depends(get_session),
 ):
-    statement = (
-        select(Campaign)
-        .where(Campaign.id == campaign_id)
-        .options(
-            selectinload(Campaign.sessions).selectinload(SessionNote.rolls),
-            selectinload(Campaign.people),
-            selectinload(Campaign.locations),
-            selectinload(Campaign.factions),
-        )
-    )
+    statement = select(Campaign).where(Campaign.id == campaign_id)
 
     campaign = db.exec(statement).one_or_none()
 
     if campaign is None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
-    character_profiles = db.exec(
-        select(CharacterProfile)
-        .join(Person, Person.id == CharacterProfile.person_id)
-        .where(Person.campaign_id == campaign_id)
-        .order_by(Person.name)
-    ).all()
-    inventories = db.exec(
-        select(Inventory)
-        .where(Inventory.campaign_id == campaign_id)
-        .order_by(Inventory.id)
-    ).all()
     context = CampaignContext(db, campaign)
+    people = PersonService(context)
     inventory_service = InventoryService(context)
-    characters = CharacterService(context)
-    character_notes = CharacterNoteService(context, characters)
-    backstory_notes = BackstoryNoteService(context, characters)
+    characters = CharacterService(
+        context,
+        people=people,
+        inventory=inventory_service,
+    )
+    character_profiles = characters.list_profiles_for_backup()
     sessions = SessionNoteService(context)
     locations = LocationService(context)
     factions = FactionService(context)
@@ -343,82 +322,14 @@ def export_campaign_backup(
                     campaign.active_character_person_id
                 ),
             ),
-            sessions=[
-                sessions.to_backup(session)
-                for session in sorted(
-                    campaign.sessions,
-                    key=lambda session: session.session_number,
-                )
-            ],
-            people=[
-                CampaignBackupPerson(
-                    backup_id=person.id,
-                    name=person.name,
-                    role=person.role,
-                    faction=(
-                        relationship.label
-                        if (relationship := get_resource_relationship(
-                            db,
-                            ResourceType.PERSON,
-                            person.id,
-                            RelationshipType.MEMBER_OF,
-                        ))
-                        else ""
-                    ),
-                    location=(
-                        relationship.label
-                        if (relationship := get_resource_relationship(
-                            db,
-                            ResourceType.PERSON,
-                            person.id,
-                            RelationshipType.LOCATED_IN,
-                        ))
-                        else ""
-                    ),
-                    description=person.description,
-                    tags=get_resource_tags(
-                        db, ResourceType.PERSON, person.id
-                    ),
-                )
-                for person in sorted(campaign.people, key=lambda person: person.name.lower())
-            ],
-            characters=[
-                CampaignBackupCharacter(
-                    person_backup_id=profile.person_id,
-                    short_bio=profile.short_bio,
-                    appearance=profile.appearance,
-                    image_archive_path=character_image_archive_paths.get(
-                        profile.person_id, ""
-                    ),
-                    notes=[
-                        character_notes.to_backup(note)
-                        for note in sorted(
-                            profile.notes,
-                            key=lambda item: (item.created_at, item.id or 0),
-                        )
-                    ],
-                    backstory_notes=[
-                        backstory_notes.to_backup(note)
-                        for note in sorted(
-                            profile.backstory_notes,
-                            key=lambda item: (item.created_at, item.id or 0),
-                        )
-                    ],
-                )
-                for profile in character_profiles
-            ],
-            locations=[
-                locations.to_backup(location)
-                for location in sorted(campaign.locations, key=lambda location: location.name.lower())
-            ],
-            factions=[
-                factions.to_backup(faction)
-                for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
-            ],
-            inventories=[
-                inventory_service.to_backup(inventory)
-                for inventory in inventories
-            ],
+            sessions=sessions.list_backup_entries(),
+            people=people.list_backup_entries(),
+            characters=characters.list_backup_entries(
+                character_image_archive_paths
+            ),
+            locations=locations.list_backup_entries(),
+            factions=factions.list_backup_entries(),
+            inventories=inventory_service.list_backup_entries(),
         )
 
         archive.writestr(

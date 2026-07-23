@@ -1,10 +1,16 @@
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import select
 
 from app.file_storage import build_upload_url, delete_uploaded_file
-from app.models.api import CharacterCreate, CharacterRead, CharacterUpdate
+from app.models.api import (
+    CampaignBackupCharacter,
+    CharacterCreate,
+    CharacterRead,
+    CharacterUpdate,
+)
 from app.models.database import (
     CharacterProfile,
+    Person,
 )
 from app.services.campaign_context import CampaignContext
 from app.services.character_notes import (
@@ -76,6 +82,39 @@ class CharacterService:
             return None
 
         return self.to_read(profile)
+
+    def list_profiles_for_backup(self) -> list[CharacterProfile]:
+        return self.db.exec(
+            select(CharacterProfile)
+            .join(Person, Person.id == CharacterProfile.person_id)
+            .where(Person.campaign_id == self.context.campaign_id)
+            .order_by(Person.name, Person.id)
+        ).all()
+
+    def list_backup_entries(
+        self,
+        image_archive_paths: dict[int, str],
+    ) -> list[CampaignBackupCharacter]:
+        character_notes = CharacterNoteService(self.context, self)
+        backstory_notes = BackstoryNoteService(self.context, self)
+        return [
+            CampaignBackupCharacter(
+                person_backup_id=profile.person_id,
+                short_bio=profile.short_bio,
+                appearance=profile.appearance,
+                image_archive_path=image_archive_paths.get(
+                    profile.person_id,
+                    "",
+                ),
+                notes=character_notes.list_backup_entries(
+                    profile.person_id
+                ),
+                backstory_notes=backstory_notes.list_backup_entries(
+                    profile.person_id
+                ),
+            )
+            for profile in self.list_profiles_for_backup()
+        ]
 
     def stage_create_profile(
         self,

@@ -177,6 +177,14 @@ archive parsing, and one encompassing transaction, but it should not redefine:
 - inventory, purse, or item conversion rules
 - file lifecycle rules owned by a domain service
 
+For export, each campaign-scoped domain service should expose a collection
+operation that selects every in-scope record, applies deterministic ordering,
+and returns its backup API models. The backup coordinator should consume those
+lists instead of traversing ORM relationships or repeating per-record
+conversion. Archive-only work, such as copying images and assigning their
+archive paths, remains with the backup coordinator and is supplied to the
+relevant domain service when it builds the backup entries.
+
 Domain services may need import-oriented methods that accept a transaction
 without committing it. This allows the backup service to compose many resource
 operations atomically while keeping the business rules in one place. Those
