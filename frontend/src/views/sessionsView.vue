@@ -1,222 +1,132 @@
 <script setup lang="ts">
-import { computed, reactive, ref, onBeforeMount } from "vue"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
-import { useCampaignStore } from "@/stores/campaignStore";
-import { ViewModes } from "@/types/viewTypes"
-import type { SessionDataDto, SessionListItemDto } from "@/types/DataTransferObjects"
-import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
-import ResourceTag from "@/components/ResourceTag.vue"
+import { computed, provide, ref, watch } from "vue"
+import { RouterView, useRoute, useRouter } from "vue-router"
 
-const viewMode = ref<ViewModes>(ViewModes.Details)
+import { GetAPI } from "@/apihelpers"
+import { sessionContextKey } from "@/composables/useSessionContext"
+import { useCampaignStore } from "@/stores/campaignStore"
+import type { SessionListItemDto } from "@/types/DataTransferObjects"
+
+const route = useRoute()
+const router = useRouter()
+const { selectedCampaignId } = useCampaignStore()
+
 const sessions = ref<SessionListItemDto[]>([])
+const selectionRevision = ref(0)
 
-const {
-  entryIdFromUrl,
-  selectedEntry,
-  openEntry,
-  ensureDefaultEntry,
-  replaceWithFirstEntry,
-} = useRouteEntrySelection({
-  entries: sessions,
-  routeName: "Sessions",
-  onRouteEntryChange: () => {
-    viewMode.value = ViewModes.Details
-  },
+const selectedSessionId = computed(() => {
+  const rawValue = Array.isArray(route.params.id)
+    ? route.params.id[0]
+    : route.params.id
+  const sessionId = Number(rawValue)
+  return Number.isInteger(sessionId) && sessionId > 0 ? sessionId : null
 })
 
-const {
-  campaigns,
-  selectedCampaignId,
-  selectedCampaign,
-  hasSelectedCampaign,
-  setCampaigns,
-  selectCampaign,
-  clearSelectedCampaign,
-} = useCampaignStore()
+const selectedSession = computed(() =>
+  sessions.value.find((session) => session.id === selectedSessionId.value) ?? null,
+)
 
+const showingRolls = computed(() => route.name === "SessionRolls")
 
-const sessionForm = reactive({
-  date: new Date().toISOString().slice(0, 10),
-  title: "",
-  description: "",
-  tags: "",
-})
-
-onBeforeMount(async () => {
-  await fetchSessions()
-  await ensureDefaultEntry()
-})
-
-const nextSessionId = computed(() => {
-  const currentHighestSessionNumber = Math.max(
-    0,
-    ...sessions.value
-      .filter((session) => session.campaignId === selectedCampaignId.value)
-      .map((session) => session.sessionNumber),
-  )
-  return currentHighestSessionNumber + 1
-})
-
-
-function resetSessionForm() {
-  sessionForm.date = new Date().toISOString().slice(0, 10)
-  sessionForm.title = ""
-  sessionForm.description = ""
-  sessionForm.tags = ""
+function childRouteName() {
+  return route.name === "SessionRolls" ? "SessionRolls" : "SessionNotes"
 }
 
-function showAddSessionForm() {
-  resetSessionForm()
-  viewMode.value = ViewModes.Create
+function routeParams(sessionId: number | "" = "") {
+  return sessionId === "" ? {} : { id: sessionId }
 }
 
-function showEditSessionForm() {
-  if (!selectedEntry.value) {
-    return
-  }
-
-  sessionForm.date = selectedEntry.value.date
-  sessionForm.title = selectedEntry.value.title
-  sessionForm.description = selectedEntry.value.description
-  sessionForm.tags = selectedEntry.value.tags
-    .map((tag) => tag.value)
-    .join(", ")
-
-  viewMode.value = ViewModes.Edit
-}
-
-function cancelSessionForm() {
-  viewMode.value = ViewModes.Details
-}
-
-async function fetchSessions() {
-  if (!selectedCampaignId.value) {
-    console.error("No selected campaign to fetch sessions for.")
-    return
-  }
+async function loadSessions() {
+  sessions.value = []
+  if (!selectedCampaignId.value) return
 
   const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
-  if (response.success === false || !Array.isArray(response)) {
-    console.error("Failed to fetch sessions:", response.error ?? "Response is not an array")
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch sessions:", response?.error ?? "Response is not an array")
     return
   }
   sessions.value = response as SessionListItemDto[]
 }
 
-async function createSession() {
-  const title = sessionForm.title.trim()
+async function openSession(sessionId: number, replace = false) {
+  selectionRevision.value += 1
+  if (selectedSessionId.value === sessionId) return
 
-  if (!title || !selectedCampaignId.value) {
-    return
+  const destination = {
+    name: childRouteName(),
+    params: routeParams(sessionId),
   }
-
-  const session: SessionDataDto = {
-    sessionNumber: nextSessionId.value,
-    date: sessionForm.date,
-    title,
-    description: sessionForm.description.trim(),
-    tags: sessionForm.tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean),
-  }
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/sessions`, session)
-  if (response.success === false) {
-    console.error("Failed to create session:", response.message)
-    return
-  }
-  const createdSession = response as SessionListItemDto
-  sessions.value = [...sessions.value, createdSession].sort((a, b) => a.sessionNumber - b.sessionNumber)
-  resetSessionForm()
-  await openEntry(createdSession.id)
+  if (replace) await router.replace(destination)
+  else await router.push(destination)
 }
 
-async function updateSession() {
-  const title = sessionForm.title.trim()
-  if (!title || selectedEntry.value?.id === undefined) {
-    return
-  }
-  const sessionId = selectedEntry.value.id
-  const data: SessionDataDto = {
-    sessionNumber: selectedEntry.value.sessionNumber,
-    date: sessionForm.date,
-    title: sessionForm.title.trim(),
-    description: sessionForm.description.trim(),
-    tags: sessionForm.tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean),
-  }
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/sessions/${sessionId}`, data)
-  if (response.success === false) {
-    console.error("Failed to update session:", response.message)
-    return
-  }
-  await fetchSessions()
-  resetSessionForm()
-  await openEntry(sessionId)
+async function ensureDefaultSession() {
+  if (selectedSessionId.value !== null || sessions.value.length === 0) return
+  await openSession(sessions.value[0].id, true)
 }
 
-async function deleteSession() {
-  if (!selectedEntry.value?.id) {
-    return
-  }
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/sessions/${selectedEntry.value.id}`)
-  if (response.success === false) {
-    console.error("Failed to delete session:", response.message)
-    return
-  }
-  await fetchSessions()
-  await replaceWithFirstEntry()
+async function replaceWithFirstSession() {
+  const firstSession = sessions.value[0]
+  selectionRevision.value += 1
+  await router.replace({
+    name: childRouteName(),
+    params: routeParams(firstSession?.id ?? ""),
+  })
 }
 
+provide(sessionContextKey, {
+  sessions,
+  selectedSession,
+  selectedSessionId,
+  selectionRevision,
+  loadSessions,
+  openSession,
+  replaceWithFirstSession,
+})
+
+watch(
+  selectedCampaignId,
+  async () => {
+    await loadSessions()
+    await ensureDefaultSession()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <section class="resource-view">
-    <header class="view-header with-actions">
+    <header class="view-header">
       <div class="view-header-copy">
         <h2>Sessions</h2>
-        <p>Review session notes for the active campaign.</p>
+        <p>
+          {{ showingRolls
+            ? "Track d20 rolls for the selected session."
+            : "Review and maintain session notes for the active campaign." }}
+        </p>
       </div>
-
-      <button type="button" @click="showAddSessionForm">
-        Add session
-      </button>
     </header>
 
     <div class="resource-layout">
       <aside class="resource-list-panel">
         <div class="resource-list-header">
           <h3>Session list</h3>
+          <span>{{ sessions.length }}</span>
         </div>
 
-        <ul v-if="sessions.length > 0" class="resource-list">
-          <li
-            v-for="session in sessions"
-            :key="session.sessionNumber"
-          >
+        <ul v-if="sessions.length" class="resource-list">
+          <li v-for="session in sessions" :key="session.id">
             <button
               type="button"
               class="resource-list-item"
-              :class="{
-                selected:
-                  viewMode === ViewModes.Details &&
-                  selectedEntry?.sessionNumber === session.sessionNumber,
-              }"
-              @click="openEntry(session.id)"
+              :class="{ selected: selectedSession?.id === session.id }"
+              @click="openSession(session.id)"
             >
               <span class="resource-list-kicker">
                 Session #{{ session.sessionNumber }}
               </span>
-
-              <span class="resource-list-meta">
-                {{ session.date }}
-              </span>
-
-              <span class="resource-list-title">
-                {{ session.title }}
-              </span>
+              <span class="resource-list-meta">{{ session.date }}</span>
+              <span class="resource-list-title">{{ session.title }}</span>
             </button>
           </li>
         </ul>
@@ -226,127 +136,7 @@ async function deleteSession() {
         </p>
       </aside>
 
-
-      <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
-          <header class="resource-detail-header">
-            <p class="resource-detail-kicker">
-              {{ viewMode === ViewModes.Create ? "New session" : "Edit session" }}
-            </p>
-
-            <h3>
-              Session {{ viewMode === ViewModes.Create ? nextSessionId : selectedEntry?.sessionNumber }}
-            </h3>
-          </header>
-
-          <form
-            class="resource-form"
-            @submit.prevent="viewMode === ViewModes.Create ? createSession() : updateSession()"
-          >
-            <label>
-              Date
-              <input
-                v-model="sessionForm.date"
-                type="date"
-                required
-              />
-            </label>
-
-            <label>
-              Title
-              <input
-                v-model="sessionForm.title"
-                type="text"
-                placeholder="Session title"
-                required
-              />
-            </label>
-
-            <label>
-              Description
-              <textarea
-                v-model="sessionForm.description"
-                rows="10"
-                placeholder="Write the session summary here..."
-              />
-            </label>
-
-            <label>
-              Tags
-              <input
-                v-model="sessionForm.tags"
-                type="text"
-                placeholder="Gernanti, cult, Nalia"
-              />
-            </label>
-
-            <div class="resource-form-actions">
-              <button type="submit">
-                {{ viewMode === ViewModes.Create ? "Save session" : "Update session" }}
-              </button>
-
-              <button
-                type="button"
-                class="secondary"
-                @click="cancelSessionForm"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </template>
-
-        <template v-else-if="selectedEntry">
-          <header class="resource-detail-header with-actions">
-            <div class="resource-detail-title">
-              <p class="resource-detail-kicker">
-                Session {{ selectedEntry.sessionNumber }} · {{ selectedEntry.date }}
-              </p>
-
-              <h3>{{ selectedEntry.title }}</h3>
-            </div>
-
-            <div class="resource-detail-actions">
-              <button
-                type="button"
-                class="secondary"
-                @click="showEditSessionForm"
-              >
-                Edit
-              </button>
-
-              <button
-                type="button"
-                class="danger"
-                @click="deleteSession()"
-              >
-                Delete
-              </button>
-            </div>
-          </header>
-
-          <p class="resource-description">
-            {{ selectedEntry.description }}
-          </p>
-
-          <div
-            v-if="selectedEntry.tags.length > 0"
-            class="tag-list"
-          >
-            <ResourceTag
-              v-for="tag in selectedEntry.tags"
-              :key="tag.value"
-              :tag="tag"
-            />
-          </div>
-        </template>
-
-        <template v-else>
-          <p class="empty-text">
-            Select a session from the list or add a new one.
-          </p>
-        </template>
-      </article>
+      <RouterView />
     </div>
   </section>
 </template>

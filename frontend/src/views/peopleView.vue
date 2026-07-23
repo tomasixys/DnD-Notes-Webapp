@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, onBeforeMount } from "vue"
+import { RouterLink } from "vue-router"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
@@ -70,8 +71,8 @@ function showEditPersonForm() {
 
   personForm.name = selectedEntry.value.name
   personForm.role = selectedEntry.value.role
-  personForm.faction = selectedEntry.value.faction
-  personForm.location = selectedEntry.value.location
+  personForm.faction = selectedEntry.value.faction?.label ?? ""
+  personForm.location = selectedEntry.value.location?.label ?? ""
   personForm.description = selectedEntry.value.description
   personForm.tags = selectedEntry.value.tags
     .map((tag) => tag.value)
@@ -138,6 +139,7 @@ async function createPerson() {
 async function updatePerson() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
 
+  const personId = selectedEntry.value.id
   const name = personForm.name.trim()
   if (!name) return
 
@@ -150,13 +152,14 @@ async function updatePerson() {
     tags: parseTags(personForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${selectedEntry.value.id}`, person)
+  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${personId}`, person)
   if (response.success === false) {
     console.error("Failed to update person:", response.error)
     return
   }
+  await fetchPeople()
   resetPersonForm()
-  await openEntry(selectedEntry.value.id)
+  await openEntry(personId)
 }
 
 async function deletePerson() {
@@ -208,7 +211,12 @@ async function deletePerson() {
               @click="openEntry(person.id)"
             >
               <span class="resource-list-kicker">
-                {{ person.role || "No role" }}
+                {{ person.isActiveCharacter
+                  ? "Active character"
+                  : person.characterProfileAvailable
+                    ? "Former character"
+                    : person.role || "No role"
+                }}
               </span>
 
               <span class="resource-list-title">
@@ -216,9 +224,9 @@ async function deletePerson() {
               </span>
 
               <span class="resource-list-meta">
-                {{ person.faction || "No faction" }}
+                {{ person.faction?.label || "No faction" }}
                 <template v-if="person.location">
-                  · {{ person.location }}
+                  · {{ person.location.label }}
                 </template>
               </span>
             </button>
@@ -329,6 +337,17 @@ async function deletePerson() {
             </div>
             
             <div class="resource-detail-actions">
+              <RouterLink
+                v-if="selectedEntry.characterProfileAvailable"
+                class="button-link"
+                :to="{
+                  name: 'CharacterOverview',
+                  params: { personId: selectedEntry.id },
+                }"
+              >
+                Open character
+              </RouterLink>
+
               <button
                 type="button"
                 class="secondary"
@@ -350,12 +369,24 @@ async function deletePerson() {
           <dl class="resource-facts">
             <div>
               <dt>Faction</dt>
-              <dd>{{ selectedEntry.faction || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.faction"
+                  :tag="selectedEntry.faction"
+                />
+                <template v-else>None registered</template>
+              </dd>
             </div>
 
             <div>
               <dt>Location</dt>
-              <dd>{{ selectedEntry.location || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.location"
+                  :tag="selectedEntry.location"
+                />
+                <template v-else>None registered</template>
+              </dd>
             </div>
           </dl>
 

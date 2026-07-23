@@ -8,6 +8,44 @@ and this changelog follows the structure described by
 
 ## [Unreleased]
 
+### Added
+
+- Added relationship metadata to tag assignments in preparation for moving
+  dedicated entry relationships into the tag system.
+- Marked every tag entered through a Tags field as `associated_with`, while
+  keeping relationship meaning out of tag-chip labels.
+- Replaced person faction/location, location parent, and faction location text
+  storage with typed tag relationships.
+- Added derived people lists to locations and member lists to factions, with
+  links back to the related person entries.
+- Added private character profiles backed by People entries, including active
+  character selection, portraits, personal notes, and backstory entries.
+
+### Changed
+
+- Split tag parsing, reference resolution, assignments, and read queries into
+  focused modules behind a small compatibility facade.
+- Consolidated the unreleased database changes into one version 1 to version 2
+  migration instead of retaining development-only intermediate versions.
+- Organized database migrations as versioned modules with a registry-driven
+  runner and an idempotent hook for temporary development migrations.
+- Updated campaign backups and search to preserve and understand the new
+  relationship-backed fields.
+- Migrated existing relationship text values into typed tag assignments while
+  retaining unresolved and ambiguous references, then removed the obsolete
+  database columns.
+- Promoted the character and shared-note schema into the version 2 to version 3
+  database migration and restored the development migration hook to a no-op.
+
+### Fixed
+
+- Resolved reference tags now follow renamed resources, update their displayed
+  labels, and merge aliases without losing existing tag assignments.
+- Person details now refresh immediately after editing, and refreshing a
+  resource URL no longer redirects away while its persisted campaign is valid.
+- Added campaign search filters and direct results for character notes and
+  backstory entries, including entries belonging to former characters.
+
 ## [0.2.0] - 2026-07-18
 
 ### Added

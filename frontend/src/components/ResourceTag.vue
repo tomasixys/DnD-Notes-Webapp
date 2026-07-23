@@ -13,8 +13,8 @@ const props = defineProps<{
 
 const router = useRouter()
 
-const routeNames: Record<ResourceType, string> = {
-  session: "Sessions",
+const routeNames: Partial<Record<ResourceType, string>> = {
+  session: "SessionNotes",
   person: "People",
   location: "Locations",
   faction: "Factions",
@@ -24,7 +24,8 @@ const isLinked = computed(
   () =>
     props.tag.resolutionState === "resolved" &&
     props.tag.referenceType !== null &&
-    props.tag.referenceId !== null,
+    props.tag.referenceId !== null &&
+    routeNames[props.tag.referenceType] !== undefined,
 )
 
 const title = computed(() => {
@@ -52,8 +53,11 @@ async function openReference() {
     return
   }
 
+  const routeName = routeNames[props.tag.referenceType]
+  if (!routeName) return
+
   await router.push({
-    name: routeNames[props.tag.referenceType],
+    name: routeName,
     params: { id: props.tag.referenceId },
   })
 }

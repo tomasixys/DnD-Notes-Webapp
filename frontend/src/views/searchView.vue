@@ -17,10 +17,12 @@ const resourceOptions: Array<{
   label: string
   routeName: string
 }> = [
-  { type: "session",  label: "Sessions",  routeName: "Sessions" },
+  { type: "session",  label: "Sessions",  routeName: "SessionNotes" },
   { type: "person",   label: "People",    routeName: "People" },
   { type: "location", label: "Locations", routeName: "Locations" },
   { type: "faction",  label: "Factions",  routeName: "Factions" },
+  { type: "character_note", label: "Character notes", routeName: "CharacterNotes" },
+  { type: "backstory_note", label: "Backstory", routeName: "CharacterBackstory" },
 ]
 
 const allResourceTypes = resourceOptions.map( (option) => option.type )
@@ -120,6 +122,19 @@ const totalResultCount = computed(() => { return searchResults.value?.length ?? 
 
 function getResultRoute(result: SearchResultDto) {
   const resourceOption = resourceOptions.find((option) => option.type === result.resourceType)
+
+  if (
+    result.resourceType === "character_note"
+    || result.resourceType === "backstory_note"
+  ) {
+    return {
+      name: resourceOption?.routeName,
+      params: {
+        personId: result.parentResourceId ?? "",
+        noteId: result.resourceId,
+      },
+    }
+  }
 
   return {
     name: resourceOption?.routeName,

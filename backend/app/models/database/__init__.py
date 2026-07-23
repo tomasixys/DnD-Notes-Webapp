@@ -7,6 +7,8 @@ from .person import Person
 from .location import Location
 from .faction import Faction
 from .party_stash import PartyStash, LootItem, CoinEntry, WealthLink
+from .note import NoteBase
+from .character import CharacterProfile, CharacterNote, BackstoryNote
 
 __all__ = [
     "Campaign",
@@ -21,5 +23,9 @@ __all__ = [
     "LootItem",
     "CoinEntry",
     "WealthLink",
+    "CharacterProfile",
+    "CharacterNote",
+    "BackstoryNote",
+    "NoteBase",
 ]
 

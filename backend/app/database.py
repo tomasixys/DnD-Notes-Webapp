@@ -39,6 +39,9 @@ def create_db_and_tables():
         LootItem,
         CoinEntry,
         WealthLink,
+        CharacterProfile,
+        CharacterNote,
+        BackstoryNote,
     )
 
     SQLModel.metadata.create_all(engine)

@@ -4,13 +4,16 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models.database import Location
 from app.models.api import LocationData, LocationRead
-from app.models.enums import ResourceType
+from app.models.enums import RelationshipType, ResourceType
 from app.routers.campaigns import verify_campaign
-from app.tag_handler import (
+from app.tags import (
     get_resource_tag_reads,
-    handle_resource_deleted,
-    resolve_pending_tags_for_resource,
+    get_resource_relationship,
+    get_resources_referencing_tag,
+    handle_tags_of_deleted_resource,
+    refresh_reference_tags_for_resource,
     sync_resource_tags,
+    sync_resource_relationship,
 )
 
 router = APIRouter(
@@ -25,7 +28,20 @@ def location_to_read(location: Location, db: Session) -> LocationRead:
         campaign_id=location.campaign_id,
         name=location.name,
         type=location.type,
-        parent_location=location.parent_location,
+        parent_location=get_resource_relationship(
+            db,
+            ResourceType.LOCATION,
+            location.id,
+            RelationshipType.PART_OF,
+        ),
+        people=get_resources_referencing_tag(
+            db,
+            location.campaign_id,
+            ResourceType.LOCATION,
+            location.id,
+            ResourceType.PERSON,
+            RelationshipType.LOCATED_IN,
+        ),
         description=location.description,
         tags=get_resource_tag_reads(db, ResourceType.LOCATION, location.id),
     )
@@ -86,7 +102,6 @@ def create_location(
         campaign_id=campaign_id,
         name=location.name,
         type=location.type,
-        parent_location=location.parent_location,
         description=location.description,
     )
     db.add(db_location)
@@ -98,8 +113,20 @@ def create_location(
         db_location.id,
         location.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.LOCATION, db_location.name
+    try:
+        sync_resource_relationship(
+            db,
+            campaign_id,
+            ResourceType.LOCATION,
+            db_location.id,
+            RelationshipType.PART_OF,
+            ResourceType.LOCATION,
+            location.parent_location,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    refresh_reference_tags_for_resource(
+        db, campaign_id, ResourceType.LOCATION, db_location.id
     )
     db.commit()
     db.refresh(db_location)
@@ -115,10 +142,10 @@ def update_location(
     db: Session = Depends(get_session),
 ):
     location = get_location_by_id(campaign_id, location_id, db)
+    previous_name = location.name
 
     location.name = updated_location.name
     location.type = updated_location.type
-    location.parent_location = updated_location.parent_location
     location.description = updated_location.description
     db.add(location)
     db.flush()
@@ -129,8 +156,24 @@ def update_location(
         location.id,
         updated_location.tags,
     )
-    resolve_pending_tags_for_resource(
-        db, campaign_id, ResourceType.LOCATION, location.name
+    try:
+        sync_resource_relationship(
+            db,
+            campaign_id,
+            ResourceType.LOCATION,
+            location.id,
+            RelationshipType.PART_OF,
+            ResourceType.LOCATION,
+            updated_location.parent_location,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    refresh_reference_tags_for_resource(
+        db,
+        campaign_id,
+        ResourceType.LOCATION,
+        location.id,
+        previous_labels=[previous_name],
     )
     db.commit()
     db.refresh(location)
@@ -146,7 +189,7 @@ def delete_location(
 ):
     location = get_location_by_id(campaign_id, location_id, db)
 
-    handle_resource_deleted(db, ResourceType.LOCATION, location.id)
+    handle_tags_of_deleted_resource(db, ResourceType.LOCATION, location.id)
     db.delete(location)
     db.commit()
 

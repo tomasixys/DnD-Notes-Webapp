@@ -26,6 +26,7 @@ const defaultCampaigndto: CampaignsDto = {
   sessionCount: 0,
   imageUrl: "",
   bannerImageUrl: "",
+  activeCharacterPersonId: null,
 }
 
 const viewMode = ref<ViewModes>(ViewModes.Current)

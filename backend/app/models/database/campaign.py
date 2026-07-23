@@ -17,6 +17,12 @@ class Campaign(SQLModel, table=True):
     description: str = ""
     image_path: str = ""
     banner_image_path: str = ""
+    active_character_person_id: int | None = Field(
+        default=None,
+        foreign_key="characterprofile.person_id",
+        ondelete="SET NULL",
+        index=True,
+    )
 
     sessions: list["SessionNote"] = Relationship(
         back_populates="campaign",

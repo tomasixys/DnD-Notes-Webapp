@@ -72,7 +72,7 @@ function showEditFactionForm() {
 
   factionForm.name = selectedEntry.value.name
   factionForm.type = selectedEntry.value.type
-  factionForm.location = selectedEntry.value.location
+  factionForm.location = selectedEntry.value.location?.label ?? ""
   factionForm.description = selectedEntry.value.description
   factionForm.tags = selectedEntry.value.tags
     .map((tag) => tag.value)
@@ -103,7 +103,7 @@ async function fetchFactions() {
   if (response.success === false || !Array.isArray(response)) {
     console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
     return
-  } 
+  }
   factions.value = response as FactionDto[]
 }
 
@@ -224,7 +224,7 @@ async function deleteFaction(factionId: number) {
               </span>
 
               <span class="resource-list-meta">
-                {{ faction.location || "No location" }}
+                {{ faction.location?.label || "No location" }}
               </span>
             </button>
           </li>
@@ -342,14 +342,30 @@ async function deleteFaction(factionId: number) {
           </header>
 
           <dl class="resource-facts">
-            <div>
-              <dt>Type</dt>
-              <dd>{{ selectedEntry.type || "None registered" }}</dd>
-            </div>
 
             <div>
               <dt>Location</dt>
-              <dd>{{ selectedEntry.location || "None registered" }}</dd>
+              <dd>
+                <ResourceTag
+                  v-if="selectedEntry.location"
+                  :tag="selectedEntry.location"
+                />
+                <template v-else>None registered</template>
+              </dd>
+            </div>
+
+            <div>
+              <dt>Members</dt>
+              <dd>
+                <span v-if="selectedEntry.members.length > 0" class="tag-list">
+                  <ResourceTag
+                    v-for="member in selectedEntry.members"
+                    :key="member.value"
+                    :tag="member"
+                  />
+                </span>
+                <template v-else>None registered</template>
+              </dd>
             </div>
           </dl>
 
