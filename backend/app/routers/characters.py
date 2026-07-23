@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.database import get_session
+from app.dependencies.campaigns import verify_campaign
 from app.inventory_service import sync_default_inventory_owner
 from app.file_storage import (
     build_upload_url,
@@ -26,7 +27,6 @@ from app.models.database import (
     CharacterProfile,
 )
 from app.models.enums import ResourceType
-from app.routers.campaigns import verify_campaign
 from app.routers.people import (
     create_person_record,
     get_person_by_id,

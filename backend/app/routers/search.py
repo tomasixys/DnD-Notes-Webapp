@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from sqlalchemy import String, cast, or_
 
 from app.database import get_session
+from app.dependencies.campaigns import verify_campaign
 from app.models.database import (
     BackstoryNote,
     CharacterNote,
@@ -20,7 +21,6 @@ from app.models.api import (
     SearchQueryDto,
 )
 from app.models.enums import RelationshipType, ResourceType
-from app.routers.campaigns import verify_campaign
 from app.tags import (
     get_resource_relationship,
     get_resource_tags,

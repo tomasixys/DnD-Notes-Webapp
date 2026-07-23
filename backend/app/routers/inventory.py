@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.database import get_session
+from app.dependencies.campaigns import verify_campaign
 from app.inventory_service import (
     ensure_default_inventory,
     inventory_to_read,
@@ -16,7 +17,6 @@ from app.models.api import (
 )
 from app.models.database import CurrencyBalance, InventoryItem
 from app.models.enums import CurrencyDenomination
-from app.routers.campaigns import verify_campaign
 
 
 router = APIRouter(

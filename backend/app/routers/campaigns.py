@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, Session, select
 
 from app.database import get_session
+from app.dependencies.campaigns import verify_campaign
 from app.inventory_service import (
     ensure_default_inventory,
     sync_default_inventory_owner,
@@ -30,13 +31,6 @@ router = APIRouter(
     prefix="/api/campaigns",
     tags=["campaigns"],
 )
-
-def verify_campaign(campaign_id: int, db: Session) -> Campaign:
-    campaign = db.get(Campaign, campaign_id)
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    return campaign
 
 
 def campaign_to_response(campaign: Campaign, session_count: int = 0):

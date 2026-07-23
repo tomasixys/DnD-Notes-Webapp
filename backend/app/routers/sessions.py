@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from app.database import get_session
+from app.dependencies.campaigns import verify_campaign
 from app.models.database import SessionNote
 from app.models.api import (
     SessionNoteData,
     SessionNoteRead,
 )
 from app.models.enums import ResourceType
-from app.routers.campaigns import verify_campaign
 from app.tags import (
     get_resource_tag_reads,
     handle_tags_of_deleted_resource,
