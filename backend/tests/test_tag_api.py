@@ -25,6 +25,7 @@ from app.routers.locations import (
 )
 from app.routers.people import create_person, get_people_for_campaign, update_person
 from app.routers.search import search_campaign
+from app.services.campaign_context import CampaignContext
 
 
 class TagApiIntegrationTests(unittest.TestCase):
@@ -42,19 +43,18 @@ class TagApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             location = create_location(
-                campaign.id,
                 LocationData(name="Skummende Seidel", type="Tavern"),
-                db,
+                context,
             )
             person = create_person(
-                campaign.id,
                 PersonData(
                     name="Nalia",
                     tags=["location:Skummende Seidel", "Neutral"],
                 ),
-                db,
+                context,
             )
 
             self.assertEqual(
@@ -66,7 +66,7 @@ class TagApiIntegrationTests(unittest.TestCase):
                 ["Neutral", "Skummende Seidel"],
             )
             self.assertEqual(
-                get_people_for_campaign(campaign.id, db)[0].tags,
+                get_people_for_campaign(context)[0].tags,
                 person.tags,
             )
             self.assertEqual(
@@ -87,12 +87,11 @@ class TagApiIntegrationTests(unittest.TestCase):
             self.assertEqual(tag.reference_id, location.id)
 
             search_response = search_campaign(
-                campaign.id,
                 SearchQueryDto(
                     query="Skummende Seidel",
                     resource_types=[ResourceType.PERSON.value],
                 ),
-                db,
+                context,
             )
             self.assertEqual(search_response.total_count, 1)
             self.assertEqual(search_response.results[0].title, "Nalia")
@@ -104,31 +103,28 @@ class TagApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             location = create_location(
-                campaign.id,
                 LocationData(name="Old Harbor"),
-                db,
+                context,
             )
             create_person(
-                campaign.id,
                 PersonData(name="Nalia", tags=["location:Old Harbor"]),
-                db,
+                context,
             )
             create_person(
-                campaign.id,
                 PersonData(name="Sodalan", tags=["location:New Harbor"]),
-                db,
+                context,
             )
 
             update_location(
-                campaign.id,
                 location.id,
                 LocationData(name="New Harbor"),
-                db,
+                context,
             )
 
-            people = get_people_for_campaign(campaign.id, db)
+            people = get_people_for_campaign(context)
             for person in people:
                 self.assertEqual(len(person.tags), 1)
                 self.assertEqual(person.tags[0].value, "location:New Harbor")
@@ -152,31 +148,28 @@ class TagApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
+            context = CampaignContext(db, campaign)
 
             city = create_location(
-                campaign.id,
                 LocationData(name="Gernanti"),
-                db,
+                context,
             )
             academy = create_location(
-                campaign.id,
                 LocationData(name="Academy", parent_location="Gernanti"),
-                db,
+                context,
             )
             faction = create_faction(
-                campaign.id,
                 FactionData(name="Dragon Order", location="Academy"),
-                db,
+                context,
             )
             person = create_person(
-                campaign.id,
                 PersonData(
                     name="Nalia",
                     faction="Dragon Order",
                     location="Academy",
                     tags=["location:Academy", "ally"],
                 ),
-                db,
+                context,
             )
 
             self.assertEqual(person.faction.reference_id, faction.id)
@@ -204,17 +197,20 @@ class TagApiIntegrationTests(unittest.TestCase):
                 ["ally", "location:Academy"],
             )
 
-            faction_read = get_factions_for_campaign(campaign.id, db)[0]
+            faction_read = get_factions_for_campaign(
+                context,
+            )[0]
             academy_read = next(
                 location
-                for location in get_locations_for_campaign(campaign.id, db)
+                for location in get_locations_for_campaign(
+                    context,
+                )
                 if location.id == academy.id
             )
             self.assertEqual([member.label for member in faction_read.members], ["Nalia"])
             self.assertEqual([resident.label for resident in academy_read.people], ["Nalia"])
 
             updated = update_person(
-                campaign.id,
                 person.id,
                 PersonData(
                     name="Nalia",
@@ -222,7 +218,7 @@ class TagApiIntegrationTests(unittest.TestCase):
                     location="Academy",
                     tags=["trusted"],
                 ),
-                db,
+                context,
             )
             self.assertEqual(updated.faction.reference_id, faction.id)
             self.assertEqual(updated.location.reference_id, academy.id)

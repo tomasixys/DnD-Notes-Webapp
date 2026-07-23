@@ -228,11 +228,15 @@ class InventoryModelTests(unittest.TestCase):
             )
             db.commit()
             inventory_id = inventory.id
+            owner_person_id = owner.person_id
+            campaign_id = campaign.id
 
             db.delete(owner)
             db.commit()
             db.expire_all()
 
+            self.assertIsNone(db.get(CharacterProfile, owner_person_id))
+            self.assertIsNotNone(db.get(Person, owner_person_id))
             self.assertIsNotNone(db.get(Inventory, inventory_id))
             self.assertEqual(db.exec(select(InventoryAccess)).all(), [])
             db.refresh(campaign)
@@ -240,6 +244,7 @@ class InventoryModelTests(unittest.TestCase):
 
             db.delete(campaign)
             db.commit()
+            self.assertIsNone(db.get(Campaign, campaign_id))
             self.assertIsNone(db.get(Inventory, inventory_id))
             self.assertEqual(db.exec(select(Purse)).all(), [])
             self.assertEqual(db.exec(select(CurrencyBalance)).all(), [])

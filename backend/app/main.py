@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import create_db_and_tables
 from app.frontend import mount_frontend
 from app.routers import (
+    campaign_backups,
     campaigns,
     characters,
     factions,
@@ -55,6 +56,7 @@ def on_startup():
 
 
 app.include_router(campaigns.router)
+app.include_router(campaign_backups.router)
 app.include_router(sessions.router)
 app.include_router(people.router)
 app.include_router(locations.router)

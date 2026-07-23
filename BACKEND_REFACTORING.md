@@ -1,6 +1,6 @@
 # Backend Refactoring Plan
 
-Status: planned, intentionally deferred from feature pull requests.
+Status: in progress.
 
 This document records backend cleanup that should be completed in focused,
 behavior-preserving pull requests. Refactoring should not be mixed into feature
@@ -27,9 +27,11 @@ examples below are starting points, not the limit of the refactor.
 
 ### Campaign backups
 
-`app/routers/campaigns.py` currently owns campaign CRUD as well as backup export,
-archive creation, asset collection, backup serialization, archive parsing, ID
-remapping, imported asset storage, and restoration of tags and relationships.
+Campaign CRUD now delegates to `CampaignService`. Backup export and import
+delegate to `CampaignBackupService` and are registered through the separate
+`app/routers/campaign_backups.py` router while preserving their existing URLs.
+The backup service owns archive creation, asset collection, serialization,
+parsing, ID remapping, and the encompassing import transaction.
 
 Backup behavior is substantial enough to be its own backend feature. Keeping it
 inside the campaign CRUD router makes both areas harder to understand and test.
@@ -68,8 +70,10 @@ backend/app/
     inventory.py
     ...
   services/
+    campaign_context.py
     campaign_backups.py
     campaigns.py
+    character_notes.py
     characters.py
     inventory.py
     sessions.py
@@ -97,6 +101,73 @@ A repository layer is not currently planned. SQLModel queries are simple enough
 to remain in services until repetition or testing difficulty demonstrates a
 clear need for another abstraction.
 
+## Service structure
+
+Campaign-scoped services receive one resolved `CampaignContext` when they are
+constructed. The context contains the request-scoped database session and the
+verified campaign model. It is resolved once by a FastAPI dependency, then
+shared by composed services. Methods therefore do not repeat `campaign` or
+`campaign_id` parameters, and a service instance cannot accidentally cross
+campaign boundaries. Application-wide operations such as campaign creation and
+backup import establish the context after the new campaign has been flushed.
+
+Prefer request-scoped service classes for resource domains that have several
+related database operations. A service instance should receive the SQLModel
+campaign context in its constructor and expose domain operations such as
+resolving, creating, updating, activating, or synchronizing a resource. Do not
+create one
+service mechanically for every database table, and do not introduce a generic
+CRUD base class.
+
+When one resource builds on another, services should use composition rather
+than inheritance. For example, `CharacterService` composes `PersonService`
+because a character profile coordinates person operations, but is not a
+specialized kind of person service.
+
+Character notes and backstory notes expose separate `CharacterNoteService` and
+`BackstoryNoteService` APIs from `app/services/character_notes.py`. They compose
+a private shared note implementation because their persistence and tag
+lifecycles are identical, while their database models, resource types, and
+public return models remain distinct. Callers therefore never pass a model
+class or resource-type flag into a generic CRUD service.
+
+`SessionNoteService` owns session numbering, note content, tags, and complete
+session backup conversion. It composes `RollService` for the roll records stored
+under a session. `RollService` separately owns roll validation and statistics,
+so session routes do not absorb roll-specific behavior and roll routes do not
+reimplement session-note persistence.
+
+`LocationService` and `FactionService` own their resource CRUD, tags,
+relationship synchronization, response conversion, and backup conversion.
+Both use the same `CampaignContext`, allowing location parentage and faction
+bases to resolve through shared campaign-scoped tags without either service
+depending directly on the other.
+
+`SearchService` owns campaign-scoped matching queries, resource projections,
+field weighting, relevance calculation, filtering, and result ordering. The
+search router resolves the `CampaignContext` and delegates the request without
+accessing the database directly.
+
+`TagService` is the campaign-scoped component for database-backed tag values,
+structured tag reads, relationships, reverse references, search matching,
+synchronization, reference refresh, and deletion cleanup. Its mutation methods
+use the `stage_*` convention and never commit, allowing resource services to
+retain their transaction boundaries. Stateless tag parsing and formatting
+remain pure functions in `app/tags`.
+
+Services that participate in larger operations should distinguish between:
+
+- composable `stage_*` methods that flush generated state and apply all domain
+  synchronization without committing; and
+- standalone methods that coordinate a complete mutation and own its commit,
+  rollback, refresh, and authoritative response construction.
+
+Use explicit method names for these two levels rather than a `commit=True`
+argument. A coordinating service such as campaign backup calls the composable
+methods and owns the encompassing transaction. Normal resource routes call the
+standalone methods. Service objects must not be shared across requests because
+their database sessions are request-scoped.
+
 These boundaries should eventually be applied consistently to all routers. A
 router that is not explicitly listed in the proposed tree is not exempt; it
 should be migrated when a focused PR can do so without mixing unrelated domain
@@ -120,6 +191,14 @@ archive parsing, and one encompassing transaction, but it should not redefine:
 - inventory, purse, or item conversion rules
 - file lifecycle rules owned by a domain service
 
+For export, each campaign-scoped domain service should expose a collection
+operation that selects every in-scope record, applies deterministic ordering,
+and returns its backup API models. The backup coordinator should consume those
+lists instead of traversing ORM relationships or repeating per-record
+conversion. Archive-only work, such as copying images and assigning their
+archive paths, remains with the backup coordinator and is supplied to the
+relevant domain service when it builds the backup entries.
+
 Domain services may need import-oriented methods that accept a transaction
 without committing it. This allows the backup service to compose many resource
 operations atomically while keeping the business rules in one place. Those
@@ -132,6 +211,9 @@ logic.
 
 This should be the first refactoring milestone, but it should be delivered as a
 small stack of reviewable pull requests rather than one large movement:
+
+Implementation status: completed. The router split, campaign context, campaign
+service, backup service, and composed resource services are now in place.
 
 1. Move shared campaign resolution out of `app/routers/campaigns.py`, replace
    router-to-router imports, and make no other router changes.
@@ -184,9 +266,9 @@ Replace remaining response dictionaries with explicit API models and named
 conversion functions. Keep database-only fields, including canonical copper
 values, out of public responses.
 
-This is also the appropriate point to move `inventory_service.py` into the
-eventual services package. Moving it during unrelated inventory feature work
-would add noise without changing behavior.
+Inventory response composition and persistence now live in
+`app/services/inventory.py`; the inventory router delegates its aggregate
+operations to that service.
 
 ### PR 4: Consolidate repeated resource operations
 

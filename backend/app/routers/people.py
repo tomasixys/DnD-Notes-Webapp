@@ -1,26 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from fastapi import APIRouter, Depends
 
-from app.database import get_session
-from app.file_storage import delete_uploaded_file
-from app.models.database import (
-    BackstoryNote,
-    Campaign,
-    CharacterNote,
-    CharacterProfile,
-    Person,
-)
-from app.models.api import PersonData, PersonRead
-from app.models.enums import RelationshipType, ResourceType
-from app.routers.campaigns import verify_campaign
-from app.tags import (
-    get_resource_tag_reads,
-    get_resource_relationship,
-    handle_tags_of_deleted_resource,
-    refresh_reference_tags_for_resource,
-    sync_resource_tags,
-    sync_resource_relationship,
-)
+from app.dependencies.campaigns import get_campaign_context
+from app.models.api import PersonData
+from app.services.campaign_context import CampaignContext
+from app.services.people import PersonService
+
 
 router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/people",
@@ -28,235 +12,44 @@ router = APIRouter(
 )
 
 
-def person_to_read(person: Person, db: Session) -> PersonRead:
-    character_profile = db.get(CharacterProfile, person.id)
-    campaign = db.get(Campaign, person.campaign_id)
-    return PersonRead(
-        id=person.id,
-        campaign_id=person.campaign_id,
-        name=person.name,
-        role=person.role,
-        faction=get_resource_relationship(
-            db,
-            ResourceType.PERSON,
-            person.id,
-            RelationshipType.MEMBER_OF,
-        ),
-        location=get_resource_relationship(
-            db,
-            ResourceType.PERSON,
-            person.id,
-            RelationshipType.LOCATED_IN,
-        ),
-        description=person.description,
-        tags=get_resource_tag_reads(db, ResourceType.PERSON, person.id),
-        character_profile_available=character_profile is not None,
-        is_active_character=(
-            campaign is not None
-            and campaign.active_character_person_id == person.id
-        ),
-    )
-
-
-def get_person_by_id(
-    campaign_id: int,
-    person_id: int,
-    db: Session,
-) -> Person | None:
-    verify_campaign(campaign_id, db)
-    person = db.get(Person, person_id)
-
-    if person is None or person.campaign_id != campaign_id:
-        raise HTTPException(status_code=404, detail="Person not found")
-
-    return person
-
-def get_all_people_for_campaign(campaign_id: int, db: Session) -> list[Person]:
-    verify_campaign(campaign_id, db)
-    statement = (
-        select(Person)
-        .where(Person.campaign_id == campaign_id)
-        .order_by(Person.name)
-    )
-    return db.exec(statement).all()
-
-
-def create_person_record(
-    campaign_id: int,
-    person: PersonData,
-    db: Session,
-) -> Person:
-    db_person = Person(
-        campaign_id=campaign_id,
-        name=person.name.strip(),
-        role=person.role.strip(),
-        description=person.description.strip(),
-    )
-    if not db_person.name:
-        raise HTTPException(status_code=422, detail="Person name cannot be blank")
-
-    db.add(db_person)
-    db.flush()
-    sync_resource_tags(
-        db, campaign_id, ResourceType.PERSON, db_person.id, person.tags
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        db_person.id,
-        RelationshipType.MEMBER_OF,
-        ResourceType.FACTION,
-        person.faction,
-    )
-    sync_resource_relationship(
-        db,
-        campaign_id,
-        ResourceType.PERSON,
-        db_person.id,
-        RelationshipType.LOCATED_IN,
-        ResourceType.LOCATION,
-        person.location,
-    )
-    refresh_reference_tags_for_resource(
-        db, campaign_id, ResourceType.PERSON, db_person.id
-    )
-    return db_person
-
-
-def update_person_record(
-    person: Person,
-    updated_person: PersonData,
-    db: Session,
-) -> Person:
-    previous_name = person.name
-    person.name = updated_person.name.strip()
-    person.role = updated_person.role.strip()
-    person.description = updated_person.description.strip()
-    if not person.name:
-        raise HTTPException(status_code=422, detail="Person name cannot be blank")
-
-    db.add(person)
-    db.flush()
-    sync_resource_tags(
-        db,
-        person.campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        updated_person.tags,
-    )
-    sync_resource_relationship(
-        db,
-        person.campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        RelationshipType.MEMBER_OF,
-        ResourceType.FACTION,
-        updated_person.faction,
-    )
-    sync_resource_relationship(
-        db,
-        person.campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        RelationshipType.LOCATED_IN,
-        ResourceType.LOCATION,
-        updated_person.location,
-    )
-    refresh_reference_tags_for_resource(
-        db,
-        person.campaign_id,
-        ResourceType.PERSON,
-        person.id,
-        previous_labels=[previous_name],
-    )
-    return person
-
 @router.get("")
 def get_people_for_campaign(
-    campaign_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    return [
-        person_to_read(person, db)
-        for person in get_all_people_for_campaign(campaign_id, db)
-    ]
+    people = PersonService(context)
+    return [people.to_read(person) for person in people.list()]
 
 
 @router.get("/{person_id}")
 def get_person(
-    campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    return person_to_read(get_person_by_id(campaign_id, person_id, db), db)
+    people = PersonService(context)
+    return people.to_read(people.get(person_id))
 
 
 @router.post("")
 def create_person(
-    campaign_id: int,
     person: PersonData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    verify_campaign(campaign_id, db)
-
-    db_person = create_person_record(campaign_id, person, db)
-    db.commit()
-    db.refresh(db_person)
-
-    return person_to_read(db_person, db)
+    return PersonService(context).create(person)
 
 
 @router.put("/{person_id}")
 def update_person(
-    campaign_id: int,
     person_id: int,
     updated_person: PersonData,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    person = get_person_by_id(campaign_id, person_id, db)
-    update_person_record(person, updated_person, db)
-    db.commit()
-    db.refresh(person)
-
-    return person_to_read(person, db)
+    return PersonService(context).update(person_id, updated_person)
 
 
 @router.delete("/{person_id}")
 def delete_person(
-    campaign_id: int,
     person_id: int,
-    db: Session = Depends(get_session),
+    context: CampaignContext = Depends(get_campaign_context),
 ):
-    person = get_person_by_id(campaign_id, person_id, db)
-
-    profile = db.get(CharacterProfile, person.id)
-    portrait_path = profile.image_path if profile is not None else ""
-    if profile is not None:
-        for note_model, resource_type in (
-            (CharacterNote, ResourceType.CHARACTER_NOTE),
-            (BackstoryNote, ResourceType.BACKSTORY_NOTE),
-        ):
-            notes = db.exec(
-                select(note_model).where(
-                    note_model.character_person_id == person.id
-                )
-            ).all()
-            for note in notes:
-                handle_tags_of_deleted_resource(
-                    db, resource_type, note.id
-                )
-
-    campaign = db.get(Campaign, campaign_id)
-    if campaign is not None and campaign.active_character_person_id == person.id:
-        campaign.active_character_person_id = None
-        db.add(campaign)
-
-    handle_tags_of_deleted_resource(db, ResourceType.PERSON, person.id)
-    db.delete(person)
-    db.commit()
-
-    if portrait_path:
-        delete_uploaded_file(portrait_path)
-
+    PersonService(context).delete(person_id)
     return {"deleted": True}
