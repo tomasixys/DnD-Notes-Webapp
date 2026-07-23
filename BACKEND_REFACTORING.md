@@ -97,6 +97,28 @@ A repository layer is not currently planned. SQLModel queries are simple enough
 to remain in services until repetition or testing difficulty demonstrates a
 clear need for another abstraction.
 
+## Service structure
+
+Prefer request-scoped service classes for resource domains that have several
+related database operations. A service instance should receive the SQLModel
+session in its constructor and expose domain operations such as resolving,
+creating, updating, activating, or synchronizing a resource. Do not create one
+service mechanically for every database table, and do not introduce a generic
+CRUD base class.
+
+Services that participate in larger operations should distinguish between:
+
+- composable methods, such as `add()` or `apply_changes()`, that flush generated
+  state and apply all domain synchronization without committing; and
+- standalone methods that coordinate a complete mutation and own its commit,
+  rollback, refresh, and authoritative response construction.
+
+Use explicit method names for these two levels rather than a `commit=True`
+argument. A coordinating service such as campaign backup calls the composable
+methods and owns the encompassing transaction. Normal resource routes call the
+standalone methods. Service objects must not be shared across requests because
+their database sessions are request-scoped.
+
 These boundaries should eventually be applied consistently to all routers. A
 router that is not explicitly listed in the proposed tree is not exempt; it
 should be migrated when a focused PR can do so without mixing unrelated domain

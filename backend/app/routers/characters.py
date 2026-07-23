@@ -27,12 +27,7 @@ from app.models.database import (
     CharacterProfile,
 )
 from app.models.enums import ResourceType
-from app.routers.people import (
-    create_person_record,
-    get_person_by_id,
-    person_to_read,
-    update_person_record,
-)
+from app.services.people import PersonService
 from app.tags import (
     get_resource_tag_reads,
     handle_tags_of_deleted_resource,
@@ -63,9 +58,10 @@ def character_to_read(
     campaign: Campaign,
     db: Session,
 ) -> CharacterRead:
-    person = get_person_by_id(campaign.id, profile.person_id, db)
+    people = PersonService(db)
+    person = people.get(campaign, profile.person_id)
     return CharacterRead(
-        person=person_to_read(person, db),
+        person=people.to_read(person),
         short_bio=profile.short_bio,
         appearance=profile.appearance,
         image_url=(
@@ -82,7 +78,8 @@ def get_character_profile(
     person_id: int,
     db: Session,
 ) -> CharacterProfile:
-    get_person_by_id(campaign_id, person_id, db)
+    campaign = verify_campaign(campaign_id, db)
+    PersonService(db).get(campaign, person_id)
     profile = db.get(CharacterProfile, person_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="Character profile not found")
@@ -281,10 +278,11 @@ def create_character(
             detail="Provide either person_id or person, but not both",
         )
 
+    people = PersonService(db)
     if character.person_id is not None:
-        person = get_person_by_id(campaign_id, character.person_id, db)
+        person = people.get(campaign, character.person_id)
     else:
-        person = create_person_record(campaign_id, character.person, db)
+        person = people.add(campaign, character.person)
 
     if db.get(CharacterProfile, person.id) is not None:
         raise HTTPException(
@@ -320,9 +318,13 @@ def update_character(
 ) -> CharacterRead:
     campaign = verify_campaign(campaign_id, db)
     profile = get_character_profile(campaign_id, person_id, db)
-    person = get_person_by_id(campaign_id, person_id, db)
 
-    update_person_record(person, updated_character.person, db)
+    people = PersonService(db)
+    people.apply_changes(
+        campaign,
+        person_id,
+        updated_character.person,
+    )
     profile.short_bio = updated_character.short_bio.strip()
     profile.appearance = updated_character.appearance.strip()
     db.add(profile)

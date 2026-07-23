@@ -53,13 +53,14 @@ from app.routers.characters import (
     get_character,
     get_character_notes,
 )
-from app.routers.people import delete_person, person_to_read
+from app.routers.people import delete_person
 from app.routers.sessions import create_session_note
 from app.routers.search import search_campaign
 from app.routers.campaigns import (
     export_campaign_backup,
     import_campaign_backup,
 )
+from app.services.people import PersonService
 
 
 class CharacterApiIntegrationTests(unittest.TestCase):
@@ -120,8 +121,8 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             active = get_active_character(campaign.id, db)
             self.assertEqual(active.person.id, second.person.id)
 
-            former_person = person_to_read(
-                db.get(Person, first.person.id), db
+            former_person = PersonService(db).to_read(
+                db.get(Person, first.person.id)
             )
             self.assertTrue(former_person.character_profile_available)
             self.assertFalse(former_person.is_active_character)
@@ -349,7 +350,11 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 character = create_character(
                     campaign.id,
                     CharacterCreate(
-                        person=PersonData(name="Nalia"),
+                        person=PersonData(
+                            name="Nalia",
+                            role="Wizard",
+                            tags=["ally"],
+                        ),
                         short_bio="Academy exile",
                         appearance="Silver hair",
                     ),
@@ -430,6 +435,9 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     CharacterProfile,
                     imported_campaign.active_character_person_id,
                 )
+                imported_person = PersonService(db).to_read(
+                    db.get(Person, imported_profile.person_id)
+                )
                 imported_entries = db.exec(
                     select(BackstoryNote).where(
                         BackstoryNote.character_person_id
@@ -439,6 +447,11 @@ class CharacterApiIntegrationTests(unittest.TestCase):
 
                 self.assertEqual(imported_profile.short_bio, "Academy exile")
                 self.assertEqual(imported_profile.appearance, "Silver hair")
+                self.assertEqual(imported_person.role, "Wizard")
+                self.assertEqual(
+                    [tag.value for tag in imported_person.tags],
+                    ["ally"],
+                )
                 self.assertEqual(len(imported_entries), 1)
                 self.assertEqual(imported_entries[0].title, "Family")
                 imported_inventory = db.exec(

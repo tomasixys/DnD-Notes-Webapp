@@ -17,6 +17,7 @@ from app.inventory_service import (
 from app.models.database import *
 from app.models.api import *
 from app.models.enums import CurrencyDenomination
+from app.services.people import PersonService
 # from app.app_paths import get_uploads_dir
 from app.file_storage import *
 from app.tags import (
@@ -689,45 +690,21 @@ async def import_campaign_backup(
 
                 db.add(campaign)
 
+                people = PersonService(db)
                 for person_backup in cb.people:
-                    person = Person(
-                        campaign_id=campaign.id,
-                        name=person_backup.name,
-                        role=person_backup.role,
-                        description=person_backup.description,
+                    person = people.add(
+                        campaign,
+                        PersonData(
+                            name=person_backup.name,
+                            role=person_backup.role,
+                            faction=person_backup.faction,
+                            location=person_backup.location,
+                            description=person_backup.description,
+                            tags=person_backup.tags,
+                        ),
                     )
-                    db.add(person)
-                    db.flush()
                     if person_backup.backup_id is not None:
                         person_id_map[person_backup.backup_id] = person.id
-                    sync_resource_tags(
-                        db,
-                        campaign.id,
-                        ResourceType.PERSON,
-                        person.id,
-                        person_backup.tags,
-                    )
-                    sync_resource_relationship(
-                        db,
-                        campaign.id,
-                        ResourceType.PERSON,
-                        person.id,
-                        RelationshipType.MEMBER_OF,
-                        ResourceType.FACTION,
-                        person_backup.faction,
-                    )
-                    sync_resource_relationship(
-                        db,
-                        campaign.id,
-                        ResourceType.PERSON,
-                        person.id,
-                        RelationshipType.LOCATED_IN,
-                        ResourceType.LOCATION,
-                        person_backup.location,
-                    )
-                    refresh_reference_tags_for_resource(
-                        db, campaign.id, ResourceType.PERSON, person.id
-                    )
 
                 for location_backup in cb.locations:
                     location = Location(
