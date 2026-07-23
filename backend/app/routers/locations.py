@@ -15,7 +15,7 @@ router = APIRouter(
 @router.get("")
 def get_locations_for_campaign(
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> list[LocationRead]:
     locations = LocationService(context)
     return [locations.to_read(location) for location in locations.list()]
 
@@ -24,7 +24,7 @@ def get_locations_for_campaign(
 def get_location(
     location_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> LocationRead:
     locations = LocationService(context)
     return locations.to_read(locations.get(location_id))
 

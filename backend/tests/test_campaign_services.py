@@ -1,8 +1,12 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from zipfile import ZIP_DEFLATED, ZipFile
 
+from fastapi import HTTPException
 from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
@@ -114,6 +118,38 @@ class CampaignServiceTests(unittest.TestCase):
                     2,
                     len(CampaignService(db).list_reads()),
                 )
+
+    def test_backup_import_rejects_invalid_data_without_creating_campaign(
+        self,
+    ):
+        archive_data = io.BytesIO()
+        with ZipFile(
+            archive_data,
+            "w",
+            compression=ZIP_DEFLATED,
+        ) as archive:
+            archive.writestr(
+                "backup.json",
+                json.dumps(
+                    {
+                        "schema_version": 3,
+                        "campaign": {},
+                    }
+                ),
+            )
+
+        with Session(self.engine) as db:
+            with self.assertRaises(HTTPException) as error:
+                CampaignBackupService(db).import_archive(
+                    archive_data.getvalue()
+                )
+
+            self.assertEqual(400, error.exception.status_code)
+            self.assertEqual(
+                "Invalid backup data",
+                error.exception.detail,
+            )
+            self.assertEqual([], db.exec(select(Campaign)).all())
 
 
 if __name__ == "__main__":

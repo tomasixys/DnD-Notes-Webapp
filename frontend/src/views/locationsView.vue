@@ -124,7 +124,7 @@ async function createLocation() {
 
   const response = await PostAPI(`campaigns/${selectedCampaignId.value}/locations`, location)
   if (response.success === false) {
-    console.error("Failed to create location:", response.Message)
+    console.error("Failed to create location:", response.error)
     return
   }
   const createdLocation = response as LocationDto
@@ -153,7 +153,7 @@ async function updateLocation() {
   const locationId = selectedEntry.value.id
   const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${locationId}`, location)
   if (response.success === false) {
-    console.error("Failed to update location:", response.Message)
+    console.error("Failed to update location:", response.error)
     return
   }
   const updatedLocation = response as LocationDto
@@ -171,7 +171,7 @@ async function deleteLocation() {
 
   const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`)
   if (response.success === false) {
-    console.error("Failed to delete location:", response.Message)
+    console.error("Failed to delete location:", response.error)
     return
   }
   const deleted = response as DeleteResponseDto

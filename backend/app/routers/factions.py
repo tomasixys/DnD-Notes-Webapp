@@ -15,7 +15,7 @@ router = APIRouter(
 @router.get("")
 def get_factions_for_campaign(
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> list[FactionRead]:
     factions = FactionService(context)
     return [factions.to_read(faction) for faction in factions.list()]
 
@@ -24,7 +24,7 @@ def get_factions_for_campaign(
 def get_faction(
     faction_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> FactionRead:
     factions = FactionService(context)
     return factions.to_read(factions.get(faction_id))
 

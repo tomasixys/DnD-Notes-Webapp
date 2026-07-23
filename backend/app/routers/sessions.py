@@ -15,7 +15,7 @@ router = APIRouter(
 @router.get("")
 def get_sessions_for_campaign(
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> list[SessionNoteRead]:
     return SessionNoteService(context).list_for_campaign()
 
 
@@ -23,7 +23,7 @@ def get_sessions_for_campaign(
 def get_session_note(
     session_note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> SessionNoteRead:
     service = SessionNoteService(context)
     return service.to_read(service.get(session_note_id))
 

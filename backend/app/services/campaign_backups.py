@@ -4,6 +4,7 @@ from pathlib import Path
 from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlmodel import SQLModel, Session
 
 from app.file_storage import (
@@ -172,6 +173,11 @@ class CampaignBackupService:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid backup JSON",
+            )
+        except (UnicodeDecodeError, ValidationError):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid backup data",
             )
 
         return self.campaigns.to_read(

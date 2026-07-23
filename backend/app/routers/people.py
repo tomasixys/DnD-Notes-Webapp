@@ -15,7 +15,7 @@ router = APIRouter(
 @router.get("")
 def get_people_for_campaign(
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> list[PersonRead]:
     people = PersonService(context)
     return [people.to_read(person) for person in people.list()]
 
@@ -24,7 +24,7 @@ def get_people_for_campaign(
 def get_person(
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> PersonRead:
     people = PersonService(context)
     return people.to_read(people.get(person_id))
 

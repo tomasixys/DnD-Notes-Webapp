@@ -12,7 +12,10 @@ import type {
 } from "@/types/DataTransferObjects"
 import { ViewModes } from "@/types/viewTypes"
 
-const { selectedCampaignId } = useCampaignStore()
+const {
+  selectedCampaignId,
+  adjustCampaignSessionCount,
+} = useCampaignStore()
 const {
   sessions,
   selectedSession,
@@ -80,8 +83,9 @@ function sessionPayload(sessionNumber: number): SessionDataDto {
 
 async function createSession() {
   if (!selectedCampaignId.value || !sessionForm.title.trim()) return
+  const campaignId = selectedCampaignId.value
   const response = await PostAPI(
-    `campaigns/${selectedCampaignId.value}/sessions`,
+    `campaigns/${campaignId}/sessions`,
     sessionPayload(nextSessionNumber.value),
   )
   if (response?.success === false) {
@@ -91,6 +95,7 @@ async function createSession() {
 
   const createdSession = response as SessionListItemDto
   upsertSession(createdSession)
+  adjustCampaignSessionCount(campaignId, 1)
   resetSessionForm()
   viewMode.value = ViewModes.Details
   await openSession(createdSession.id)
@@ -117,8 +122,9 @@ async function updateSession() {
 
 async function deleteSession() {
   if (!selectedCampaignId.value || !selectedSession.value) return
+  const campaignId = selectedCampaignId.value
   const response = await DeleteAPI(
-    `campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value.id}`,
+    `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
   )
   if (response?.success === false) {
     requestError.value = "The session could not be deleted."
@@ -127,6 +133,7 @@ async function deleteSession() {
 
   const deleted = response as DeleteResponseDto
   removeSession(deleted.deletedId)
+  adjustCampaignSessionCount(campaignId, -1)
   await replaceWithFirstSession()
 }
 

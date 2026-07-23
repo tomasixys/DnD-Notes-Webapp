@@ -40,6 +40,7 @@ const {
   selectedCampaign,
   hasSelectedCampaign,
   setCampaigns,
+  setCampaignActiveCharacter,
   selectCampaign,
   clearSelectedCampaign,
 } = useCampaignStore()
@@ -182,14 +183,19 @@ async function updatePerson() {
 
 async function deletePerson() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
+  const campaignId = selectedCampaignId.value
+  const deletedPersonWasActive = selectedEntry.value.isActiveCharacter
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/people/${selectedEntry.value.id}`)
+  const response = await DeleteAPI(`campaigns/${campaignId}/people/${selectedEntry.value.id}`)
   if (response.success === false) {
     console.error("Failed to delete person:", response.error)
     return
   }
   const deleted = response as DeleteResponseDto
   people.value = removeById(people.value, deleted.deletedId)
+  if (deletedPersonWasActive) {
+    setCampaignActiveCharacter(campaignId, null)
+  }
   await replaceWithFirstEntry()
 }
 

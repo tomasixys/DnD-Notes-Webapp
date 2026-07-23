@@ -1,48 +1,76 @@
 
+import { invalidateCampaignSearch } from "@/stores/searchStore"
+
 export const baseUrl = import.meta.env.DEV ? "http://localhost:8000/" : "/"
 export const apiUrl = baseUrl + "api/"
 
 const fetchTimeout = 3000;
 
 function fetchError(x) {
-    console.log(`Fetch error: ${x}`);
-    window.err = x;
-    return {"success": false, "message": `Fetch error ${x}`};
+  console.log(`Fetch error: ${x}`)
+  window.err = x
+  const error = `Fetch error ${x}`
+  return {
+    success: false,
+    error,
+    message: error,
+  }
+}
+
+function formatErrorDetail(detail, response) {
+  if (typeof detail === "string" && detail) {
+    return detail
+  }
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((entry) => entry?.msg)
+      .filter(Boolean)
+      .join("; ")
+  }
+  return (
+    response.statusText
+    || `Request failed with HTTP status ${response.status}`
+  )
 }
 
 async function statusCodeHandler(response) {
-  switch (response.status) {
-    case 200:
-    case 201:
-    case 202:
-    case 204:
-      const data = await response.json();
-      return keysToCamelCase(data);
-    case 400:
-      return {
-        success: false,
-        status: 400,
-        message: "Bad Request: " + (response.statusText || "The server could not understand the request."),
-      };
-    case 401:
-      return {
-        success: false,
-        status: 401,
-        message: "Unauthorized",
-      };
-    case 500:
-      return {
-        success: false,
-        status: 500,
-        message: `Internal Server Error: ${response.statusText}`,
-      };
-    default:
-      return {
-        success: false,
-        status: response.status,
-        message: `Request failed. HTTP error code: ${response.status}: ${response.statusText}`,
-      };
+  if (response.ok) {
+    if (response.status === 204) {
+      return null
+    }
+    const text = await response.text()
+    return text ? keysToCamelCase(JSON.parse(text)) : null
   }
+
+  let body = null
+  try {
+    body = await response.json()
+  } catch {
+    // Some server/proxy failures do not include a JSON response body.
+  }
+  const error = formatErrorDetail(body?.detail, response)
+  return {
+    success: false,
+    status: response.status,
+    error,
+    message: error,
+  }
+}
+
+function applyMutationSideEffects(endpoint, method, response) {
+  if (
+    response?.success === false
+    || method.toUpperCase() === "GET"
+    || endpoint.endsWith("/search")
+  ) {
+    return response
+  }
+
+  const campaignMatch = /^campaigns\/(\d+)(?:\/|$)/.exec(endpoint)
+  if (campaignMatch) {
+    invalidateCampaignSearch(Number(campaignMatch[1]))
+  }
+  return response
 }
 
 export async function DownloadAPI(endpoint, filename = null)
@@ -78,6 +106,9 @@ export async function GetAPI(endpoint, {parseResponseJson = true, method = "GET"
     signal: AbortSignal.timeout ? AbortSignal.timeout(fetchTimeout) : undefined
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .then(response =>
+    applyMutationSideEffects(endpoint, method, response)
+  )
   .catch(fetchError);
 }
 export async function DeleteAPI(endpoint, {parseResponseJson = true, method = "DELETE"} = {})
@@ -95,6 +126,9 @@ export async function PostAPI(endpoint, data, {parseResponseJson = true, method 
     body: JSON.stringify(keysToSnakeCase(data))
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .then(response =>
+    applyMutationSideEffects(endpoint, method, response)
+  )
   .catch(fetchError);
 }
 
@@ -117,6 +151,9 @@ export async function PostFormDataAPI(endpoint, formData, {parseResponseJson = t
     body: formData
   })
   .then(x => parseResponseJson ? statusCodeHandler(x) : x)
+  .then(response =>
+    applyMutationSideEffects(endpoint, method, response)
+  )
   .catch(fetchError);
 }
 

@@ -40,6 +40,30 @@ class MutationResponseContractTests(unittest.TestCase):
 
         self.assertGreater(checked_operations, 0)
 
+    def test_every_api_operation_has_a_documented_response_schema(self):
+        checked_operations = 0
+        for path, operations in self.schema["paths"].items():
+            for method, operation in operations.items():
+                if method not in {
+                    "get",
+                    "post",
+                    "put",
+                    "patch",
+                    "delete",
+                }:
+                    continue
+
+                response_schema = self._successful_response_schema(
+                    operation
+                )
+                self.assertTrue(
+                    response_schema,
+                    f"{method.upper()} {path} has no response schema",
+                )
+                checked_operations += 1
+
+        self.assertGreater(checked_operations, 0)
+
     def test_domain_specific_mutation_envelopes_are_documented(self):
         paths = self.schema["paths"]
 

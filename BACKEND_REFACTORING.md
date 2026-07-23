@@ -1,6 +1,6 @@
 # Backend Refactoring Plan
 
-Status: in progress.
+Status: completed.
 
 This document records backend cleanup that should be completed in focused,
 behavior-preserving pull requests. Refactoring should not be mixed into feature
@@ -46,10 +46,29 @@ examples below are starting points, not the limit of the refactor.
   with ordered local upsert/remove operations.
 - [x] Replaced untyped deletion dictionaries with `DeleteResponse`; character
   deletion and roll mutations use typed domain-specific envelopes.
+- [x] Completed the final transaction, error, OpenAPI, and frontend-consumer
+  audit.
 
 ### Remaining
 
-- [ ] Complete a final transaction, error, OpenAPI, and frontend-consumer audit.
+None for this refactoring plan.
+
+### Final audit results
+
+- Service-owned mutations have explicit commit and rollback boundaries, and
+  uploaded-file replacement cleans up the correct old or newly written file on
+  success or failure.
+- Invalid backup contents now produce a consistent `400` response without
+  leaving a partially created campaign.
+- Every documented API operation has an explicit response schema, enforced by
+  an OpenAPI regression test.
+- Frontend API errors now consistently expose `error` and `message`, including
+  FastAPI validation errors.
+- Successful campaign-scoped mutations invalidate cached search results.
+- Session mutations update campaign session counts locally, and deleting an
+  active character clears the campaign's active-character summary locally.
+- The final verification passes all 70 backend tests, frontend type-checking,
+  and the frontend production build.
 
 ## Current pressure points
 
@@ -76,7 +95,7 @@ another router. This pressure point is resolved.
 Route handlers delegate persistence and transaction behavior to services,
 including character portrait replacement and removal. Mutation endpoints now
 return authoritative typed state, and their active frontend consumers apply
-that state locally. The remaining work is the final cross-cutting audit.
+that state locally. The final cross-cutting audit is complete.
 
 ## Intended module boundaries
 

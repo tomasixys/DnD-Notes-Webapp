@@ -85,6 +85,20 @@ function setCampaignActiveCharacter(
   )
 }
 
+function adjustCampaignSessionCount(
+  campaignId: number,
+  amount: number,
+) {
+  campaigns.value = campaigns.value.map((campaign) =>
+    campaign.id === campaignId
+      ? {
+          ...campaign,
+          sessionCount: Math.max(0, campaign.sessionCount + amount),
+        }
+      : campaign
+  )
+}
+
 function selectCampaign(campaignId: number) {
   selectedCampaignId.value = campaignId
   persistSelectedCampaign()
@@ -116,6 +130,7 @@ export function useCampaignStore() {
     upsertCampaign,
     removeCampaign,
     setCampaignActiveCharacter,
+    adjustCampaignSessionCount,
     selectCampaign,
     clearSelectedCampaign,
   }
