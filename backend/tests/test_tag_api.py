@@ -48,7 +48,7 @@ class TagApiIntegrationTests(unittest.TestCase):
             location = create_location(
                 campaign.id,
                 LocationData(name="Skummende Seidel", type="Tavern"),
-                db,
+                context,
             )
             person = create_person(
                 campaign.id,
@@ -111,7 +111,7 @@ class TagApiIntegrationTests(unittest.TestCase):
             location = create_location(
                 campaign.id,
                 LocationData(name="Old Harbor"),
-                db,
+                context,
             )
             create_person(
                 campaign.id,
@@ -128,7 +128,7 @@ class TagApiIntegrationTests(unittest.TestCase):
                 campaign.id,
                 location.id,
                 LocationData(name="New Harbor"),
-                db,
+                context,
             )
 
             people = get_people_for_campaign(campaign.id, context)
@@ -160,17 +160,17 @@ class TagApiIntegrationTests(unittest.TestCase):
             city = create_location(
                 campaign.id,
                 LocationData(name="Gernanti"),
-                db,
+                context,
             )
             academy = create_location(
                 campaign.id,
                 LocationData(name="Academy", parent_location="Gernanti"),
-                db,
+                context,
             )
             faction = create_faction(
                 campaign.id,
                 FactionData(name="Dragon Order", location="Academy"),
-                db,
+                context,
             )
             person = create_person(
                 campaign.id,
@@ -208,10 +208,16 @@ class TagApiIntegrationTests(unittest.TestCase):
                 ["ally", "location:Academy"],
             )
 
-            faction_read = get_factions_for_campaign(campaign.id, db)[0]
+            faction_read = get_factions_for_campaign(
+                campaign.id,
+                context,
+            )[0]
             academy_read = next(
                 location
-                for location in get_locations_for_campaign(campaign.id, db)
+                for location in get_locations_for_campaign(
+                    campaign.id,
+                    context,
+                )
                 if location.id == academy.id
             )
             self.assertEqual([member.label for member in faction_read.members], ["Nalia"])

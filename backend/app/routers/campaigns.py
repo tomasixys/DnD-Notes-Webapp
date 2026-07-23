@@ -18,7 +18,9 @@ from app.services.character_notes import (
 )
 from app.services.campaign_context import CampaignContext
 from app.services.characters import CharacterService
+from app.services.factions import FactionService
 from app.services.inventory import InventoryService
+from app.services.locations import LocationService
 from app.services.people import PersonService
 from app.services.sessions import SessionNoteService
 # from app.app_paths import get_uploads_dir
@@ -26,9 +28,6 @@ from app.file_storage import *
 from app.tags import (
     get_resource_relationship,
     get_resource_tags,
-    refresh_reference_tags_for_resource,
-    sync_resource_relationship,
-    sync_resource_tags,
 )
 
 router = APIRouter(
@@ -297,6 +296,8 @@ def export_campaign_backup(
     character_notes = CharacterNoteService(context, characters)
     backstory_notes = BackstoryNoteService(context, characters)
     sessions = SessionNoteService(context)
+    locations = LocationService(context)
+    factions = FactionService(context)
 
     archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
     image_archive_path = ""
@@ -407,45 +408,11 @@ def export_campaign_backup(
                 for profile in character_profiles
             ],
             locations=[
-                CampaignBackupLocation(
-                    name=location.name,
-                    type=location.type,
-                    parent_location=(
-                        relationship.label
-                        if (relationship := get_resource_relationship(
-                            db,
-                            ResourceType.LOCATION,
-                            location.id,
-                            RelationshipType.PART_OF,
-                        ))
-                        else ""
-                    ),
-                    description=location.description,
-                    tags=get_resource_tags(
-                        db, ResourceType.LOCATION, location.id
-                    ),
-                )
+                locations.to_backup(location)
                 for location in sorted(campaign.locations, key=lambda location: location.name.lower())
             ],
             factions=[
-                CampaignBackupFaction(
-                    name=faction.name,
-                    type=faction.type,
-                    location=(
-                        relationship.label
-                        if (relationship := get_resource_relationship(
-                            db,
-                            ResourceType.FACTION,
-                            faction.id,
-                            RelationshipType.BASED_IN,
-                        ))
-                        else ""
-                    ),
-                    description=faction.description,
-                    tags=get_resource_tags(
-                        db, ResourceType.FACTION, faction.id
-                    ),
-                )
+                factions.to_backup(faction)
                 for faction in sorted(campaign.factions, key=lambda faction: faction.name.lower())
             ],
             inventories=[
@@ -532,6 +499,8 @@ async def import_campaign_backup(
                     characters,
                 )
                 sessions = SessionNoteService(context)
+                locations = LocationService(context)
+                factions = FactionService(context)
                 for person_backup in cb.people:
                     person = people.stage_create(
                         PersonData(
@@ -547,68 +516,10 @@ async def import_campaign_backup(
                         person_id_map[person_backup.backup_id] = person.id
 
                 for location_backup in cb.locations:
-                    location = Location(
-                        campaign_id=campaign.id,
-                        name=location_backup.name,
-                        type=location_backup.type,
-                        description=location_backup.description,
-                    )
-                    db.add(location)
-                    db.flush()
-                    sync_resource_tags(
-                        db,
-                        campaign.id,
-                        ResourceType.LOCATION,
-                        location.id,
-                        location_backup.tags,
-                    )
-                    sync_resource_relationship(
-                        db,
-                        campaign.id,
-                        ResourceType.LOCATION,
-                        location.id,
-                        RelationshipType.PART_OF,
-                        ResourceType.LOCATION,
-                        location_backup.parent_location,
-                    )
-                    refresh_reference_tags_for_resource(
-                        db,
-                        campaign.id,
-                        ResourceType.LOCATION,
-                        location.id,
-                    )
+                    locations.stage_restore(location_backup)
 
                 for faction_backup in cb.factions:
-                    faction = Faction(
-                        campaign_id=campaign.id,
-                        name=faction_backup.name,
-                        type=faction_backup.type,
-                        description=faction_backup.description,
-                    )
-                    db.add(faction)
-                    db.flush()
-                    sync_resource_tags(
-                        db,
-                        campaign.id,
-                        ResourceType.FACTION,
-                        faction.id,
-                        faction_backup.tags,
-                    )
-                    sync_resource_relationship(
-                        db,
-                        campaign.id,
-                        ResourceType.FACTION,
-                        faction.id,
-                        RelationshipType.BASED_IN,
-                        ResourceType.LOCATION,
-                        faction_backup.location,
-                    )
-                    refresh_reference_tags_for_resource(
-                        db,
-                        campaign.id,
-                        ResourceType.FACTION,
-                        faction.id,
-                    )
+                    factions.stage_restore(faction_backup)
 
                 for session_backup in cb.sessions:
                     sessions.stage_restore(session_backup)

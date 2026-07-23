@@ -135,6 +135,12 @@ under a session. `RollService` separately owns roll validation and statistics,
 so session routes do not absorb roll-specific behavior and roll routes do not
 reimplement session-note persistence.
 
+`LocationService` and `FactionService` own their resource CRUD, tags,
+relationship synchronization, response conversion, and backup conversion.
+Both use the same `CampaignContext`, allowing location parentage and faction
+bases to resolve through shared campaign-scoped tags without either service
+depending directly on the other.
+
 Services that participate in larger operations should distinguish between:
 
 - composable `stage_*` methods that flush generated state and apply all domain
