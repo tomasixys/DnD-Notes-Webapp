@@ -6,6 +6,11 @@ import { GetAPI } from "@/apihelpers"
 import { sessionContextKey } from "@/composables/useSessionContext"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type { SessionListItemDto } from "@/types/DataTransferObjects"
+import {
+  compareBySessionNumberDescending,
+  removeById,
+  upsertById,
+} from "@/utils/resourceCollections"
 
 const route = useRoute()
 const router = useRouter()
@@ -48,6 +53,18 @@ async function loadSessions() {
   sessions.value = response as SessionListItemDto[]
 }
 
+function upsertSession(session: SessionListItemDto) {
+  sessions.value = upsertById(
+    sessions.value,
+    session,
+    compareBySessionNumberDescending,
+  )
+}
+
+function removeSession(sessionId: number) {
+  sessions.value = removeById(sessions.value, sessionId)
+}
+
 async function openSession(sessionId: number, replace = false) {
   selectionRevision.value += 1
   if (selectedSessionId.value === sessionId) return
@@ -80,6 +97,8 @@ provide(sessionContextKey, {
   selectedSessionId,
   selectionRevision,
   loadSessions,
+  upsertSession,
+  removeSession,
   openSession,
   replaceWithFirstSession,
 })

@@ -5,15 +5,23 @@ import { DeleteAPI, PostAPI, PutAPI } from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useSessionContext } from "@/composables/useSessionContext"
 import { useCampaignStore } from "@/stores/campaignStore"
-import type { SessionDataDto } from "@/types/DataTransferObjects"
+import type {
+  DeleteResponseDto,
+  SessionDataDto,
+  SessionListItemDto,
+} from "@/types/DataTransferObjects"
 import { ViewModes } from "@/types/viewTypes"
 
-const { selectedCampaignId } = useCampaignStore()
+const {
+  selectedCampaignId,
+  adjustCampaignSessionCount,
+} = useCampaignStore()
 const {
   sessions,
   selectedSession,
   selectionRevision,
-  loadSessions,
+  upsertSession,
+  removeSession,
   openSession,
   replaceWithFirstSession,
 } = useSessionContext()
@@ -75,8 +83,9 @@ function sessionPayload(sessionNumber: number): SessionDataDto {
 
 async function createSession() {
   if (!selectedCampaignId.value || !sessionForm.title.trim()) return
+  const campaignId = selectedCampaignId.value
   const response = await PostAPI(
-    `campaigns/${selectedCampaignId.value}/sessions`,
+    `campaigns/${campaignId}/sessions`,
     sessionPayload(nextSessionNumber.value),
   )
   if (response?.success === false) {
@@ -84,11 +93,12 @@ async function createSession() {
     return
   }
 
-  const sessionId = Number(response.id)
-  await loadSessions()
+  const createdSession = response as SessionListItemDto
+  upsertSession(createdSession)
+  adjustCampaignSessionCount(campaignId, 1)
   resetSessionForm()
   viewMode.value = ViewModes.Details
-  if (Number.isInteger(sessionId)) await openSession(sessionId)
+  await openSession(createdSession.id)
 }
 
 async function updateSession() {
@@ -103,7 +113,8 @@ async function updateSession() {
     return
   }
 
-  await loadSessions()
+  const updatedSession = response as SessionListItemDto
+  upsertSession(updatedSession)
   resetSessionForm()
   viewMode.value = ViewModes.Details
   await openSession(sessionId)
@@ -111,15 +122,18 @@ async function updateSession() {
 
 async function deleteSession() {
   if (!selectedCampaignId.value || !selectedSession.value) return
+  const campaignId = selectedCampaignId.value
   const response = await DeleteAPI(
-    `campaigns/${selectedCampaignId.value}/sessions/${selectedSession.value.id}`,
+    `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
   )
   if (response?.success === false) {
     requestError.value = "The session could not be deleted."
     return
   }
 
-  await loadSessions()
+  const deleted = response as DeleteResponseDto
+  removeSession(deleted.deletedId)
+  adjustCampaignSessionCount(campaignId, -1)
   await replaceWithFirstSession()
 }
 

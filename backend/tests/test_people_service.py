@@ -74,7 +74,8 @@ class PersonServiceTests(unittest.TestCase):
             )
             self.assertEqual("Archmage", updated.role)
 
-            people.delete(person_id)
+            deleted = people.delete(person_id)
+            self.assertEqual(person_id, deleted.deleted_id)
             self.assertIsNone(db.get(Person, person_id))
 
     def test_stage_update_resolves_by_id_without_committing(self):

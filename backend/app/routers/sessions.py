@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies.campaigns import get_campaign_context
-from app.models.api import SessionNoteData
+from app.models.api import DeleteResponse, SessionNoteData, SessionNoteRead
 from app.services.campaign_context import CampaignContext
 from app.services.sessions import SessionNoteService
 
@@ -15,7 +15,7 @@ router = APIRouter(
 @router.get("")
 def get_sessions_for_campaign(
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> list[SessionNoteRead]:
     return SessionNoteService(context).list_for_campaign()
 
 
@@ -23,7 +23,7 @@ def get_sessions_for_campaign(
 def get_session_note(
     session_note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> SessionNoteRead:
     service = SessionNoteService(context)
     return service.to_read(service.get(session_note_id))
 
@@ -32,7 +32,7 @@ def get_session_note(
 def create_session_note(
     session_note: SessionNoteData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> SessionNoteRead:
     return SessionNoteService(context).create(session_note)
 
 
@@ -41,7 +41,7 @@ def update_session_note(
     session_note_id: int,
     updated_session: SessionNoteData,
     context: CampaignContext = Depends(get_campaign_context),
-):
+) -> SessionNoteRead:
     return SessionNoteService(context).update(
         session_note_id, updated_session
     )
@@ -51,6 +51,5 @@ def update_session_note(
 def delete_session_note(
     session_note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    SessionNoteService(context).delete(session_note_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return SessionNoteService(context).delete(session_note_id)

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.file_storage import delete_uploaded_file
 from app.models.api import (
     CampaignBackupPerson,
+    DeleteResponse,
     PersonData,
     PersonRead,
 )
@@ -70,7 +72,7 @@ class PersonService:
         statement = (
             select(Person)
             .where(Person.campaign_id == self.context.campaign_id)
-            .order_by(Person.name)
+            .order_by(func.lower(Person.name), Person.id)
         )
         return self.db.exec(statement).all()
 
@@ -223,7 +225,7 @@ class PersonService:
             self.db.rollback()
             raise
 
-    def delete(self, person_id: int) -> None:
+    def delete(self, person_id: int) -> DeleteResponse:
         person = self.get(person_id)
         profile = self.db.get(CharacterProfile, person.id)
         portrait_path = profile.image_path if profile is not None else ""
@@ -253,3 +255,4 @@ class PersonService:
 
         if portrait_path:
             delete_uploaded_file(portrait_path)
+        return DeleteResponse(deleted_id=person_id)

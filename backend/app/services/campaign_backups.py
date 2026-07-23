@@ -4,6 +4,7 @@ from pathlib import Path
 from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlmodel import SQLModel, Session
 
 from app.file_storage import (
@@ -20,6 +21,8 @@ from app.models.api import (
     CampaignBackup,
     CampaignBackupCampaign,
     CampaignBackupCharacter,
+    CampaignBackupExportRead,
+    CampaignRead,
     PersonData,
 )
 from app.models.database import Campaign
@@ -48,7 +51,7 @@ class CampaignBackupService:
         self.db = db
         self.campaigns = CampaignService(db)
 
-    def export(self, campaign_id: int) -> dict[str, str]:
+    def export(self, campaign_id: int) -> CampaignBackupExportRead:
         context = CampaignContext.resolve(self.db, campaign_id)
         campaign = context.campaign
         people = PersonService(context)
@@ -146,12 +149,12 @@ class CampaignBackupService:
             archive_path.unlink(missing_ok=True)
             raise
 
-        return {
-            "backup_url": build_upload_url(relative_path),
-            "filename": archive_path.name,
-        }
+        return CampaignBackupExportRead(
+            backup_url=build_upload_url(relative_path),
+            filename=archive_path.name,
+        )
 
-    def import_archive(self, raw_data: bytes) -> dict[str, object]:
+    def import_archive(self, raw_data: bytes) -> CampaignRead:
         try:
             with ZipFile(io.BytesIO(raw_data), "r") as archive:
                 backup = self._read_backup(archive)
@@ -171,8 +174,13 @@ class CampaignBackupService:
                 status_code=400,
                 detail="Invalid backup JSON",
             )
+        except (UnicodeDecodeError, ValidationError):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid backup data",
+            )
 
-        return self.campaigns.to_response(
+        return self.campaigns.to_read(
             campaign,
             session_count=len(backup.sessions),
         )

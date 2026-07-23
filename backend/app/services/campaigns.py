@@ -7,6 +7,7 @@ from app.file_storage import (
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
+from app.models.api import CampaignRead, DeleteResponse
 from app.models.database import (
     Campaign,
     CharacterProfile,
@@ -22,10 +23,10 @@ class CampaignService:
         self.db = db
 
     @staticmethod
-    def to_response(
+    def to_read(
         campaign: Campaign,
         session_count: int = 0,
-    ) -> dict[str, object]:
+    ) -> CampaignRead:
         image_url = (
             build_upload_url(campaign.image_path)
             if campaign.image_path
@@ -36,18 +37,18 @@ class CampaignService:
             if campaign.banner_image_path
             else image_url
         )
-        return {
-            "id": campaign.id,
-            "name": campaign.name,
-            "player_character": campaign.player_character,
-            "description": campaign.description,
-            "session_count": session_count,
-            "image_url": image_url,
-            "banner_image_url": banner_image_url,
-            "active_character_person_id": (
+        return CampaignRead(
+            id=campaign.id,
+            name=campaign.name,
+            player_character=campaign.player_character,
+            description=campaign.description,
+            session_count=session_count,
+            image_url=image_url,
+            banner_image_url=banner_image_url,
+            active_character_person_id=(
                 campaign.active_character_person_id
             ),
-        }
+        )
 
     def get(self, campaign_id: int) -> Campaign:
         return CampaignContext.resolve(
@@ -62,7 +63,7 @@ class CampaignService:
             )
         ).one()
 
-    def list_responses(self) -> list[dict[str, object]]:
+    def list_reads(self) -> list[CampaignRead]:
         results = self.db.exec(
             select(Campaign, func.count(SessionNote.id))
             .join(
@@ -74,13 +75,13 @@ class CampaignService:
             .order_by(Campaign.id)
         ).all()
         return [
-            self.to_response(campaign, session_count)
+            self.to_read(campaign, session_count)
             for campaign, session_count in results
         ]
 
-    def get_response(self, campaign_id: int) -> dict[str, object]:
+    def get_read(self, campaign_id: int) -> CampaignRead:
         campaign = self.get(campaign_id)
-        return self.to_response(
+        return self.to_read(
             campaign,
             self.count_sessions(campaign_id),
         )
@@ -116,7 +117,7 @@ class CampaignService:
         description: str = "",
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
-    ) -> dict[str, object]:
+    ) -> CampaignRead:
         saved_paths: list[str] = []
         try:
             campaign = self.stage_create(
@@ -140,7 +141,7 @@ class CampaignService:
             self.db.add(campaign)
             self.db.commit()
             self.db.refresh(campaign)
-            return self.to_response(campaign)
+            return self.to_read(campaign)
         except Exception:
             self.db.rollback()
             for path in saved_paths:
@@ -156,7 +157,7 @@ class CampaignService:
         description: str = "",
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
-    ) -> dict[str, object]:
+    ) -> CampaignRead:
         campaign = self.get(campaign_id)
         old_paths = {
             path
@@ -206,12 +207,12 @@ class CampaignService:
         for path in old_paths - retained_paths:
             delete_uploaded_file(path)
 
-        return self.to_response(
+        return self.to_read(
             campaign,
             self.count_sessions(campaign_id),
         )
 
-    def delete(self, campaign_id: int) -> dict[str, bool]:
+    def delete(self, campaign_id: int) -> DeleteResponse:
         campaign = self.get(campaign_id)
         uploaded_paths = {
             path
@@ -244,4 +245,4 @@ class CampaignService:
         for path in uploaded_paths:
             delete_uploaded_file(path)
 
-        return {"deleted": True}
+        return DeleteResponse(deleted_id=campaign_id)

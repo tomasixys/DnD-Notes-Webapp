@@ -1,20 +1,15 @@
 from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.dependencies.campaigns import get_campaign_context
-from app.file_storage import (
-    delete_uploaded_file,
-    save_image_from_uploadfile,
-)
 from app.models.api import (
     BackstoryNoteRead,
+    CharacterDeleteResponse,
     CharacterCreate,
     CharacterNoteData,
     CharacterNoteRead,
     CharacterRead,
     CharacterUpdate,
-)
-from app.models.database import (
-    CharacterProfile,
+    DeleteResponse,
 )
 from app.services.campaign_context import CampaignContext
 from app.services.character_notes import (
@@ -28,20 +23,6 @@ router = APIRouter(
     prefix="/api/campaigns/{campaign_id}/characters",
     tags=["characters"],
 )
-
-
-def character_to_read(
-    profile: CharacterProfile,
-    context: CampaignContext,
-) -> CharacterRead:
-    return CharacterService(context).to_read(profile)
-
-
-def get_character_profile(
-    person_id: int,
-    context: CampaignContext,
-) -> CharacterProfile:
-    return CharacterService(context).get_profile(person_id)
 
 
 @router.get("/active")
@@ -89,9 +70,8 @@ def activate_character(
 def delete_character(
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    CharacterService(context).delete(person_id)
-    return {"deleted": True}
+) -> CharacterDeleteResponse:
+    return CharacterService(context).delete(person_id)
 
 
 @router.put("/{person_id}/image")
@@ -100,29 +80,10 @@ def update_character_image(
     image: UploadFile = File(...),
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    db = context.db
-    profile = get_character_profile(person_id, context)
-    old_image_path = profile.image_path
-    saved_image_path: str | None = None
-
-    try:
-        saved_image_path = save_image_from_uploadfile(
-            context.campaign_id,
-            image,
-        )
-        profile.image_path = saved_image_path
-        db.add(profile)
-        db.commit()
-        db.refresh(profile)
-    except Exception:
-        db.rollback()
-        if saved_image_path:
-            delete_uploaded_file(saved_image_path)
-        raise
-
-    if old_image_path:
-        delete_uploaded_file(old_image_path)
-    return character_to_read(profile, context)
+    return CharacterService(context).replace_portrait(
+        person_id,
+        image,
+    )
 
 
 @router.delete("/{person_id}/image")
@@ -130,16 +91,7 @@ def delete_character_image(
     person_id: int,
     context: CampaignContext = Depends(get_campaign_context),
 ) -> CharacterRead:
-    db = context.db
-    profile = get_character_profile(person_id, context)
-    image_path = profile.image_path
-    profile.image_path = ""
-    db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    if image_path:
-        delete_uploaded_file(image_path)
-    return character_to_read(profile, context)
+    return CharacterService(context).remove_portrait(person_id)
 
 
 @router.get("/{person_id}/notes")
@@ -184,9 +136,8 @@ def delete_character_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    CharacterNoteService(context).delete(person_id, note_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return CharacterNoteService(context).delete(person_id, note_id)
 
 
 @router.get("/{person_id}/backstory")
@@ -231,6 +182,5 @@ def delete_backstory_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_campaign_context),
-):
-    BackstoryNoteService(context).delete(person_id, note_id)
-    return {"deleted": True}
+) -> DeleteResponse:
+    return BackstoryNoteService(context).delete(person_id, note_id)

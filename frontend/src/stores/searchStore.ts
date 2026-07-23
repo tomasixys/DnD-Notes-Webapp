@@ -51,7 +51,7 @@ function clearSearchCache() {
   cachedSearch.value = null
 }
 
-function invalidateCampaignSearch(campaignId: number) {
+export function invalidateCampaignSearch(campaignId: number) {
   if (cachedSearch.value?.campaignId === campaignId) {
     clearSearchCache()
   }

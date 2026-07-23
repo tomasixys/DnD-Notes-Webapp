@@ -11,6 +11,11 @@ from app.models.enums import (
 CAMPAIGN_BACKUP_SCHEMA_VERSION = 3
 
 
+class CampaignBackupExportRead(SQLModel):
+    backup_url: str
+    filename: str
+
+
 class CampaignBackupCampaign(SQLModel):
     name: str
     player_character: str = ""

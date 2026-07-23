@@ -3,8 +3,17 @@ import { reactive, ref, onBeforeMount } from "vue"
 import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
-import type { LocationDataDto, LocationDto } from "@/types/DataTransferObjects"
+import type {
+  DeleteResponseDto,
+  LocationDataDto,
+  LocationDto,
+} from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import {
+  compareByName,
+  removeById,
+  upsertById,
+} from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
 
 
@@ -115,12 +124,16 @@ async function createLocation() {
 
   const response = await PostAPI(`campaigns/${selectedCampaignId.value}/locations`, location)
   if (response.success === false) {
-    console.error("Failed to create location:", response.Message)
+    console.error("Failed to create location:", response.error)
     return
   }
   const createdLocation = response as LocationDto
 
-  await fetchLocations()
+  locations.value = upsertById(
+    locations.value,
+    createdLocation,
+    compareByName,
+  )
 
   resetLocationForm()
   await openEntry(createdLocation.id)
@@ -140,10 +153,15 @@ async function updateLocation() {
   const locationId = selectedEntry.value.id
   const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${locationId}`, location)
   if (response.success === false) {
-    console.error("Failed to update location:", response.Message)
+    console.error("Failed to update location:", response.error)
     return
   }
-  await fetchLocations()
+  const updatedLocation = response as LocationDto
+  locations.value = upsertById(
+    locations.value,
+    updatedLocation,
+    compareByName,
+  )
   resetLocationForm()
   await openEntry(locationId)
 }
@@ -153,10 +171,14 @@ async function deleteLocation() {
 
   const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`)
   if (response.success === false) {
-    console.error("Failed to delete location:", response.Message)
+    console.error("Failed to delete location:", response.error)
     return
   }
-  await fetchLocations()
+  const deleted = response as DeleteResponseDto
+  locations.value = removeById(
+    locations.value,
+    deleted.deletedId,
+  )
   await replaceWithFirstEntry()
 }
 

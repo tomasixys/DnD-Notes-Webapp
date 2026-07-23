@@ -126,9 +126,17 @@ class LocationAndFactionServiceTests(unittest.TestCase):
 
             faction_id = faction.id
             academy_id = academy.id
-            factions.delete(faction_id)
-            locations.delete(academy_id)
+            deleted_faction = factions.delete(faction_id)
+            deleted_location = locations.delete(academy_id)
 
+            self.assertEqual(
+                faction_id,
+                deleted_faction.deleted_id,
+            )
+            self.assertEqual(
+                academy_id,
+                deleted_location.deleted_id,
+            )
             self.assertIsNone(db.get(Faction, faction_id))
             self.assertIsNone(db.get(Location, academy_id))
 

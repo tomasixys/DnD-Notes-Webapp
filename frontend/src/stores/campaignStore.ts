@@ -1,6 +1,11 @@
 import { computed, ref } from "vue"
 import type { CampaignsDto } from "@/types/DataTransferObjects"
 import { apiUrl } from "@/apihelpers"
+import {
+  compareById,
+  removeById,
+  upsertById,
+} from "@/utils/resourceCollections"
 
 const SELECTED_CAMPAIGN_KEY = "selectedCampaignId"
 
@@ -57,6 +62,43 @@ function setCampaigns(newCampaigns: CampaignsDto[]) {
   }
 }
 
+function upsertCampaign(campaign: CampaignsDto) {
+  campaigns.value = upsertById(
+    campaigns.value,
+    campaign,
+    compareById,
+  )
+}
+
+function removeCampaign(campaignId: number) {
+  setCampaigns(removeById(campaigns.value, campaignId))
+}
+
+function setCampaignActiveCharacter(
+  campaignId: number,
+  personId: number | null,
+) {
+  campaigns.value = campaigns.value.map((campaign) =>
+    campaign.id === campaignId
+      ? { ...campaign, activeCharacterPersonId: personId }
+      : campaign
+  )
+}
+
+function adjustCampaignSessionCount(
+  campaignId: number,
+  amount: number,
+) {
+  campaigns.value = campaigns.value.map((campaign) =>
+    campaign.id === campaignId
+      ? {
+          ...campaign,
+          sessionCount: Math.max(0, campaign.sessionCount + amount),
+        }
+      : campaign
+  )
+}
+
 function selectCampaign(campaignId: number) {
   selectedCampaignId.value = campaignId
   persistSelectedCampaign()
@@ -85,6 +127,10 @@ export function useCampaignStore() {
     selectedCampaignBannerUrl,
     hasSelectedCampaign,
     setCampaigns,
+    upsertCampaign,
+    removeCampaign,
+    setCampaignActiveCharacter,
+    adjustCampaignSessionCount,
     selectCampaign,
     clearSelectedCampaign,
   }

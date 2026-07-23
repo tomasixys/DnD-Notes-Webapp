@@ -1,12 +1,17 @@
+import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from zipfile import ZIP_DEFLATED, ZipFile
 
+from fastapi import HTTPException
 from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
+from app.models.api import CampaignBackupExportRead, CampaignRead
 from app.models.database import Campaign, Inventory
 from app.services.campaign_backups import CampaignBackupService
 from app.services.campaigns import CampaignService
@@ -54,7 +59,8 @@ class CampaignServiceTests(unittest.TestCase):
                 name="Test",
                 player_character="Nalia",
             )
-            campaign_id = created["id"]
+            self.assertIsInstance(created, CampaignRead)
+            campaign_id = created.id
 
             updated = campaigns.update(
                 campaign_id,
@@ -63,18 +69,17 @@ class CampaignServiceTests(unittest.TestCase):
                 description="A changed campaign",
             )
 
-            self.assertEqual("Updated", updated["name"])
+            self.assertIsInstance(updated, CampaignRead)
+            self.assertEqual("Updated", updated.name)
             self.assertEqual(
                 "A changed campaign",
-                updated["description"],
+                updated.description,
             )
-            self.assertEqual(0, updated["session_count"])
-            self.assertEqual(1, len(campaigns.list_responses()))
+            self.assertEqual(0, updated.session_count)
+            self.assertEqual(1, len(campaigns.list_reads()))
 
-            self.assertEqual(
-                {"deleted": True},
-                campaigns.delete(campaign_id),
-            )
+            deleted = campaigns.delete(campaign_id)
+            self.assertEqual(campaign_id, deleted.deleted_id)
             self.assertIsNone(db.get(Campaign, campaign_id))
 
     def test_backup_service_exports_and_imports_campaign_archive(self):
@@ -86,7 +91,7 @@ class CampaignServiceTests(unittest.TestCase):
                     player_character="Nalia",
                     description="An expedition",
                 )
-                campaign_id = created["id"]
+                campaign_id = created.id
                 backups = CampaignBackupService(db)
 
                 with patch(
@@ -100,14 +105,51 @@ class CampaignServiceTests(unittest.TestCase):
                     archive_path.read_bytes()
                 )
 
-                self.assertEqual("campaign.backup", exported["filename"])
-                self.assertEqual("Test", imported["name"])
-                self.assertEqual("Nalia", imported["player_character"])
-                self.assertNotEqual(campaign_id, imported["id"])
+                self.assertIsInstance(
+                    exported,
+                    CampaignBackupExportRead,
+                )
+                self.assertIsInstance(imported, CampaignRead)
+                self.assertEqual("campaign.backup", exported.filename)
+                self.assertEqual("Test", imported.name)
+                self.assertEqual("Nalia", imported.player_character)
+                self.assertNotEqual(campaign_id, imported.id)
                 self.assertEqual(
                     2,
-                    len(CampaignService(db).list_responses()),
+                    len(CampaignService(db).list_reads()),
                 )
+
+    def test_backup_import_rejects_invalid_data_without_creating_campaign(
+        self,
+    ):
+        archive_data = io.BytesIO()
+        with ZipFile(
+            archive_data,
+            "w",
+            compression=ZIP_DEFLATED,
+        ) as archive:
+            archive.writestr(
+                "backup.json",
+                json.dumps(
+                    {
+                        "schema_version": 3,
+                        "campaign": {},
+                    }
+                ),
+            )
+
+        with Session(self.engine) as db:
+            with self.assertRaises(HTTPException) as error:
+                CampaignBackupService(db).import_archive(
+                    archive_data.getvalue()
+                )
+
+            self.assertEqual(400, error.exception.status_code)
+            self.assertEqual(
+                "Invalid backup data",
+                error.exception.detail,
+            )
+            self.assertEqual([], db.exec(select(Campaign)).all())
 
 
 if __name__ == "__main__":

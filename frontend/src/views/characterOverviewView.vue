@@ -16,6 +16,7 @@ import { useCharacterContext } from "@/composables/useCharacterContext"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CharacterCreateDto,
+  CharacterDeleteResponseDto,
   CharacterDto,
   CharacterUpdateDto,
   PersonDataDto,
@@ -23,12 +24,14 @@ import type {
 } from "@/types/DataTransferObjects"
 
 const router = useRouter()
-const { selectedCampaignId } = useCampaignStore()
+const {
+  selectedCampaignId,
+  setCampaignActiveCharacter,
+} = useCampaignStore()
 const {
   character,
   loading,
   errorMessage,
-  loadCharacter,
   setCharacter,
 } = useCharacterContext()
 
@@ -199,13 +202,16 @@ async function createCharacter() {
   const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
+  setCampaignActiveCharacter(
+    selectedCampaignId.value,
+    savedCharacter.person.id,
+  )
   mode.value = "details"
   resetPortraitPreview()
   await router.replace({
     name: "CharacterOverview",
     params: { personId: "" },
   })
-  await loadCharacter()
 }
 
 async function updateCharacter() {
@@ -239,7 +245,12 @@ async function activateCharacter() {
     {},
   )
   if (response?.success !== false) {
-    setCharacter(response as CharacterDto)
+    const activeCharacter = response as CharacterDto
+    setCharacter(activeCharacter)
+    setCampaignActiveCharacter(
+      selectedCampaignId.value,
+      activeCharacter.person.id,
+    )
   }
 }
 
@@ -260,12 +271,16 @@ async function deleteProfile() {
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
   )
   if (response?.success === false) return
-  setCharacter(null)
+  const deleted = response as CharacterDeleteResponseDto
+  setCharacter(deleted.activeCharacter)
+  setCampaignActiveCharacter(
+    selectedCampaignId.value,
+    deleted.activeCharacter?.person.id ?? null,
+  )
   await router.replace({
     name: "CharacterOverview",
     params: { personId: "" },
   })
-  await loadCharacter()
 }
 
 onBeforeUnmount(resetPortraitPreview)

@@ -1,4 +1,6 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
+from .campaign import CampaignRead
+from .mutation import DeleteResponse
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
 from .person import PersonData, PersonRead
@@ -6,6 +8,7 @@ from .character import (
     CharacterCreate,
     CharacterUpdate,
     CharacterRead,
+    CharacterDeleteResponse,
     CharacterNoteData,
     CharacterNoteRead,
     BackstoryNoteRead,
@@ -14,6 +17,7 @@ from .location import LocationData, LocationRead
 from .faction import FactionData, FactionRead
 from .backup import (
     CAMPAIGN_BACKUP_SCHEMA_VERSION,
+    CampaignBackupExportRead,
     CampaignBackupCampaign,
     CampaignBackupSession,
     CampaignBackupPerson,
@@ -39,7 +43,7 @@ from .rolls import (
     RollCreate,
     SessionRollStats,
     CampaignRollStats,
-    RollCreateResponse,
+    RollMutationResponse,
 )
 from .inventory import (
     MoneyAmount,
@@ -60,6 +64,8 @@ __all__ = [
     "ResourceType",
     "TagResolutionState",
     "RelationshipType",
+    "CampaignRead",
+    "DeleteResponse",
     "ResourceTagRead",
     "SessionNoteData",
     "SessionNoteRead",
@@ -68,6 +74,7 @@ __all__ = [
     "CharacterCreate",
     "CharacterUpdate",
     "CharacterRead",
+    "CharacterDeleteResponse",
     "CharacterNoteData",
     "CharacterNoteRead",
     "BackstoryNoteRead",
@@ -76,6 +83,7 @@ __all__ = [
     "FactionData",
     "FactionRead",
     "CAMPAIGN_BACKUP_SCHEMA_VERSION",
+    "CampaignBackupExportRead",
     "CampaignBackupCampaign",
     "CampaignBackupSession",
     "CampaignBackupPerson",
@@ -96,7 +104,7 @@ __all__ = [
     "RollCreate",
     "SessionRollStats",
     "CampaignRollStats",
-    "RollCreateResponse",
+    "RollMutationResponse",
     "ParsedTag",
     "MoneyAmount",
     "PurseBalances",
