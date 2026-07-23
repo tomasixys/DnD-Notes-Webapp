@@ -2,7 +2,13 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
-CAMPAIGN_BACKUP_SCHEMA_VERSION = 2
+from app.models.enums import (
+    InventoryAccessRole,
+    ItemCategory,
+    ItemRarity,
+)
+
+CAMPAIGN_BACKUP_SCHEMA_VERSION = 3
 
 
 class CampaignBackupCampaign(SQLModel):
@@ -73,6 +79,36 @@ class CampaignBackupFaction(SQLModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class CampaignBackupPurse(SQLModel):
+    cp: int = Field(default=0, ge=0)
+    sp: int = Field(default=0, ge=0)
+    ep: int = Field(default=0, ge=0)
+    gp: int = Field(default=0, ge=0)
+    pp: int = Field(default=0, ge=0)
+
+
+class CampaignBackupInventoryMember(SQLModel):
+    person_backup_id: int
+    role: InventoryAccessRole
+
+
+class CampaignBackupInventoryItem(SQLModel):
+    name: str
+    description: str = ""
+    category: ItemCategory
+    rarity: ItemRarity | None = None
+    quantity: int = Field(default=1, gt=0)
+    unit_value_cp: int | None = Field(default=None, ge=0)
+
+
+class CampaignBackupInventory(SQLModel):
+    name: str
+    description: str = ""
+    purse: CampaignBackupPurse = Field(default_factory=CampaignBackupPurse)
+    members: list[CampaignBackupInventoryMember] = Field(default_factory=list)
+    items: list[CampaignBackupInventoryItem] = Field(default_factory=list)
+
+
 class CampaignBackup(SQLModel):
     schema_version: int = CAMPAIGN_BACKUP_SCHEMA_VERSION
     campaign: CampaignBackupCampaign
@@ -81,3 +117,4 @@ class CampaignBackup(SQLModel):
     locations: list[CampaignBackupLocation] = Field(default_factory=list)
     factions: list[CampaignBackupFaction] = Field(default_factory=list)
     characters: list[CampaignBackupCharacter] = Field(default_factory=list)
+    inventories: list[CampaignBackupInventory] = Field(default_factory=list)

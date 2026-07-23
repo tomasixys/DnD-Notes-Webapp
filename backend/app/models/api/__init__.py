@@ -22,6 +22,10 @@ from .backup import (
     CampaignBackupLegacyCharacterEntry,
     CampaignBackupLocation,
     CampaignBackupFaction,
+    CampaignBackupPurse,
+    CampaignBackupInventoryMember,
+    CampaignBackupInventoryItem,
+    CampaignBackupInventory,
     CampaignBackup,
 )
 from .search import (
@@ -80,6 +84,10 @@ __all__ = [
     "CampaignBackupLegacyCharacterEntry",
     "CampaignBackupLocation",
     "CampaignBackupFaction",
+    "CampaignBackupPurse",
+    "CampaignBackupInventoryMember",
+    "CampaignBackupInventoryItem",
+    "CampaignBackupInventory",
     "CampaignBackup",
     "SearchField",
     "SearchQueryDto",
