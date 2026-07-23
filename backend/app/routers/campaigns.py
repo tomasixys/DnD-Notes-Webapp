@@ -1,29 +1,9 @@
-import json, io
-from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
-from pathlib import Path
-
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-
-from sqlalchemy import func
-from sqlmodel import SQLModel, Session, select
+from fastapi import APIRouter, Depends, File, Form, UploadFile
+from sqlmodel import Session
 
 from app.database import get_session
-from app.dependencies.campaigns import verify_campaign
-from app.models.database import *
-from app.models.api import *
-from app.services.character_notes import (
-    BackstoryNoteService,
-    CharacterNoteService,
-)
-from app.services.campaign_context import CampaignContext
-from app.services.characters import CharacterService
-from app.services.factions import FactionService
-from app.services.inventory import InventoryService
-from app.services.locations import LocationService
-from app.services.people import PersonService
-from app.services.sessions import SessionNoteService
-# from app.app_paths import get_uploads_dir
-from app.file_storage import *
+from app.services.campaigns import CampaignService
+
 
 router = APIRouter(
     prefix="/api/campaigns",
@@ -31,62 +11,19 @@ router = APIRouter(
 )
 
 
-def campaign_to_response(campaign: Campaign, session_count: int = 0):
-    image_url = build_upload_url(campaign.image_path) if campaign.image_path else ""
-    banner_image_url = build_upload_url(campaign.banner_image_path) if campaign.banner_image_path else image_url
-
-    return {
-        "id": campaign.id,
-        "name": campaign.name,
-        "player_character": campaign.player_character,
-        "description": campaign.description,
-        "session_count": session_count,
-        "image_url": image_url,
-        "banner_image_url": banner_image_url,
-        "active_character_person_id": campaign.active_character_person_id,
-    }
-
-def sqlmodel_to_dict(model: SQLModel):
-    if hasattr(model, "model_dump"):
-        return model.model_dump(mode="json")
-
-    return model.dict()
-
-
 @router.get("")
-def get_campaigns(db: Session = Depends(get_session)):
-    statement = (
-        select(Campaign, func.count(SessionNote.id))
-        .join(
-            SessionNote,
-            SessionNote.campaign_id == Campaign.id,
-            isouter=True,
-        )
-        .group_by(Campaign.id)
-        .order_by(Campaign.id)
-    )
-
-    results = db.exec(statement).all()
-
-    return [
-        campaign_to_response(
-            campaign=campaign,
-            session_count=session_count,
-        )
-        for campaign, session_count in results
-    ]
+def get_campaigns(
+    db: Session = Depends(get_session),
+):
+    return CampaignService(db).list_responses()
 
 
 @router.get("/{campaign_id}")
-def get_campaign(campaign_id: int, db: Session = Depends(get_session)):
-    campaign = verify_campaign(campaign_id, db)
-
-    statement = (
-        select(func.count(SessionNote.id))
-        .where(SessionNote.campaign_id == campaign_id)
-    )
-    session_count = db.exec(statement).one()
-    return campaign_to_response(campaign=campaign, session_count=session_count)
+def get_campaign(
+    campaign_id: int,
+    db: Session = Depends(get_session),
+):
+    return CampaignService(db).get_response(campaign_id)
 
 
 @router.post("")
@@ -98,52 +35,13 @@ def create_campaign(
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
 ):
-    campaign = Campaign(
+    return CampaignService(db).create(
         name=name,
         player_character=player_character,
         description=description,
-        image_path="",
-        banner_image_path=""
+        image=image,
+        banner=banner,
     )
-
-    db.add(campaign)
-    db.flush()  # assigns campaign.id without committing yet
-    context = CampaignContext(db, campaign)
-    InventoryService(context).stage_ensure_default()
-
-    saved_image_relative_path: str | None = None
-    saved_banner_relative_path: str | None = None
-
-    try:
-        if image is not None and image.filename:
-            saved_image_relative_path = save_image_from_uploadfile(
-                campaign_id=campaign.id,
-                file=image,
-            )
-            campaign.image_path = saved_image_relative_path
-
-        if banner is not None and banner.filename:
-            saved_banner_relative_path = save_image_from_uploadfile(
-                campaign_id=campaign.id,
-                file=banner,
-            )
-            campaign.banner_image_path = saved_banner_relative_path
-
-        db.add(campaign)
-        db.commit()
-        db.refresh(campaign)
-
-    except Exception:
-        db.rollback()
-
-        if saved_image_relative_path is not None:
-            delete_uploaded_file(saved_image_relative_path)
-        if saved_banner_relative_path is not None:
-            delete_uploaded_file(saved_banner_relative_path)
-
-        raise
-
-    return campaign_to_response(campaign, session_count=0)
 
 
 @router.put("/{campaign_id}")
@@ -156,405 +54,19 @@ def update_campaign(
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
 ):
-    campaign = verify_campaign(campaign_id, db)
-
-    campaign.name = name
-    campaign.player_character = player_character
-    campaign.description = description
-
-    old_image_path: str | None = None
-    old_banner_path: str | None = None
-    saved_image_path: str | None = None
-    saved_banner_path: str | None = None
-
-    try:
-        if image is not None and image.filename:
-            old_image_path = campaign.image_path
-            saved_image_path = save_image_from_uploadfile(
-                campaign_id=campaign.id,
-                file=image,
-            )
-            campaign.image_path = saved_image_path
-
-        if banner is not None and banner.filename:
-            old_banner_path = campaign.banner_image_path
-            saved_banner_path = save_image_from_uploadfile(
-                campaign_id=campaign.id,
-                file=banner,
-            )
-            campaign.banner_image_path = saved_banner_path
-
-        db.add(campaign)
-        db.commit()
-        db.refresh(campaign)
-
-        if old_image_path is not None:
-            delete_uploaded_file(old_image_path)
-
-        if old_banner_path is not None:
-            delete_uploaded_file(old_banner_path)
-
-    except Exception:
-        db.rollback()
-
-        if saved_image_path is not None:
-            delete_uploaded_file(saved_image_path)
-
-        if saved_banner_path is not None:
-            delete_uploaded_file(saved_banner_path)
-
-        raise
-
-    statement = (
-        select(func.count(SessionNote.id))
-        .where(SessionNote.campaign_id == campaign_id)
-    )
-
-    session_count = db.exec(statement).one()
-
-    return campaign_to_response(
-        campaign=campaign,
-        session_count=session_count,
+    return CampaignService(db).update(
+        campaign_id,
+        name=name,
+        player_character=player_character,
+        description=description,
+        image=image,
+        banner=banner,
     )
 
 
 @router.delete("/{campaign_id}")
 def delete_campaign(
     campaign_id: int,
-    db: Session = Depends(get_session)
-):
-    campaign = verify_campaign(campaign_id, db)
-
-    image_path = campaign.image_path
-    banner_path = campaign.banner_image_path
-    character_image_paths = [
-        profile.image_path
-        for profile in db.exec(
-            select(CharacterProfile)
-            .join(Person, Person.id == CharacterProfile.person_id)
-            .where(Person.campaign_id == campaign_id)
-        ).all()
-        if profile.image_path
-    ]
-
-    db.delete(campaign)
-    db.commit()
-
-    if image_path:
-        delete_uploaded_file(image_path)
-
-    if banner_path and banner_path != image_path:
-        delete_uploaded_file(banner_path)
-
-    for character_image_path in character_image_paths:
-        delete_uploaded_file(character_image_path)
-
-    return {"deleted": True}
-
-
-
-@router.get("/{campaign_id}/backup/export")
-def export_campaign_backup(
-    campaign_id: int,
     db: Session = Depends(get_session),
 ):
-    statement = select(Campaign).where(Campaign.id == campaign_id)
-
-    campaign = db.exec(statement).one_or_none()
-
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
-    context = CampaignContext(db, campaign)
-    people = PersonService(context)
-    inventory_service = InventoryService(context)
-    characters = CharacterService(
-        context,
-        people=people,
-        inventory=inventory_service,
-    )
-    character_profiles = characters.list_profiles_for_backup()
-    sessions = SessionNoteService(context)
-    locations = LocationService(context)
-    factions = FactionService(context)
-
-    archive_absolute_path, archive_relative_path = make_backup_archive_path(campaign.name)
-    image_archive_path = ""
-    banner_archive_path = ""
-    character_image_archive_paths: dict[int, str] = {}
-
-    with ZipFile(archive_absolute_path, "w", compression=ZIP_DEFLATED) as archive:
-        if campaign.image_path:
-            source_path = get_uploaded_file_path(campaign.image_path)
-
-            if source_path and source_path.exists():
-                image_archive_path = f"assets/campaign-image{source_path.suffix.lower()}"
-                archive.write(source_path, image_archive_path)
-
-        if campaign.banner_image_path:
-            source_path = get_uploaded_file_path(campaign.banner_image_path)
-
-            if source_path and source_path.exists():
-                banner_archive_path = f"assets/campaign-banner{source_path.suffix.lower()}"
-                archive.write(source_path, banner_archive_path)
-
-        for profile in character_profiles:
-            if not profile.image_path:
-                continue
-            source_path = get_uploaded_file_path(profile.image_path)
-            if source_path and source_path.exists():
-                archive_path = (
-                    f"assets/characters/{profile.person_id}-portrait"
-                    f"{source_path.suffix.lower()}"
-                )
-                archive.write(source_path, archive_path)
-                character_image_archive_paths[profile.person_id] = archive_path
-
-        backup = CampaignBackup(
-            schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
-            campaign=CampaignBackupCampaign(
-                name=campaign.name,
-                player_character=campaign.player_character,
-                description=campaign.description,
-                image_archive_path=image_archive_path,
-                banner_archive_path=banner_archive_path,
-                active_character_person_backup_id=(
-                    campaign.active_character_person_id
-                ),
-            ),
-            sessions=sessions.list_backup_entries(),
-            people=people.list_backup_entries(),
-            characters=characters.list_backup_entries(
-                character_image_archive_paths
-            ),
-            locations=locations.list_backup_entries(),
-            factions=factions.list_backup_entries(),
-            inventories=inventory_service.list_backup_entries(),
-        )
-
-        archive.writestr(
-            "backup.json",
-            json.dumps(sqlmodel_to_dict(backup), ensure_ascii=False, indent=2),
-        )
-
-    return {
-        "backup_url": build_upload_url(archive_relative_path),
-        "filename": archive_absolute_path.name,
-    }
-
-@router.post("/backup/import")
-async def import_campaign_backup(
-    backup: UploadFile = File(...),
-    db: Session = Depends(get_session),
-):
-    try:
-        raw_data = await backup.read()
-
-        with ZipFile(io.BytesIO(raw_data), "r") as archive:
-            backup_json = archive.read("backup.json")
-            parsed_json = json.loads(backup_json.decode("utf-8"))
-            cb = CampaignBackup(**parsed_json)
-
-            if not 1 <= cb.schema_version <= CAMPAIGN_BACKUP_SCHEMA_VERSION:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported backup schema version: {cb.schema_version}",
-                )
-
-            campaign = Campaign(
-                name=cb.campaign.name,
-                player_character=cb.campaign.player_character,
-                description=cb.campaign.description,
-                image_path="",
-                banner_image_path="",
-            )
-
-            saved_asset_paths: list[str] = []
-            person_id_map: dict[int, int] = {}
-
-            try:
-                db.add(campaign)
-                db.flush()
-                context = CampaignContext(db, campaign)
-                inventory_service = InventoryService(context)
-                inventory_service.stage_ensure_default()
-
-                original_path = Path(cb.campaign.image_archive_path)
-                if cb.campaign.image_archive_path:
-                    image_data = read_archive_member(archive, original_path)
-                    image_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), image_data)
-                    saved_asset_paths.append(image_path)
-                    campaign.image_path = image_path
-
-                original_path = Path(cb.campaign.banner_archive_path)
-                if cb.campaign.banner_archive_path:
-                    banner_data = read_archive_member(archive, original_path)
-                    banner_path = write_image_from_bytes(campaign.id, original_path.suffix.lower(), banner_data)
-                    saved_asset_paths.append(banner_path)
-                    campaign.banner_image_path = banner_path
-
-                db.add(campaign)
-
-                people = PersonService(context)
-                characters = CharacterService(
-                    context,
-                    people,
-                    inventory_service,
-                )
-                character_notes = CharacterNoteService(
-                    context,
-                    characters,
-                )
-                backstory_notes = BackstoryNoteService(
-                    context,
-                    characters,
-                )
-                sessions = SessionNoteService(context)
-                locations = LocationService(context)
-                factions = FactionService(context)
-                for person_backup in cb.people:
-                    person = people.stage_create(
-                        PersonData(
-                            name=person_backup.name,
-                            role=person_backup.role,
-                            faction=person_backup.faction,
-                            location=person_backup.location,
-                            description=person_backup.description,
-                            tags=person_backup.tags,
-                        ),
-                    )
-                    if person_backup.backup_id is not None:
-                        person_id_map[person_backup.backup_id] = person.id
-
-                for location_backup in cb.locations:
-                    locations.stage_restore(location_backup)
-
-                for faction_backup in cb.factions:
-                    factions.stage_restore(faction_backup)
-
-                for session_backup in cb.sessions:
-                    sessions.stage_restore(session_backup)
-
-                for character_backup in cb.characters:
-                    person_id = person_id_map.get(
-                        character_backup.person_backup_id
-                    )
-                    if person_id is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
-                                "Character profile references a missing "
-                                "backup person"
-                            ),
-                        )
-
-                    image_path = ""
-
-                    if character_backup.image_archive_path:
-                        original_path = Path(
-                            character_backup.image_archive_path
-                        )
-                        image_data = read_archive_member(
-                            archive, character_backup.image_archive_path
-                        )
-                        image_path = write_image_from_bytes(
-                            campaign.id,
-                            original_path.suffix.lower(),
-                            image_data,
-                        )
-                        saved_asset_paths.append(image_path)
-
-                    characters.stage_create_profile(
-                        person_id,
-                        short_bio=character_backup.short_bio,
-                        appearance=character_backup.appearance,
-                        image_path=image_path,
-                    )
-
-                    note_groups = [
-                        (
-                            character_notes,
-                            list(character_backup.notes),
-                        ),
-                        (
-                            backstory_notes,
-                            list(character_backup.backstory_notes),
-                        ),
-                    ]
-                    for legacy_entry in character_backup.entries:
-                        legacy_type = legacy_entry.entry_type.casefold()
-                        if legacy_type == "note":
-                            note_groups[0][1].append(legacy_entry)
-                        elif legacy_type == "backstory":
-                            note_groups[1][1].append(legacy_entry)
-                        else:
-                            raise HTTPException(
-                                status_code=400,
-                                detail="Unknown character entry type in backup",
-                            )
-
-                    for note_service, note_backups in note_groups:
-                        for note_backup in note_backups:
-                            note_service.stage_restore(
-                                person_id,
-                                note_backup,
-                            )
-
-                active_backup_id = (
-                    cb.campaign.active_character_person_backup_id
-                )
-                if active_backup_id is not None:
-                    active_person_id = person_id_map.get(active_backup_id)
-                    if active_person_id is None:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
-                                "Active character references a missing "
-                                "character profile"
-                            ),
-                        )
-                    try:
-                        characters.set_active_pointer(
-                            active_person_id,
-                        )
-                    except HTTPException as error:
-                        if error.status_code != 404:
-                            raise
-                        raise HTTPException(
-                            status_code=400,
-                            detail=(
-                                "Active character references a missing "
-                                "character profile"
-                            ),
-                        ) from error
-
-                if cb.inventories:
-                    inventory_service.stage_restore_backups(
-                        cb.inventories,
-                        person_id_map,
-                    )
-                else:
-                    inventory_service.stage_sync_default_owner()
-
-                db.commit()
-                db.refresh(campaign)
-
-            except Exception:
-                db.rollback()
-
-                for asset_path in saved_asset_paths:
-                    delete_uploaded_file(asset_path)
-
-                raise
-
-    except BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid backup archive")
-
-    except KeyError:
-        raise HTTPException(status_code=400, detail="Backup archive is missing backup.json")
-
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid backup JSON")
-
-    return campaign_to_response(campaign=campaign, session_count=len(cb.sessions))
-
+    return CampaignService(db).delete(campaign_id)

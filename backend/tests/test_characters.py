@@ -56,7 +56,7 @@ from app.routers.characters import (
 from app.routers.people import delete_person
 from app.routers.sessions import create_session_note
 from app.routers.search import search_campaign
-from app.routers.campaigns import (
+from app.routers.campaign_backups import (
     export_campaign_backup,
     import_campaign_backup,
 )
@@ -423,7 +423,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 db.commit()
 
                 with patch(
-                    "app.routers.campaigns.make_backup_archive_path",
+                    "app.services.campaign_backups.make_backup_archive_path",
                     return_value=(archive_path, "campaign.backup"),
                 ):
                     export_campaign_backup(campaign.id, db)

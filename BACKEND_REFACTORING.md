@@ -1,6 +1,6 @@
 # Backend Refactoring Plan
 
-Status: planned, intentionally deferred from feature pull requests.
+Status: in progress.
 
 This document records backend cleanup that should be completed in focused,
 behavior-preserving pull requests. Refactoring should not be mixed into feature
@@ -27,9 +27,11 @@ examples below are starting points, not the limit of the refactor.
 
 ### Campaign backups
 
-`app/routers/campaigns.py` currently owns campaign CRUD as well as backup export,
-archive creation, asset collection, backup serialization, archive parsing, ID
-remapping, imported asset storage, and restoration of tags and relationships.
+Campaign CRUD now delegates to `CampaignService`. Backup export and import
+delegate to `CampaignBackupService` and are registered through the separate
+`app/routers/campaign_backups.py` router while preserving their existing URLs.
+The backup service owns archive creation, asset collection, serialization,
+parsing, ID remapping, and the encompassing import transaction.
 
 Backup behavior is substantial enough to be its own backend feature. Keeping it
 inside the campaign CRUD router makes both areas harder to understand and test.
@@ -197,6 +199,9 @@ logic.
 
 This should be the first refactoring milestone, but it should be delivered as a
 small stack of reviewable pull requests rather than one large movement:
+
+Implementation status: completed. The router split, campaign context, campaign
+service, backup service, and composed resource services are now in place.
 
 1. Move shared campaign resolution out of `app/routers/campaigns.py`, replace
    router-to-router imports, and make no other router changes.
