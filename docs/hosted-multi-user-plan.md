@@ -500,6 +500,10 @@ Exit criteria:
 
 ### Milestone 4 — Authenticated frontend shell
 
+**Status:** completed on 2026-07-25. The frontend now shares one explicit
+session bootstrap in local and hosted builds, while local mode retains its
+non-login identity and does not expose hosted account-management endpoints.
+
 **Purpose:** make session and authorization state explicit in the client.
 
 Deliverables:

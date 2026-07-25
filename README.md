@@ -24,7 +24,9 @@ DnD Notes supports the established local single-user mode and has an
 in-development authenticated server mode for private hosting. Server mode
 keeps application-managed user accounts, PostgreSQL data, and protected files
 under the operator's control. Campaign membership and resource authorization
-remain the next development milestone before a hosted release.
+are enforced across the API and reflected in the authenticated frontend.
+Protected asset and backup delivery is the next development milestone before
+a hosted release.
 
 ## Technology
 

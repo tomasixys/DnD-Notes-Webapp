@@ -50,6 +50,11 @@ and this changelog follows the structure described by
   administrator elevation.
 - Added startup route auditing so application API routes cannot be registered
   without an authentication or campaign-authorization classification.
+- Added an authenticated frontend shell with session bootstrap, hosted login
+  and account flows, CSRF-aware API requests, protected routes, centralized
+  authorization failures, and user-scoped campaign browser state.
+- Added capability-aware campaign, shared-resource, and assigned-character
+  controls for owner, member, and viewer memberships.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while
