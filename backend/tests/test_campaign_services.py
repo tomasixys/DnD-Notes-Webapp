@@ -11,9 +11,12 @@ from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.models.api import CampaignBackupExportRead, CampaignRead
+from app.models.api import CampaignRead
 from app.models.database import Campaign, Inventory
-from app.services.campaign_backups import CampaignBackupService
+from app.services.campaign_backups import (
+    CampaignBackupArchive,
+    CampaignBackupService,
+)
 from app.services.campaigns import CampaignService
 from tests.authorization_helpers import create_user
 
@@ -115,7 +118,7 @@ class CampaignServiceTests(unittest.TestCase):
 
                 self.assertIsInstance(
                     exported,
-                    CampaignBackupExportRead,
+                    CampaignBackupArchive,
                 )
                 self.assertIsInstance(imported, CampaignRead)
                 self.assertEqual("campaign.backup", exported.filename)

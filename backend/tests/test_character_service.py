@@ -201,7 +201,10 @@ class CharacterServiceTests(unittest.TestCase):
                 replaced = characters.replace_portrait(person_id, image)
 
                 self.assertEqual(
-                    f"uploads/{new_portrait_path}",
+                    (
+                        f"campaigns/{campaign.id}/assets/"
+                        f"characters/{person_id}/portrait"
+                    ),
                     replaced.image_url,
                 )
                 self.assertEqual(

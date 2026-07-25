@@ -23,11 +23,8 @@ mode = "hosted"
 url_env = "DND_NOTES_DATABASE_URL"
 
 [storage]
-backend = "object"
-endpoint = "https://objects.example.test"
-bucket = "dnd-notes"
-access_key_env = "DND_NOTES_STORAGE_ACCESS_KEY"
-secret_key_env = "DND_NOTES_STORAGE_SECRET_KEY"
+backend = "filesystem"
+path = "D:/DnDNotesData"
 
 [security]
 session_secret_env = "DND_NOTES_SESSION_SECRET"
@@ -40,7 +37,11 @@ open_browser = false
 trusted_hosts = ["notes.example.test"]
 """
 
-HOSTED_FILESYSTEM_CONFIG = HOSTED_CONFIG.replace(
+HOSTED_OBJECT_CONFIG = HOSTED_CONFIG.replace(
+    """[storage]
+backend = "filesystem"
+path = "D:/DnDNotesData"
+""",
     """[storage]
 backend = "object"
 endpoint = "https://objects.example.test"
@@ -48,11 +49,9 @@ bucket = "dnd-notes"
 access_key_env = "DND_NOTES_STORAGE_ACCESS_KEY"
 secret_key_env = "DND_NOTES_STORAGE_SECRET_KEY"
 """,
-    """[storage]
-backend = "filesystem"
-path = "D:/DnDNotesData"
-""",
 )
+
+HOSTED_FILESYSTEM_CONFIG = HOSTED_CONFIG
 
 
 class ApplicationSettingsTests(unittest.TestCase):
@@ -157,7 +156,10 @@ class ApplicationSettingsFileTests(unittest.TestCase):
             "https://notes.example.test",
             settings.server.public_origin,
         )
-        self.assertEqual("dnd-notes", settings.storage.bucket)
+        self.assertEqual(
+            Path("D:/DnDNotesData"),
+            settings.storage.path,
+        )
 
     def test_environment_can_select_config_path(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -219,6 +221,12 @@ class ApplicationSettingsFileTests(unittest.TestCase):
         self.assertIn("/api/auth/session", paths)
         self.assertNotIn("/api/auth/login", paths)
         self.assertNotIn("/api/auth/activate", paths)
+        self.assertFalse(
+            any(
+                getattr(route, "path", None) == "/api/uploads"
+                for route in application.routes
+            )
+        )
 
     def test_runtime_settings_reject_config_from_another_build_profile(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -250,12 +258,22 @@ class ApplicationSettingsFileTests(unittest.TestCase):
                     "postgresql+psycopg://notes:secret@db/notes"
                 ),
                 "DND_NOTES_SESSION_SECRET": "s" * 32,
-                "DND_NOTES_STORAGE_ACCESS_KEY": "access-key",
-                "DND_NOTES_STORAGE_SECRET_KEY": "storage-secret",
             },
             clear=True,
         ):
             validate_runtime_secrets(settings)
+
+    def test_current_builds_reject_reserved_object_storage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_config(directory, HOSTED_OBJECT_CONFIG)
+            settings = load_application_settings(path)
+
+        from app.config import validate_build_profile
+
+        with self.assertRaises(ConfigurationError) as error:
+            validate_build_profile(settings, DeploymentMode.HOSTED)
+
+        self.assertIn("future storage adapter", str(error.exception))
 
     def test_hosted_mode_accepts_explicit_filesystem_storage(self):
         with tempfile.TemporaryDirectory() as directory:

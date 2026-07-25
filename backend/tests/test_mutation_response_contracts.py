@@ -14,7 +14,11 @@ class MutationResponseContractTests(unittest.TestCase):
             for status, response in operation["responses"].items()
             if status.startswith("2")
         )
-        return response["content"]["application/json"]["schema"]
+        return next(
+            media["schema"]
+            for media in response["content"].values()
+            if media.get("schema")
+        )
 
     def test_every_database_mutation_has_an_explicit_response_model(self):
         mutation_methods = {"post", "put", "patch", "delete"}
