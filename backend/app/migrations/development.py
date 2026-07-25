@@ -1,34 +1,39 @@
 """Temporary schema work for the next unreleased database version.
 
 Development migrations must be idempotent and based on schema inspection
-because they run without changing ``PRAGMA user_version``. Before release,
-move their final behavior into the next numbered module and restore this
-function to a no-op.
+because they run without changing the released SQLite ``PRAGMA user_version``
+or the portable Alembic revision. Before release, move their final behavior
+into a numbered migration and restore this function to a no-op.
 """
 
-from sqlalchemy import inspect, text
+from sqlmodel import SQLModel
+
+from app.models.database import (
+    AccountToken,
+    AuthSession,
+    Installation,
+    PasswordCredential,
+    User,
+)
+
+
+DEVELOPMENT_TABLE_NAMES = (
+    "installation",
+    "app_user",
+    "password_credential",
+    "auth_session",
+    "account_token",
+)
 
 
 def migrate_development_schema(connection) -> None:
-    """Add the persisted installation identity for the unreleased version."""
-    existing_tables = set(inspect(connection).get_table_names())
-    if "installation" not in existing_tables:
-        connection.execute(
-            text(
-                "CREATE TABLE installation ("
-                "id INTEGER NOT NULL PRIMARY KEY, "
-                "installation_id VARCHAR NOT NULL, "
-                "mode VARCHAR NOT NULL, "
-                "initialized_at DATETIME NOT NULL, "
-                "CONSTRAINT ck_installation_singleton CHECK (id = 1)"
-                ")"
-            )
-        )
-
-    connection.execute(
-        text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS "
-            "ix_installation_installation_id "
-            "ON installation (installation_id)"
-        )
+    """Create unreleased installation and identity tables idempotently."""
+    tables = [
+        SQLModel.metadata.tables[name]
+        for name in DEVELOPMENT_TABLE_NAMES
+    ]
+    SQLModel.metadata.create_all(
+        bind=connection,
+        tables=tables,
+        checkfirst=True,
     )

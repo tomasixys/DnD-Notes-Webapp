@@ -18,6 +18,8 @@ and this changelog follows the structure described by
   mode-specific artifact names, and packaged executable-specific config files.
 - Added explicit Windows/Linux build-target detection, platform-specific build
   environments and artifact names, and clear rejection of cross-compilation.
+- Added the initial local-account persistence model for users, password
+  credentials, revocable server sessions, and activation/reset tokens.
 - Added typed SQLite/PostgreSQL database URL and pool settings with
   environment-referenced hosted credentials.
 - Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy

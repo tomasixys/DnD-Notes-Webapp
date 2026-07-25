@@ -102,11 +102,13 @@ def run_database_migrations(engine: Engine) -> None:
 
         if "alembic_version" in tables:
             command.upgrade(config, "head")
+            migrate_development_schema(connection)
             return
 
         application_tables = _application_tables(connection)
         if not application_tables:
             command.upgrade(config, "head")
+            migrate_development_schema(connection)
             if connection.dialect.name == "sqlite":
                 connection.execute(
                     text(f"PRAGMA user_version = {CURRENT_DATABASE_VERSION}")
@@ -122,3 +124,4 @@ def run_database_migrations(engine: Engine) -> None:
 
         _run_legacy_sqlite_migrations(connection)
         command.stamp(config, "head")
+        migrate_development_schema(connection)

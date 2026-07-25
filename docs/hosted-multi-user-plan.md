@@ -372,6 +372,18 @@ Exit criteria:
 **Purpose:** establish who is making a request, without yet claiming that login
 alone grants campaign access.
 
+Status: identity persistence in progress
+
+Progress:
+
+- [x] Add cross-database user, password credential, account-token, and
+  revocable-session models.
+- [x] Apply the unreleased identity schema idempotently to both fresh databases
+  and databases already stamped at the Milestone 1 portable baseline.
+- [ ] Add the Argon2id credential service and offline administrator commands.
+- [ ] Add login/logout/current-session APIs, CSRF enforcement, throttling, and
+  complete hosted route protection.
+
 Suggested data model:
 
 - `User`: unique normalized username, optional profile/email, account status,

@@ -109,6 +109,8 @@ def _load_database_models() -> None:
     # Explicit imports populate SQLModel metadata in source and frozen builds.
     from app.models.database import (  # noqa: F401
         BackstoryNote,
+        AccountToken,
+        AuthSession,
         Campaign,
         CharacterNote,
         CharacterProfile,
@@ -119,12 +121,14 @@ def _load_database_models() -> None:
         InventoryAccess,
         InventoryItem,
         Location,
+        PasswordCredential,
         Person,
         Purse,
         RollEntry,
         SessionNote,
         Tag,
         TagAssignment,
+        User,
     )
 
 
