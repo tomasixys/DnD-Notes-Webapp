@@ -18,8 +18,10 @@ from app.auth.models import (
 )
 from app.models.database import Installation
 from app.authorization.models import (
+    BackstoryNoteGrant,
     CampaignInvitation,
     CampaignMembership,
+    CharacterNoteGrant,
 )
 from sqlalchemy import inspect, text
 
@@ -34,6 +36,8 @@ DEVELOPMENT_TABLE_NAMES = (
     "security_event",
     "campaign_membership",
     "campaign_invitation",
+    "character_note_grant",
+    "backstory_note_grant",
 )
 
 
@@ -91,3 +95,24 @@ def migrate_development_schema(connection) -> None:
                     f"{column_name} {definition}"
                 )
             )
+
+    note_access_additions = {
+        "created_by_user_id": "INTEGER",
+        "visibility": "VARCHAR NOT NULL DEFAULT 'campaign'",
+        "access_owner_user_id": "INTEGER",
+    }
+    for table_name in ("characternote", "backstorynote"):
+        if table_name not in table_names:
+            continue
+        note_columns = {
+            column["name"]
+            for column in inspector.get_columns(table_name)
+        }
+        for column_name, definition in note_access_additions.items():
+            if column_name not in note_columns:
+                connection.execute(
+                    text(
+                        f"ALTER TABLE {table_name} ADD COLUMN "
+                        f"{column_name} {definition}"
+                    )
+                )

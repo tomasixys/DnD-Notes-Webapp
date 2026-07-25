@@ -140,6 +140,7 @@ class CampaignBackupService:
 
                 backup = CampaignBackup(
                     schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
+                    access_filtered=not context.elevated,
                     campaign=CampaignBackupCampaign(
                         name=campaign.name,
                         player_character=campaign.player_character,
@@ -553,5 +554,11 @@ class CampaignBackupService:
         if row is None or campaign is None:
             raise HTTPException(status_code=404, detail="Campaign not found")
         user, membership = row
-        context = CampaignContext(db, campaign, user, membership)
+        context = CampaignContext(
+            db,
+            campaign,
+            user,
+            membership,
+            elevated=True,
+        )
         return cls(db, user).export(context)

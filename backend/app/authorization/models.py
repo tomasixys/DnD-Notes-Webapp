@@ -8,6 +8,7 @@ from sqlalchemy import (
 from sqlmodel import Field, SQLModel
 
 from app.authorization.enums import CampaignRole
+from app.authorization.enums import ResourceGrantPermission
 
 
 def utc_now() -> datetime:
@@ -21,6 +22,16 @@ def role_enum() -> SAEnum:
         native_enum=False,
         create_constraint=True,
         name="campaign_role",
+    )
+
+
+def resource_grant_permission_enum() -> SAEnum:
+    return SAEnum(
+        ResourceGrantPermission,
+        values_callable=lambda enum: [member.value for member in enum],
+        native_enum=False,
+        create_constraint=True,
+        name="resource_grant_permission",
     )
 
 
@@ -116,3 +127,57 @@ class CampaignInvitation(SQLModel, table=True):
     expires_at: datetime
     accepted_at: datetime | None = None
     revoked_at: datetime | None = None
+
+
+class CharacterNoteGrant(SQLModel, table=True):
+    __tablename__ = "character_note_grant"
+    __table_args__ = (
+        UniqueConstraint(
+            "note_id",
+            "user_id",
+            name="uq_character_note_grant_note_user",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    note_id: int = Field(
+        foreign_key="characternote.id",
+        ondelete="CASCADE",
+        index=True,
+    )
+    user_id: int = Field(
+        foreign_key="app_user.id",
+        ondelete="CASCADE",
+        index=True,
+    )
+    permission: ResourceGrantPermission = Field(
+        default=ResourceGrantPermission.READ,
+        sa_type=resource_grant_permission_enum(),
+    )
+
+
+class BackstoryNoteGrant(SQLModel, table=True):
+    __tablename__ = "backstory_note_grant"
+    __table_args__ = (
+        UniqueConstraint(
+            "note_id",
+            "user_id",
+            name="uq_backstory_note_grant_note_user",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    note_id: int = Field(
+        foreign_key="backstorynote.id",
+        ondelete="CASCADE",
+        index=True,
+    )
+    user_id: int = Field(
+        foreign_key="app_user.id",
+        ondelete="CASCADE",
+        index=True,
+    )
+    permission: ResourceGrantPermission = Field(
+        default=ResourceGrantPermission.READ,
+        sa_type=resource_grant_permission_enum(),
+    )

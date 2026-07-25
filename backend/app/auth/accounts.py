@@ -23,6 +23,10 @@ from app.authorization.models import (
     CampaignInvitation,
     CampaignMembership,
 )
+from app.authorization.resource_policy import (
+    has_personal_note_access,
+    stage_release_personal_note_access,
+)
 from app.models.database import Campaign
 from app.auth.passwords import (
     CredentialService,
@@ -297,6 +301,51 @@ class AccountLifecycleService:
             )
         ).all()
         for membership in memberships:
+            if not has_personal_note_access(
+                self.db,
+                campaign_id=membership.campaign_id,
+                user_id=user.id,
+            ):
+                if membership.role is CampaignRole.OWNER:
+                    another_owner = self.db.exec(
+                        select(CampaignMembership.id)
+                        .join(User, User.id == CampaignMembership.user_id)
+                        .where(
+                            CampaignMembership.campaign_id
+                            == membership.campaign_id,
+                            CampaignMembership.role
+                            == CampaignRole.OWNER,
+                            CampaignMembership.is_custodial.is_(False),
+                            CampaignMembership.user_id != user.id,
+                            User.status == UserStatus.ACTIVE,
+                            User.can_login.is_(True),
+                        )
+                        .limit(1)
+                    ).first()
+                    if another_owner is None:
+                        self._assign_campaign_custody(
+                            membership.campaign_id,
+                            actor,
+                        )
+                self.db.delete(membership)
+                continue
+            custodian = self.db.exec(
+                select(User).where(
+                    User.system_role == SystemRole.CUSTODIAN,
+                    User.status == UserStatus.ACTIVE,
+                    User.can_login.is_(False),
+                )
+            ).first()
+            if custodian is None:
+                raise AccountLifecycleError(
+                    "Resource custody cannot be assigned safely."
+                )
+            stage_release_personal_note_access(
+                self.db,
+                campaign_id=membership.campaign_id,
+                user_id=user.id,
+                replacement_owner_user_id=custodian.id,
+            )
             if membership.role is CampaignRole.OWNER:
                 another_owner = self.db.exec(
                     select(CampaignMembership.id)

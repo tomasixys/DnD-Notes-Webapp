@@ -19,3 +19,14 @@ class CampaignCapability(str, Enum):
     SHARED_RESOURCE_READ = "shared_resource.read"
     SHARED_RESOURCE_WRITE = "shared_resource.write"
     ASSIGNED_CHARACTER_WRITE = "assigned_character.write"
+
+
+class ResourceVisibility(str, Enum):
+    CAMPAIGN = "campaign"
+    RESTRICTED = "restricted"
+    PRIVATE = "private"
+
+
+class ResourceGrantPermission(str, Enum):
+    READ = "read"
+    WRITE = "write"

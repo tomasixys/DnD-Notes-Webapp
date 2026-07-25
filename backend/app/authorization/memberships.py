@@ -1,13 +1,17 @@
 from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
-from app.auth.enums import SecurityEventType, UserStatus
+from app.auth.enums import SecurityEventType, SystemRole, UserStatus
 from app.auth.events import SecurityEventService
 from app.auth.models import User
 from app.authorization.capabilities import ROLE_CAPABILITIES
 from app.authorization.context import CampaignContext
 from app.authorization.enums import CampaignCapability, CampaignRole
 from app.authorization.models import CampaignMembership
+from app.authorization.resource_policy import (
+    has_personal_note_access,
+    stage_release_personal_note_access,
+)
 from app.authorization.schemas import (
     CampaignMembershipRead,
     CampaignOwnershipTransferRead,
@@ -89,6 +93,7 @@ class CampaignMembershipService:
         membership, _ = self._get_human_member(user_id)
         if membership.role is CampaignRole.OWNER:
             self._require_another_enabled_owner(user_id)
+        self._release_resource_access(user_id)
         self.db.delete(membership)
         self._record_change(
             user_id,
@@ -100,6 +105,7 @@ class CampaignMembershipService:
         membership = self.context.membership
         if membership.role is CampaignRole.OWNER:
             self._require_another_enabled_owner(self.context.user.id)
+        self._release_resource_access(self.context.user.id)
         self.db.delete(membership)
         self._record_change(
             self.context.user.id,
@@ -261,4 +267,30 @@ class CampaignMembershipService:
             actor_user_id=self.context.user.id,
             campaign_id=self.context.campaign_id,
             reason=reason,
+        )
+
+    def _release_resource_access(self, user_id: int) -> None:
+        if not has_personal_note_access(
+            self.db,
+            campaign_id=self.context.campaign_id,
+            user_id=user_id,
+        ):
+            return
+        custodian_id = self.db.exec(
+            select(User.id).where(
+                User.system_role == SystemRole.CUSTODIAN,
+                User.status == UserStatus.ACTIVE,
+                User.can_login.is_(False),
+            )
+        ).first()
+        if custodian_id is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Resource custody cannot be assigned safely",
+            )
+        stage_release_personal_note_access(
+            self.db,
+            campaign_id=self.context.campaign_id,
+            user_id=user_id,
+            replacement_owner_user_id=custodian_id,
         )

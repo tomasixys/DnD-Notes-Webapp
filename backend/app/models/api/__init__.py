@@ -10,6 +10,8 @@ from .character import (
     CharacterRead,
     CharacterDeleteResponse,
     CharacterNoteData,
+    CharacterNoteGrantData,
+    CharacterNoteGrantRead,
     CharacterNoteRead,
     BackstoryNoteRead,
 )
@@ -75,6 +77,8 @@ __all__ = [
     "CharacterRead",
     "CharacterDeleteResponse",
     "CharacterNoteData",
+    "CharacterNoteGrantData",
+    "CharacterNoteGrantRead",
     "CharacterNoteRead",
     "BackstoryNoteRead",
     "LocationData",

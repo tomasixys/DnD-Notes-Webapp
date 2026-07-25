@@ -20,6 +20,11 @@ from app.models.database import (
 )
 from app.models.enums import RelationshipType, ResourceType
 from app.authorization.context import CampaignContext
+from app.authorization.models import (
+    BackstoryNoteGrant,
+    CharacterNoteGrant,
+)
+from app.authorization.resource_policy import ResourceAccessPolicy
 from app.services.tags import TagService
 
 
@@ -82,6 +87,7 @@ class SearchService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.policy = ResourceAccessPolicy(context)
 
     def search(self, request: SearchQueryDto) -> SearchResponseDto:
         query = request.query.strip()
@@ -293,6 +299,12 @@ class SearchService:
                 CharacterNote.campaign_id
                 == self.context.campaign_id
             )
+            .where(
+                self.policy.readable_clause(
+                    CharacterNote,
+                    CharacterNoteGrant,
+                )
+            )
             .where(or_(*conditions))
         ).all()
 
@@ -321,6 +333,12 @@ class SearchService:
             .where(
                 BackstoryNote.campaign_id
                 == self.context.campaign_id
+            )
+            .where(
+                self.policy.readable_clause(
+                    BackstoryNote,
+                    BackstoryNoteGrant,
+                )
             )
             .where(or_(*conditions))
         ).all()

@@ -2,6 +2,11 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.authorization.enums import (
+    ResourceGrantPermission,
+    ResourceVisibility,
+)
+
 from .person import PersonData, PersonRead
 from .tag import ResourceTagRead
 
@@ -35,10 +40,22 @@ class CharacterDeleteResponse(SQLModel):
     active_character: CharacterRead | None = None
 
 
+class CharacterNoteGrantData(SQLModel):
+    user_id: int
+    permission: ResourceGrantPermission = ResourceGrantPermission.READ
+
+
+class CharacterNoteGrantRead(CharacterNoteGrantData):
+    username: str
+    display_name: str = ""
+
+
 class CharacterNoteData(SQLModel):
     title: str
     content: str = ""
     tags: list[str] = Field(default_factory=list)
+    visibility: ResourceVisibility = ResourceVisibility.CAMPAIGN
+    grants: list[CharacterNoteGrantData] = Field(default_factory=list)
 
 
 class CharacterNoteRead(CharacterNoteData):
@@ -47,6 +64,11 @@ class CharacterNoteRead(CharacterNoteData):
     character_person_id: int
     created_at: datetime
     updated_at: datetime
+    created_by_user_id: int | None = None
+    access_owner_user_id: int | None = None
+    grants: list[CharacterNoteGrantRead] = Field(default_factory=list)
+    can_write: bool = False
+    can_manage_access: bool = False
     tags: list[ResourceTagRead] = Field(default_factory=list)
 
 
