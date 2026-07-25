@@ -14,6 +14,7 @@ from app.models.database import (
 )
 from app.models.enums import ResourceType
 from app.services.campaign_context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.episodes import EpisodeService
 from app.services.rolls import RollService
 
@@ -52,7 +53,7 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
     def test_staged_episode_and_rolls_share_the_outer_transaction(self):
         with Session(self.engine) as db:
             campaign = self._create_campaign(db)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
             episodes = EpisodeService(context)
 
             episode = episodes.stage_create(
@@ -82,7 +83,7 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
     def test_standalone_services_commit_mutations_and_statistics(self):
         with Session(self.engine) as db:
             campaign = self._create_campaign(db)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
             episodes = EpisodeService(context)
             created = episodes.create(
                 EpisodeData(
@@ -137,7 +138,7 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
         with Session(self.engine) as db:
             first_campaign = self._create_campaign(db, "First")
             second_campaign = self._create_campaign(db, "Second")
-            first_context = CampaignContext(db, first_campaign)
+            first_context = campaign_context(db, first_campaign)
             episode = EpisodeService(first_context).create(
                 EpisodeData(
                     date="2026-07-23",
@@ -148,7 +149,7 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
 
             with self.assertRaises(HTTPException) as context:
                 RollService(
-                    CampaignContext(db, second_campaign)
+                    campaign_context(db, second_campaign)
                 ).create(
                     RollCreate(session_id=episode.id, roll=10),
                 )

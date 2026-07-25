@@ -12,6 +12,7 @@ from app.models.database import (
 )
 from app.models.enums import RelationshipType, ResourceType
 from app.services.campaign_context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.tags import TagService
 
 
@@ -50,7 +51,7 @@ class TagServiceTests(unittest.TestCase):
         db.refresh(campaign)
         db.refresh(person)
         db.refresh(location)
-        return CampaignContext(db, campaign), person, location
+        return campaign_context(db, campaign), person, location
 
     def test_component_scopes_tag_queries_and_relationships(self):
         with Session(self.engine) as db:

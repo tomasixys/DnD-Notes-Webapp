@@ -13,6 +13,7 @@ from app.models.database import (
     TagAssignment,
 )
 from app.services.campaign_context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.factions import FactionService
 from app.services.locations import LocationService
 
@@ -42,7 +43,7 @@ class LocationAndFactionServiceTests(unittest.TestCase):
         db.add(campaign)
         db.commit()
         db.refresh(campaign)
-        return CampaignContext(db, campaign)
+        return campaign_context(db, campaign)
 
     def test_staged_resources_and_relationships_share_outer_transaction(self):
         with Session(self.engine) as db:
@@ -170,7 +171,7 @@ class LocationAndFactionServiceTests(unittest.TestCase):
             db.add(other_campaign)
             db.commit()
             db.refresh(other_campaign)
-            other_context = CampaignContext(db, other_campaign)
+            other_context = campaign_context(db, other_campaign)
             LocationService(other_context).create(
                 LocationData(name="Hidden")
             )

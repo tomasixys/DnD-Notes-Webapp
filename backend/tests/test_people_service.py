@@ -7,6 +7,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.models.api import PersonData
 from app.models.database import Campaign, Person
 from app.services.campaign_context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.people import PersonService
 
 
@@ -37,7 +38,7 @@ class PersonServiceTests(unittest.TestCase):
             db.refresh(campaign)
 
             person = PersonService(
-                CampaignContext(db, campaign)
+                campaign_context(db, campaign)
             ).stage_create(
                 PersonData(
                     name="  Nalia  ",
@@ -60,7 +61,7 @@ class PersonServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            people = PersonService(CampaignContext(db, campaign))
+            people = PersonService(campaign_context(db, campaign))
 
             created = people.create(
                 PersonData(name="Nalia", role="Wizard"),
@@ -84,7 +85,7 @@ class PersonServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            people = PersonService(CampaignContext(db, campaign))
+            people = PersonService(campaign_context(db, campaign))
             person_id = people.create(
                 PersonData(name="Nalia", role="Wizard"),
             ).id

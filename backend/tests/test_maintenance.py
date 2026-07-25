@@ -9,6 +9,8 @@ from sqlmodel import Session
 from app import database as database_module
 from app.app_paths import configure_app_data_dir
 from app.auth.passwords import CredentialError
+from app.auth.administration import IdentityBootstrapService
+from app.authorization.bootstrap import MembershipBootstrapService
 from app.config import ApplicationSettings
 from app.database import create_db_and_tables
 from app.instance_lock import InstanceLock, InstanceLockError
@@ -53,6 +55,8 @@ class MaintenanceCommandTests(unittest.TestCase):
             InstallationService(db).ensure(self.settings)
             db.add(Campaign(name="Recovery Test"))
             db.commit()
+            IdentityBootstrapService(db).ensure_local_user()
+            MembershipBootstrapService(db).ensure_local_ownership()
         engine.dispose()
         database_module._engine = None
 

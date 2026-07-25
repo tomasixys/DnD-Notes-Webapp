@@ -15,6 +15,7 @@ from app.models.api import CampaignBackupExportRead, CampaignRead
 from app.models.database import Campaign, Inventory
 from app.services.campaign_backups import CampaignBackupService
 from app.services.campaigns import CampaignService
+from tests.authorization_helpers import create_user
 
 
 class CampaignServiceTests(unittest.TestCase):
@@ -38,8 +39,9 @@ class CampaignServiceTests(unittest.TestCase):
 
     def test_staged_creation_joins_the_outer_transaction(self):
         with Session(self.engine) as db:
-            campaign = CampaignService(db).stage_create(name="Test")
-            campaign_id = campaign.id
+            user = create_user(db)
+            context = CampaignService(db, user).stage_create(name="Test")
+            campaign_id = context.campaign_id
             inventory = db.exec(
                 select(Inventory).where(
                     Inventory.campaign_id == campaign_id
@@ -54,7 +56,8 @@ class CampaignServiceTests(unittest.TestCase):
 
     def test_standalone_crud_returns_current_state_and_commits_delete(self):
         with Session(self.engine) as db:
-            campaigns = CampaignService(db)
+            user = create_user(db)
+            campaigns = CampaignService(db, user)
             created = campaigns.create(
                 name="Test",
                 player_character="Nalia",
@@ -62,8 +65,9 @@ class CampaignServiceTests(unittest.TestCase):
             self.assertIsInstance(created, CampaignRead)
             campaign_id = created.id
 
+            context = campaigns.get_context(campaign_id)
             updated = campaigns.update(
-                campaign_id,
+                context,
                 name="Updated",
                 player_character="Nalia",
                 description="A changed campaign",
@@ -78,7 +82,7 @@ class CampaignServiceTests(unittest.TestCase):
             self.assertEqual(0, updated.session_count)
             self.assertEqual(1, len(campaigns.list_reads()))
 
-            deleted = campaigns.delete(campaign_id)
+            deleted = campaigns.delete(context)
             self.assertEqual(campaign_id, deleted.deleted_id)
             self.assertIsNone(db.get(Campaign, campaign_id))
 
@@ -86,20 +90,24 @@ class CampaignServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             archive_path = Path(temporary_directory) / "campaign.backup"
             with Session(self.engine) as db:
-                created = CampaignService(db).create(
+                user = create_user(db)
+                campaigns = CampaignService(db, user)
+                created = campaigns.create(
                     name="Test",
                     player_character="Nalia",
                     description="An expedition",
                 )
                 campaign_id = created.id
-                backups = CampaignBackupService(db)
+                backups = CampaignBackupService(db, user)
 
                 with patch(
                     "app.services.campaign_backups."
                     "make_backup_archive_path",
                     return_value=(archive_path, "campaign.backup"),
                 ):
-                    exported = backups.export(campaign_id)
+                    exported = backups.export(
+                        campaigns.get_context(campaign_id)
+                    )
 
                 imported = backups.import_archive(
                     archive_path.read_bytes()
@@ -116,7 +124,7 @@ class CampaignServiceTests(unittest.TestCase):
                 self.assertNotEqual(campaign_id, imported.id)
                 self.assertEqual(
                     2,
-                    len(CampaignService(db).list_reads()),
+                    len(campaigns.list_reads()),
                 )
 
     def test_backup_import_rejects_invalid_data_without_creating_campaign(
@@ -139,8 +147,9 @@ class CampaignServiceTests(unittest.TestCase):
             )
 
         with Session(self.engine) as db:
+            user = create_user(db)
             with self.assertRaises(HTTPException) as error:
-                CampaignBackupService(db).import_archive(
+                CampaignBackupService(db, user).import_archive(
                     archive_data.getvalue()
                 )
 

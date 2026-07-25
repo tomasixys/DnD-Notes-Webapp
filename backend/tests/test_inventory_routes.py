@@ -37,6 +37,7 @@ from app.routers.inventory import (
     update_purse,
 )
 from app.services.campaign_context import CampaignContext
+from tests.authorization_helpers import resolve_context
 
 
 class InventoryRouteIntegrationTests(unittest.TestCase):
@@ -74,7 +75,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_inventory_mutations_return_the_complete_updated_inventory(self):
         with Session(self.engine) as db:
-            context = CampaignContext.resolve(db, self.campaign_id)
+            context = resolve_context(db, self.campaign_id)
             initial = get_inventory(context)
             self.assertEqual(initial.name, "Party Inventory")
             self.assertEqual(
@@ -149,7 +150,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_item_value_must_resolve_to_whole_copper(self):
         with Session(self.engine) as db:
-            campaign_context = CampaignContext.resolve(
+            campaign_context = resolve_context(
                 db,
                 self.campaign_id,
             )
@@ -170,7 +171,7 @@ class InventoryRouteIntegrationTests(unittest.TestCase):
 
     def test_activating_character_transfers_automatic_ownership(self):
         with Session(self.engine) as db:
-            context = CampaignContext.resolve(db, self.campaign_id)
+            context = resolve_context(db, self.campaign_id)
             get_inventory(context)
             person = Person(campaign_id=self.campaign_id, name="Sable")
             db.add(person)
