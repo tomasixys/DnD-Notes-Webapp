@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from zipfile import ZipFile
+from unittest.mock import patch
 
 from sqlmodel import Session
 
@@ -12,7 +13,12 @@ from app.database import create_db_and_tables
 from app.instance_lock import InstanceLock, InstanceLockError
 from app.models.database import Campaign
 from app.services.installations import InstallationService
-from maintenance import export_campaign, inspect_installation
+from app.services.credentials import CredentialError
+from maintenance import (
+    export_campaign,
+    inspect_installation,
+    prompt_new_password,
+)
 
 
 class InstanceLockTests(unittest.TestCase):
@@ -79,6 +85,20 @@ class MaintenanceCommandTests(unittest.TestCase):
         self.assertTrue(output.is_file())
         with ZipFile(output) as archive:
             self.assertIn("backup.json", archive.namelist())
+
+    def test_password_prompt_requires_matching_confirmation(self):
+        with patch(
+            "maintenance.getpass.getpass",
+            side_effect=["first password value", "different password"],
+        ):
+            with self.assertRaises(CredentialError):
+                prompt_new_password()
+
+        with patch(
+            "maintenance.getpass.getpass",
+            side_effect=["matching password", "matching password"],
+        ):
+            self.assertEqual("matching password", prompt_new_password())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import json
 import shutil
 from pathlib import Path
@@ -15,13 +16,20 @@ from app.app_paths import (
 from app.config import (
     ApplicationSettings,
     ConfigurationError,
+    DeploymentMode,
     StorageBackend,
     load_runtime_settings,
 )
-from app.database import create_database_engine
+from app.database import create_database_engine, create_db_and_tables
 from app.instance_lock import InstanceLock, InstanceLockError
 from app.models.database import Campaign, Installation
 from app.services.campaign_backups import CampaignBackupService
+from app.services.credentials import CredentialError
+from app.services.identity_admin import (
+    IdentityAdminError,
+    IdentityAdminService,
+)
+from app.services.installations import InstallationService
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,6 +51,16 @@ def parse_args() -> argparse.Namespace:
     )
     export.add_argument("--campaign-id", type=int, required=True)
     export.add_argument("--output", type=Path, required=True)
+    create_admin = commands.add_parser(
+        "create-admin",
+        help="Create the first hosted system administrator.",
+    )
+    create_admin.add_argument("--username", required=True)
+    reset_password = commands.add_parser(
+        "reset-password",
+        help="Reset one hosted local account password and revoke sessions.",
+    )
+    reset_password.add_argument("--username", required=True)
     return parser.parse_args()
 
 
@@ -110,6 +128,60 @@ def export_campaign(
         engine.dispose()
 
 
+def prompt_new_password() -> str:
+    password = getpass.getpass("New password: ")
+    confirmation = getpass.getpass("Confirm new password: ")
+    if password != confirmation:
+        raise CredentialError("Password confirmation does not match.")
+    return password
+
+
+def create_initial_admin(
+    settings: ApplicationSettings,
+    *,
+    username: str,
+    password: str,
+) -> str:
+    if settings.installation.mode is not DeploymentMode.HOSTED:
+        raise IdentityAdminError(
+            "create-admin is available only for hosted installations."
+        )
+    engine = create_db_and_tables(settings)
+    try:
+        with Session(engine) as db:
+            InstallationService(db).ensure(settings)
+            admin = IdentityAdminService(db).create_initial_admin(
+                username,
+                password,
+            )
+            return admin.username
+    finally:
+        engine.dispose()
+
+
+def reset_local_password(
+    settings: ApplicationSettings,
+    *,
+    username: str,
+    password: str,
+) -> str:
+    if settings.installation.mode is not DeploymentMode.HOSTED:
+        raise IdentityAdminError(
+            "reset-password is available only for hosted installations."
+        )
+    engine = create_db_and_tables(settings)
+    try:
+        with Session(engine) as db:
+            InstallationService(db).ensure(settings)
+            user = IdentityAdminService(db).reset_password(
+                username,
+                password,
+            )
+            return user.username
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
     args = parse_args()
     settings = load_runtime_settings(args.config)
@@ -126,6 +198,24 @@ def main() -> None:
                 )
             )
             return
+        if args.command == "create-admin":
+            username = create_initial_admin(
+                settings,
+                username=args.username,
+                password=prompt_new_password(),
+            )
+            print(f"Created system administrator: {username}")
+            return
+        if args.command == "reset-password":
+            username = reset_local_password(
+                settings,
+                username=args.username,
+                password=prompt_new_password(),
+            )
+            print(
+                f"Reset password and revoked sessions for: {username}"
+            )
+            return
 
         exported_path = export_campaign(
             settings,
@@ -140,6 +230,8 @@ if __name__ == "__main__":
         main()
     except (
         ConfigurationError,
+        CredentialError,
+        IdentityAdminError,
         InstanceLockError,
         RuntimeError,
         SQLAlchemyError,

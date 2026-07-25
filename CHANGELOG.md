@@ -20,6 +20,9 @@ and this changelog follows the structure described by
   environments and artifact names, and clear rejection of cross-compilation.
 - Added the initial local-account persistence model for users, password
   credentials, revocable server sessions, and activation/reset tokens.
+- Added Argon2id password hashing with automatic parameter upgrades, a
+  15-character single-factor password policy, and lock-protected offline
+  first-administrator and password-reset commands.
 - Added typed SQLite/PostgreSQL database URL and pool settings with
   environment-referenced hosted credentials.
 - Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy

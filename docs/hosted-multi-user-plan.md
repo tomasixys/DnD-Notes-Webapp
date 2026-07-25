@@ -380,7 +380,8 @@ Progress:
   revocable-session models.
 - [x] Apply the unreleased identity schema idempotently to both fresh databases
   and databases already stamped at the Milestone 1 portable baseline.
-- [ ] Add the Argon2id credential service and offline administrator commands.
+- [x] Add the Argon2id credential service, automatic hash-parameter upgrades,
+  system custodian seed, and offline first-admin/password-reset commands.
 - [ ] Add login/logout/current-session APIs, CSRF enforcement, throttling, and
   complete hosted route protection.
 

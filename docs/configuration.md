@@ -204,11 +204,12 @@ and a certificate valid for the public origin.
 
 ### Initial administrator
 
-The initial administrator is deliberately absent from TOML. Milestone 2 adds
-an offline `create-admin` command that requires operating-system access,
+The initial administrator is deliberately absent from TOML. Use the offline
+`create-admin` maintenance command, which requires operating-system access,
 acquires the exclusive installation lock, and securely prompts for the
-username and password. Builds, example configs, environment variables, and
-command history must not contain a default administrator password.
+password. Builds, example configs, environment variables, and command history
+must not contain a default administrator password. See
+[offline maintenance and recovery](maintenance.md).
 
 ## Persisted installation state
 

@@ -170,6 +170,14 @@ Every initialized database has one `Installation` row. It records the
 installation identity, deployment mode, and initialization time. Startup
 rejects a requested mode that differs from the stored mode. User accounts and
 administrator credentials are separate application-managed records.
+
+Hosted local identity state is split across `User`, `PasswordCredential`,
+`AuthSession`, and `AccountToken`. Password operations go through the
+credential service, which delegates hashing and verification to
+`argon2-cffi`, upgrades hashes after successful verification when parameters
+change, and revokes server-side sessions during password reset. Offline
+administrator creation and password reset use the same service while holding
+the installation lock.
 Pre-installation databases containing campaigns can be claimed only by local
 mode; moving desktop data into hosted mode remains an explicit import process.
 
