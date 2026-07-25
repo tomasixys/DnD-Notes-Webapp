@@ -27,12 +27,20 @@ class SecurityEventService:
         user_id: int | None = None,
         actor_user_id: int | None = None,
         source_digest: str | None = None,
+        campaign_id: int | None = None,
+        reason: str | None = None,
+        outcome: str = "succeeded",
+        used_elevation: bool = False,
     ) -> SecurityEvent:
         event = SecurityEvent(
             event_type=event_type,
             user_id=user_id,
             actor_user_id=actor_user_id,
             source_digest=source_digest,
+            campaign_id=campaign_id,
+            reason=reason,
+            outcome=outcome,
+            used_elevation=used_elevation,
             created_at=self.clock(),
         )
         self.db.add(event)

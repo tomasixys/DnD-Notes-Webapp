@@ -28,3 +28,8 @@ class SecurityEventType(str, Enum):
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
     PASSWORD_RESET_COMPLETED = "password_reset_completed"
     ACCOUNT_DELETED = "account_deleted"
+    ADMIN_CAMPAIGN_ELEVATION = "admin_campaign_elevation"
+    CAMPAIGN_EXPORTED = "campaign_exported"
+    MEMBERSHIP_CHANGED = "membership_changed"
+    CAMPAIGN_CUSTODY_ASSIGNED = "campaign_custody_assigned"
+    CAMPAIGN_RECOVERED = "campaign_recovered"

@@ -14,6 +14,10 @@ from app.app_paths import (
 from app.auth.administration import IdentityBootstrapService
 from app.auth.middleware import install_authentication_middleware
 from app.auth import router as auth_router
+from app.authorization.bootstrap import MembershipBootstrapService
+from app.authorization.route_audit import (
+    audit_campaign_route_authorization,
+)
 from app.config import (
     ApplicationSettings,
     DeploymentMode,
@@ -26,6 +30,7 @@ from app.instance_lock import InstanceLock
 from app.routers import (
     campaign_backups,
     campaigns,
+    authorization_admin,
     characters,
     episodes,
     factions,
@@ -34,6 +39,7 @@ from app.routers import (
     people,
     rolls,
     search,
+    memberships,
 )
 from app.services.installations import InstallationService
 
@@ -70,6 +76,9 @@ def create_app(
                         is DeploymentMode.LOCAL
                     ):
                         IdentityBootstrapService(db).ensure_local_user()
+                        MembershipBootstrapService(
+                            db
+                        ).ensure_local_ownership()
                 yield
             finally:
                 engine.dispose()
@@ -110,7 +119,9 @@ def create_app(
         application.include_router(auth_router.router)
 
     application.include_router(campaigns.router)
+    application.include_router(memberships.router)
     application.include_router(campaign_backups.router)
+    application.include_router(authorization_admin.router)
     application.include_router(episodes.router)
     application.include_router(people.router)
     application.include_router(locations.router)
@@ -119,6 +130,7 @@ def create_app(
     application.include_router(search.router)
     application.include_router(characters.router)
     application.include_router(inventory.router)
+    audit_campaign_route_authorization(application)
 
     # Keep this after every API router. It contains the catch-all SPA route.
     mount_frontend(application)

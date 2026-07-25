@@ -117,7 +117,10 @@ def export_campaign(
     generated_path: Path | None = None
     try:
         with Session(engine) as db:
-            result = CampaignBackupService(db).export(campaign_id)
+            result = CampaignBackupService.export_for_maintenance(
+                db,
+                campaign_id,
+            )
             relative_path = result.backup_url.removeprefix("uploads/")
             generated_path = get_uploads_dir() / relative_path
             shutil.copy2(generated_path, output)

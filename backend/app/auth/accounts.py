@@ -18,6 +18,9 @@ from app.auth.enums import (
 )
 from app.auth.events import SecurityEventService
 from app.auth.models import AccountToken, PasswordCredential, User
+from app.authorization.enums import CampaignRole
+from app.authorization.models import CampaignMembership
+from app.models.database import Campaign
 from app.auth.passwords import (
     CredentialService,
     normalize_username,
@@ -224,6 +227,7 @@ class AccountLifecycleService:
             )
 
         now = self.clock()
+        self._release_campaign_memberships(user, actor)
         self.credentials.revoke_sessions(user_id, revoked_at=now)
         credential = self.db.get(PasswordCredential, user_id)
         if credential is not None:
@@ -250,6 +254,84 @@ class AccountLifecycleService:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def _release_campaign_memberships(
+        self,
+        user: User,
+        actor: User,
+    ) -> None:
+        memberships = self.db.exec(
+            select(CampaignMembership).where(
+                CampaignMembership.user_id == user.id
+            )
+        ).all()
+        for membership in memberships:
+            if membership.role is CampaignRole.OWNER:
+                another_owner = self.db.exec(
+                    select(CampaignMembership.id)
+                    .join(User, User.id == CampaignMembership.user_id)
+                    .where(
+                        CampaignMembership.campaign_id
+                        == membership.campaign_id,
+                        CampaignMembership.role == CampaignRole.OWNER,
+                        CampaignMembership.is_custodial.is_(False),
+                        CampaignMembership.user_id != user.id,
+                        User.status == UserStatus.ACTIVE,
+                        User.can_login.is_(True),
+                    )
+                    .limit(1)
+                ).first()
+                if another_owner is None:
+                    self._assign_campaign_custody(
+                        membership.campaign_id,
+                        actor,
+                    )
+            self.db.delete(membership)
+
+    def _assign_campaign_custody(
+        self,
+        campaign_id: int,
+        actor: User,
+    ) -> None:
+        custodian = self.db.exec(
+            select(User).where(
+                User.system_role == SystemRole.CUSTODIAN,
+                User.status == UserStatus.ACTIVE,
+                User.can_login.is_(False),
+            )
+        ).first()
+        campaign = self.db.get(Campaign, campaign_id)
+        if custodian is None or campaign is None:
+            raise AccountLifecycleError(
+                "Campaign custody cannot be assigned safely."
+            )
+        membership = self.db.exec(
+            select(CampaignMembership).where(
+                CampaignMembership.campaign_id == campaign_id,
+                CampaignMembership.user_id == custodian.id,
+            )
+        ).first()
+        if membership is None:
+            membership = CampaignMembership(
+                campaign_id=campaign_id,
+                user_id=custodian.id,
+                role=CampaignRole.OWNER,
+                is_custodial=True,
+            )
+        else:
+            membership.role = CampaignRole.OWNER
+            membership.is_custodial = True
+            membership.assigned_character_person_id = None
+            membership.active_character_person_id = None
+        campaign.orphaned = True
+        self.db.add(membership)
+        self.db.add(campaign)
+        self.events.record(
+            SecurityEventType.CAMPAIGN_CUSTODY_ASSIGNED,
+            user_id=custodian.id,
+            actor_user_id=actor.id,
+            campaign_id=campaign_id,
+        )
 
     def _issue_token(
         self,

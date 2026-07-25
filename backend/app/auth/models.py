@@ -174,4 +174,8 @@ class SecurityEvent(SQLModel, table=True):
         index=True,
     )
     source_digest: str | None = Field(default=None, index=True)
+    campaign_id: int | None = Field(default=None, index=True)
+    reason: str | None = None
+    outcome: str = "succeeded"
+    used_elevation: bool = False
     created_at: datetime = Field(default_factory=utc_now, index=True)

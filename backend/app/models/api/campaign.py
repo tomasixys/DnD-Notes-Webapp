@@ -1,5 +1,7 @@
 from sqlmodel import SQLModel
 
+from app.authorization.enums import CampaignCapability, CampaignRole
+
 
 class CampaignRead(SQLModel):
     id: int
@@ -10,3 +12,5 @@ class CampaignRead(SQLModel):
     image_url: str = ""
     banner_image_url: str = ""
     active_character_person_id: int | None = None
+    membership_role: CampaignRole
+    capabilities: list[CampaignCapability]

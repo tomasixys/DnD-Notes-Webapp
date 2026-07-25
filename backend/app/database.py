@@ -115,6 +115,9 @@ def _load_database_models() -> None:
         SecurityEvent,
         User,
     )
+    from app.authorization.models import (  # noqa: F401
+        CampaignMembership,
+    )
     from app.models.database import (  # noqa: F401
         BackstoryNote,
         Campaign,

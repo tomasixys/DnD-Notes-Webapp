@@ -93,6 +93,7 @@ class _PersonalNoteOperations:
         person_id: int,
         note_id: int,
     ) -> PersonalNote:
+        self.context.require_character_write(person_id)
         self._verify_character(person_id)
         note = self.db.get(self.definition.model, note_id)
         if (
@@ -194,6 +195,7 @@ class _PersonalNoteOperations:
         note_id: int,
         note_data: CharacterNoteData,
     ) -> PersonalNote:
+        self.context.require_character_write(person_id)
         note = self.get(person_id, note_id)
         previous_title = note.title
         note.title = self._normalize_title(note_data.title)
@@ -218,6 +220,7 @@ class _PersonalNoteOperations:
         person_id: int,
         note_id: int,
     ) -> None:
+        self.context.require_character_write(person_id)
         note = self.get(person_id, note_id)
         self.tags.stage_handle_resource_deletion(
             self.definition.resource_type,
@@ -230,6 +233,7 @@ class _PersonalNoteOperations:
         self,
         person_id: int,
     ) -> None:
+        self.context.require_character_write(person_id)
         model = self.definition.model
         notes = self.db.exec(
             select(model).where(

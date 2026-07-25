@@ -4,6 +4,7 @@ from typing import Callable
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from app.authorization.enums import CampaignCapability
 from app.models.api import (
     CampaignBackupInventory,
     CampaignBackupInventoryItem,
@@ -79,7 +80,7 @@ class InventoryService:
         )
 
     def _active_character_belongs_to_campaign(self) -> bool:
-        person_id = self.context.campaign.active_character_person_id
+        person_id = self.context.active_character_person_id
         if (
             person_id is None
             or self.db.get(CharacterProfile, person_id) is None
@@ -133,7 +134,7 @@ class InventoryService:
                 InventoryAccess,
                 (
                     inventory.id,
-                    self.context.campaign.active_character_person_id,
+                    self.context.active_character_person_id,
                 ),
             )
             is None
@@ -142,7 +143,7 @@ class InventoryService:
                 InventoryAccess(
                     inventory_id=inventory.id,
                     character_person_id=(
-                        self.context.campaign.active_character_person_id
+                        self.context.active_character_person_id
                     ),
                     role=InventoryAccessRole.OWNER,
                 )
@@ -168,7 +169,7 @@ class InventoryService:
                 InventoryAccess(
                     inventory_id=inventory.id,
                     character_person_id=(
-                        self.context.campaign.active_character_person_id
+                        self.context.active_character_person_id
                     ),
                     role=InventoryAccessRole.OWNER,
                 )
@@ -224,7 +225,7 @@ class InventoryService:
                 character_name=person.name,
                 role=grant.role,
                 is_active_character=(
-                    self.context.campaign.active_character_person_id
+                    self.context.active_character_person_id
                     == person.id
                 ),
             )
@@ -290,6 +291,7 @@ class InventoryService:
             raise
 
     def get_default(self) -> InventoryRead:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         return self._commit_staged(
             lambda: self.stage_ensure_default(),
         )
@@ -298,6 +300,7 @@ class InventoryService:
         self,
         update: InventoryUpdate,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
 
         if "name" in update.model_fields_set:
@@ -327,6 +330,7 @@ class InventoryService:
         self,
         update: PurseUpdate,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
         for field_name in update.balances.model_fields_set:
             denomination = CurrencyDenomination(field_name)
@@ -377,6 +381,7 @@ class InventoryService:
         self,
         item_data: InventoryItemCreate,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
         name = item_data.name.strip()
         if not name:
@@ -414,6 +419,7 @@ class InventoryService:
         item_id: int,
         update: InventoryItemUpdate,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
         item = self.get_item(inventory, item_id)
 
@@ -458,6 +464,7 @@ class InventoryService:
         self,
         item_id: int,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
         self.db.delete(self.get_item(inventory, item_id))
         self.db.flush()

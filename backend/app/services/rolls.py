@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from scipy.stats import norm
 from sqlmodel import select
 
+from app.authorization.enums import CampaignCapability
 from app.models.api import (
     CampaignRollStats,
     EpisodeRollStats,
@@ -21,6 +22,7 @@ class RollService:
         self,
         episode_id: int,
     ) -> Episode:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         episode = self.db.get(Episode, episode_id)
         if episode is None:
             raise HTTPException(status_code=404, detail="Episode not found")
@@ -64,6 +66,7 @@ class RollService:
         return list(self.db.exec(statement).all())
 
     def get_values_for_episode(self, episode_id: int) -> list[int]:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         entries = self.db.exec(
             select(RollEntry)
             .where(RollEntry.session_id == episode_id)
@@ -72,6 +75,7 @@ class RollService:
         return [entry.roll for entry in entries]
 
     def get_campaign_stats(self) -> CampaignRollStats:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         statement = (
             select(RollEntry)
             .join(Episode, RollEntry.session_id == Episode.id)
@@ -107,6 +111,7 @@ class RollService:
         self,
         roll_create: RollCreate,
     ) -> RollEntry:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         self._get_episode(roll_create.session_id)
         if roll_create.roll < 1 or roll_create.roll > 20:
             raise HTTPException(
@@ -144,6 +149,7 @@ class RollService:
         self,
         episode_id: int,
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         entries = self.get_entries_for_episode(episode_id)
         for entry in entries:
             self.db.delete(entry)
@@ -173,6 +179,7 @@ class RollService:
         rolls: list[int],
     ) -> None:
         """Restore stored roll values in the caller-owned transaction."""
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         for roll in rolls:
             self.db.add(
                 RollEntry(

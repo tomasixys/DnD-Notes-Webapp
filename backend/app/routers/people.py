@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api import DeleteResponse, PersonData, PersonRead
 from app.services.campaign_context import CampaignContext
 from app.services.people import PersonService
@@ -14,7 +17,7 @@ router = APIRouter(
 
 @router.get("")
 def get_people_for_campaign(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> list[PersonRead]:
     people = PersonService(context)
     return [people.to_read(person) for person in people.list()]
@@ -23,7 +26,7 @@ def get_people_for_campaign(
 @router.get("/{person_id}")
 def get_person(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> PersonRead:
     people = PersonService(context)
     return people.to_read(people.get(person_id))
@@ -32,7 +35,7 @@ def get_person(
 @router.post("")
 def create_person(
     person: PersonData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> PersonRead:
     return PersonService(context).create(person)
 
@@ -41,7 +44,7 @@ def create_person(
 def update_person(
     person_id: int,
     updated_person: PersonData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> PersonRead:
     return PersonService(context).update(person_id, updated_person)
 
@@ -49,6 +52,6 @@ def update_person(
 @router.delete("/{person_id}")
 def delete_person(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> DeleteResponse:
     return PersonService(context).delete(person_id)

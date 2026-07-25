@@ -85,6 +85,9 @@ def require_current_user(
     return user
 
 
+require_current_user.__api_authentication__ = True
+
+
 def require_auth_context(
     request: Request,
     settings: ApplicationSettings = Depends(get_auth_settings),

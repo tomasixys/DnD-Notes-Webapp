@@ -2,6 +2,7 @@ from collections.abc import Iterable
 
 from fastapi import HTTPException
 
+from app.authorization.enums import CampaignCapability
 from app.models.api import ResourceTagRead
 from app.models.enums import RelationshipType, ResourceType
 from app.services.campaign_context import CampaignContext
@@ -31,6 +32,7 @@ class TagService:
         owner_type: ResourceType,
         owner_id: int,
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         resource = self.db.get(
             REFERENCE_MODELS[owner_type],
             owner_id,
@@ -105,6 +107,7 @@ class TagService:
         owner_type: ResourceType,
         pattern: str,
     ) -> list[int]:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         return get_tag_matching_owner_ids(
             self.db,
             self.context.campaign_id,
@@ -118,6 +121,7 @@ class TagService:
         owner_id: int,
         raw_tags: Iterable[str],
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         self._verify_owner(owner_type, owner_id)
         sync_resource_tags(
             self.db,
@@ -135,6 +139,7 @@ class TagService:
         reference_type: ResourceType,
         raw_reference: str,
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         self._verify_owner(owner_type, owner_id)
         sync_resource_relationship(
             self.db,
@@ -152,6 +157,7 @@ class TagService:
         resource_id: int,
         previous_labels: Iterable[str] = (),
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         self._verify_owner(resource_type, resource_id)
         refresh_reference_tags_for_resource(
             self.db,
@@ -166,6 +172,7 @@ class TagService:
         owner_type: ResourceType,
         owner_id: int,
     ) -> None:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         self._verify_owner(owner_type, owner_id)
         handle_tags_of_deleted_resource(
             self.db,

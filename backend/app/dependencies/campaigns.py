@@ -1,17 +1,12 @@
-from fastapi import Depends
-from sqlmodel import Session
+"""Compatibility imports for the authorization dependency boundary."""
 
-from app.database import get_session
-from app.models.database import Campaign
-from app.services.campaign_context import CampaignContext
-
-
-def get_campaign_context(
-    campaign_id: int,
-    db: Session = Depends(get_session),
-) -> CampaignContext:
-    return CampaignContext.resolve(db, campaign_id)
-
-
-def verify_campaign(campaign_id: int, db: Session) -> Campaign:
-    return CampaignContext.resolve(db, campaign_id).campaign
+from app.authorization.dependencies import (  # noqa: F401
+    get_campaign_context,
+    get_campaign_delete_context,
+    get_campaign_export_context,
+    get_campaign_update_context,
+    get_membership_manage_context,
+    get_membership_read_context,
+    get_shared_read_context,
+    get_shared_write_context,
+)

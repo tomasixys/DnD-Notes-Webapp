@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, File, UploadFile
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api import (
     BackstoryNoteRead,
     CharacterDeleteResponse,
@@ -27,7 +30,7 @@ router = APIRouter(
 
 @router.get("/active")
 def get_active_character(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> CharacterRead | None:
     return CharacterService(context).get_active()
 
@@ -35,7 +38,7 @@ def get_active_character(
 @router.get("/{person_id}")
 def get_character(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> CharacterRead:
     characters = CharacterService(context)
     return characters.to_read(characters.get_profile(person_id))
@@ -44,7 +47,7 @@ def get_character(
 @router.post("")
 def create_character(
     character: CharacterCreate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterRead:
     return CharacterService(context).create(character)
 
@@ -53,7 +56,7 @@ def create_character(
 def update_character(
     person_id: int,
     updated_character: CharacterUpdate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterRead:
     return CharacterService(context).update(person_id, updated_character)
 
@@ -61,7 +64,7 @@ def update_character(
 @router.post("/{person_id}/activate")
 def activate_character(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterRead:
     return CharacterService(context).activate(person_id)
 
@@ -69,7 +72,7 @@ def activate_character(
 @router.delete("/{person_id}")
 def delete_character(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterDeleteResponse:
     return CharacterService(context).delete(person_id)
 
@@ -78,7 +81,7 @@ def delete_character(
 def update_character_image(
     person_id: int,
     image: UploadFile = File(...),
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterRead:
     return CharacterService(context).replace_portrait(
         person_id,
@@ -89,7 +92,7 @@ def update_character_image(
 @router.delete("/{person_id}/image")
 def delete_character_image(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterRead:
     return CharacterService(context).remove_portrait(person_id)
 
@@ -97,7 +100,7 @@ def delete_character_image(
 @router.get("/{person_id}/notes")
 def get_character_notes(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> list[CharacterNoteRead]:
     return CharacterNoteService(context).list_for_character(person_id)
 
@@ -106,7 +109,7 @@ def get_character_notes(
 def create_character_note(
     person_id: int,
     note: CharacterNoteData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterNoteRead:
     return CharacterNoteService(context).create(person_id, note)
 
@@ -115,7 +118,7 @@ def create_character_note(
 def get_character_note(
     person_id: int,
     note_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> CharacterNoteRead:
     service = CharacterNoteService(context)
     return service.to_read(service.get(person_id, note_id))
@@ -126,7 +129,7 @@ def update_character_note(
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> CharacterNoteRead:
     return CharacterNoteService(context).update(person_id, note_id, note)
 
@@ -135,7 +138,7 @@ def update_character_note(
 def delete_character_note(
     person_id: int,
     note_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> DeleteResponse:
     return CharacterNoteService(context).delete(person_id, note_id)
 
@@ -143,7 +146,7 @@ def delete_character_note(
 @router.get("/{person_id}/backstory")
 def get_backstory_notes(
     person_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> list[BackstoryNoteRead]:
     return BackstoryNoteService(context).list_for_character(person_id)
 
@@ -152,7 +155,7 @@ def get_backstory_notes(
 def create_backstory_note(
     person_id: int,
     note: CharacterNoteData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> BackstoryNoteRead:
     return BackstoryNoteService(context).create(person_id, note)
 
@@ -161,7 +164,7 @@ def create_backstory_note(
 def get_backstory_note(
     person_id: int,
     note_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> BackstoryNoteRead:
     service = BackstoryNoteService(context)
     return service.to_read(service.get(person_id, note_id))
@@ -172,7 +175,7 @@ def update_backstory_note(
     person_id: int,
     note_id: int,
     note: CharacterNoteData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> BackstoryNoteRead:
     return BackstoryNoteService(context).update(person_id, note_id, note)
 
@@ -181,6 +184,6 @@ def update_backstory_note(
 def delete_backstory_note(
     person_id: int,
     note_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> DeleteResponse:
     return BackstoryNoteService(context).delete(person_id, note_id)

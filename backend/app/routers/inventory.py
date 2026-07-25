@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, status
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api import (
     InventoryItemCreate,
     InventoryItemUpdate,
@@ -20,7 +23,7 @@ router = APIRouter(
 
 @router.get("", response_model=InventoryRead)
 def get_inventory(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> InventoryRead:
     return InventoryService(context).get_default()
 
@@ -28,7 +31,7 @@ def get_inventory(
 @router.patch("", response_model=InventoryRead)
 def update_inventory(
     update: InventoryUpdate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> InventoryRead:
     return InventoryService(context).update_metadata(update)
 
@@ -36,7 +39,7 @@ def update_inventory(
 @router.patch("/purse", response_model=InventoryRead)
 def update_purse(
     update: PurseUpdate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> InventoryRead:
     return InventoryService(context).update_purse(update)
 
@@ -48,7 +51,7 @@ def update_purse(
 )
 def create_inventory_item(
     item_data: InventoryItemCreate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> InventoryRead:
     return InventoryService(context).create_item(item_data)
 
@@ -57,7 +60,7 @@ def create_inventory_item(
 def update_inventory_item(
     item_id: int,
     update: InventoryItemUpdate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> InventoryRead:
     return InventoryService(context).update_item(item_id, update)
 
@@ -65,6 +68,6 @@ def update_inventory_item(
 @router.delete("/items/{item_id}", response_model=InventoryRead)
 def delete_inventory_item(
     item_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> InventoryRead:
     return InventoryService(context).delete_item(item_id)

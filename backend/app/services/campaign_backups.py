@@ -5,8 +5,14 @@ from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlmodel import SQLModel, Session
+from sqlmodel import SQLModel, Session, select
 
+from app.auth.models import User
+from app.auth.enums import SecurityEventType
+from app.auth.events import SecurityEventService
+from app.authorization.context import CampaignContext
+from app.authorization.enums import CampaignCapability, CampaignRole
+from app.authorization.models import CampaignMembership
 from app.file_storage import (
     add_upload_to_archive,
     build_upload_url,
@@ -26,7 +32,6 @@ from app.models.api import (
     PersonData,
 )
 from app.models.database import Campaign
-from app.services.campaign_context import CampaignContext
 from app.services.campaigns import CampaignService
 from app.services.character_notes import (
     BackstoryNoteService,
@@ -47,12 +52,16 @@ def _sqlmodel_to_dict(model: SQLModel) -> dict:
 
 
 class CampaignBackupService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user: User):
         self.db = db
-        self.campaigns = CampaignService(db)
+        self.user = user
+        self.campaigns = CampaignService(db, user)
 
-    def export(self, campaign_id: int) -> CampaignBackupExportRead:
-        context = CampaignContext.resolve(self.db, campaign_id)
+    def export(
+        self,
+        context: CampaignContext,
+    ) -> CampaignBackupExportRead:
+        context.require(CampaignCapability.CAMPAIGN_EXPORT)
         campaign = context.campaign
         people = PersonService(context)
         inventory = InventoryService(context)
@@ -125,7 +134,7 @@ class CampaignBackupService:
                         image_archive_path=image_archive_path,
                         banner_archive_path=banner_archive_path,
                         active_character_person_backup_id=(
-                            campaign.active_character_person_id
+                            context.active_character_person_id
                         ),
                     ),
                     sessions=episodes.list_backup_entries(),
@@ -149,6 +158,13 @@ class CampaignBackupService:
             archive_path.unlink(missing_ok=True)
             raise
 
+        SecurityEventService(self.db).record(
+            SecurityEventType.CAMPAIGN_EXPORTED,
+            actor_user_id=context.user.id,
+            campaign_id=context.campaign_id,
+            used_elevation=context.elevated,
+        )
+        self.db.commit()
         return CampaignBackupExportRead(
             backup_url=build_upload_url(relative_path),
             filename=archive_path.name,
@@ -180,8 +196,10 @@ class CampaignBackupService:
                 detail="Invalid backup data",
             )
 
+        context = self.campaigns.get_context(campaign.id)
         return self.campaigns.to_read(
-            campaign,
+            context.campaign,
+            context.membership,
             session_count=len(backup.sessions),
         )
 
@@ -221,12 +239,12 @@ class CampaignBackupService:
         person_id_map: dict[int, int] = {}
 
         try:
-            campaign = self.campaigns.stage_create(
+            context = self.campaigns.stage_create(
                 name=backup.campaign.name,
                 player_character=backup.campaign.player_character,
                 description=backup.campaign.description,
             )
-            context = CampaignContext(self.db, campaign)
+            campaign = context.campaign
             inventory = InventoryService(context)
 
             campaign.image_path = self._restore_asset(
@@ -411,6 +429,15 @@ class CampaignBackupService:
                     "Active character references a missing character profile"
                 ),
             )
+        if (
+            characters.context.membership
+            .assigned_character_person_id
+            is None
+        ):
+            characters.context.membership.assigned_character_person_id = (
+                active_person_id
+            )
+            characters.db.add(characters.context.membership)
         try:
             characters.set_active_pointer(active_person_id)
         except HTTPException as error:
@@ -422,3 +449,29 @@ class CampaignBackupService:
                     "Active character references a missing character profile"
                 ),
             ) from error
+
+    @classmethod
+    def export_for_maintenance(
+        cls,
+        db: Session,
+        campaign_id: int,
+    ) -> CampaignBackupExportRead:
+        """Export through an existing owner identity for offline maintenance."""
+        row = db.exec(
+            select(User, CampaignMembership)
+            .join(
+                CampaignMembership,
+                CampaignMembership.user_id == User.id,
+            )
+            .where(
+                CampaignMembership.campaign_id == campaign_id,
+                CampaignMembership.role == CampaignRole.OWNER,
+            )
+            .order_by(CampaignMembership.is_custodial)
+        ).first()
+        campaign = db.get(Campaign, campaign_id)
+        if row is None or campaign is None:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        user, membership = row
+        context = CampaignContext(db, campaign, user, membership)
+        return cls(db, user).export(context)

@@ -4,6 +4,8 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.authorization.enums import CampaignCapability
+from app.authorization.models import CampaignMembership
 from app.file_storage import delete_uploaded_file
 from app.models.api import (
     CampaignBackupPerson,
@@ -31,6 +33,7 @@ class PersonService:
         self.tags = TagService(context)
 
     def to_read(self, person: Person) -> PersonRead:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         character_profile = self.db.get(CharacterProfile, person.id)
         return PersonRead(
             id=person.id,
@@ -54,11 +57,12 @@ class PersonService:
             ),
             character_profile_available=character_profile is not None,
             is_active_character=(
-                self.context.campaign.active_character_person_id == person.id
+                self.context.active_character_person_id == person.id
             ),
         )
 
     def get(self, person_id: int) -> Person:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         person = self.db.get(Person, person_id)
         if (
             person is None
@@ -69,6 +73,7 @@ class PersonService:
         return person
 
     def list(self) -> list[Person]:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         statement = (
             select(Person)
             .where(Person.campaign_id == self.context.campaign_id)
@@ -109,6 +114,7 @@ class PersonService:
 
     def stage_create(self, person: PersonData) -> Person:
         """Create and synchronize a person in the caller-owned transaction."""
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         db_person = Person(
             campaign_id=self.context.campaign_id,
             name=person.name.strip(),
@@ -155,6 +161,10 @@ class PersonService:
     ) -> Person:
         """Update a person in the caller-owned transaction."""
         person = self.get(person_id)
+        if self.db.get(CharacterProfile, person_id) is not None:
+            self.context.require_character_write(person_id)
+        else:
+            self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         previous_name = person.name
         person.name = updated_person.name.strip()
         person.role = updated_person.role.strip()
@@ -228,6 +238,10 @@ class PersonService:
     def delete(self, person_id: int) -> DeleteResponse:
         person = self.get(person_id)
         profile = self.db.get(CharacterProfile, person.id)
+        if profile is not None:
+            self.context.require_character_write(person_id)
+        else:
+            self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         portrait_path = profile.image_path if profile is not None else ""
 
         try:
@@ -239,9 +253,32 @@ class PersonService:
                     self.context,
                 ).stage_delete_all_for_character(person.id)
 
-            if self.context.campaign.active_character_person_id == person.id:
-                self.context.campaign.active_character_person_id = None
-                self.db.add(self.context.campaign)
+            memberships = self.db.exec(
+                select(CampaignMembership).where(
+                    CampaignMembership.campaign_id
+                    == self.context.campaign_id,
+                    (
+                        (
+                            CampaignMembership.assigned_character_person_id
+                            == person.id
+                        )
+                        | (
+                            CampaignMembership.active_character_person_id
+                            == person.id
+                        )
+                    ),
+                )
+            ).all()
+            for membership in memberships:
+                if (
+                    membership.active_character_person_id == person.id
+                ):
+                    membership.active_character_person_id = None
+                if (
+                    membership.assigned_character_person_id == person.id
+                ):
+                    membership.assigned_character_person_id = None
+                self.db.add(membership)
 
             self.tags.stage_handle_resource_deletion(
                 ResourceType.PERSON,

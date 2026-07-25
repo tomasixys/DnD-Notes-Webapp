@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api.rolls import (
     CampaignRollStats,
     EpisodeRollStats,
@@ -19,7 +22,7 @@ router = APIRouter(
 
 @router.get("/campaign-stats")
 def get_campaign_roll_stats(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> CampaignRollStats:
     return RollService(context).get_campaign_stats()
 
@@ -27,7 +30,7 @@ def get_campaign_roll_stats(
 @router.get("/sessions/{episode_id}")
 def get_episode_roll_stats(
     episode_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> EpisodeRollStats:
     return RollService(context).get_episode_stats(episode_id)
 
@@ -35,7 +38,7 @@ def get_episode_roll_stats(
 @router.post("")
 def create_roll(
     roll_create: RollCreate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> RollMutationResponse:
     return RollService(context).create(roll_create)
 
@@ -43,6 +46,6 @@ def create_roll(
 @router.delete("/sessions/{episode_id}")
 def delete_episode_rolls(
     episode_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> RollMutationResponse:
     return RollService(context).delete_for_episode(episode_id)
