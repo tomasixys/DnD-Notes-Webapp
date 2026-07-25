@@ -447,7 +447,7 @@ const campaignBannerPreviewUrl = computed(() => {
 
           <div class="campaign-list-actions">
             <button
-              v-if="campaignCan(campaign, 'campaign.update')"
+              v-if="campaignCan(campaign, 'campaign.read')"
               type="button"
               @click="switchCampaign(campaign.id)"
             >
@@ -455,7 +455,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
-              v-if="campaignCan(campaign, 'campaign.export')"
+              v-if="campaignCan(campaign, 'campaign.update')"
               type="button"
               class="secondary"
               @click="showEditCampaignForm(campaign.id)"
@@ -464,7 +464,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
-              v-if="campaignCan(campaign, 'campaign.delete')"
+              v-if="campaignCan(campaign, 'campaign.export')"
               type="button"
               class="secondary"
               @click="exportCampaign(campaign.id)"
@@ -473,6 +473,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.delete')"
               type="button"
               class="danger"
               @click="showDeleteCampaignPopup = true; selectCampaign(campaign.id)"

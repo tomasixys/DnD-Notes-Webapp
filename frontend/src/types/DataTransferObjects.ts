@@ -59,8 +59,59 @@ export type AccountMutationDto = {
 }
 
 export type SessionMutationDto = {
-  message: string
-  revokedSessions: number
+    message: string
+    revokedSessions: number
+}
+
+export type IssuedAccountTokenDto = {
+  user: AuthUserDto
+  token: string
+  expiresAt: string
+}
+
+export type CampaignMembershipDto = {
+  id: number
+  userId: number
+  username: string
+  displayName: string
+  role: CampaignRole
+  assignedCharacterPersonId: number | null
+  activeCharacterPersonId: number | null
+  capabilities: CampaignCapability[]
+}
+
+export type CampaignInvitationStatus =
+  | "pending"
+  | "accepted"
+  | "revoked"
+  | "expired"
+
+export type CampaignInvitationDto = {
+  id: number
+  campaignId: number
+  campaignName: string
+  invitedUserId: number
+  username: string
+  displayName: string
+  role: CampaignRole
+  status: CampaignInvitationStatus
+  createdAt: string
+  expiresAt: string
+}
+
+export type IssuedCampaignInvitationDto = {
+  invitation: CampaignInvitationDto
+  token: string
+}
+
+export type CampaignInvitationAcceptanceDto = {
+  invitation: CampaignInvitationDto
+  membership: CampaignMembershipDto
+}
+
+export type CampaignOwnershipTransferDto = {
+  previousOwner: CampaignMembershipDto
+  newOwner: CampaignMembershipDto
 }
 
 export type DeleteResponseDto = {

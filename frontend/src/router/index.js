@@ -1,6 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from "@/stores/authStore"
 
+const pendingCampaignInvitationKey = "pendingCampaignInvitationToken"
+
+function campaignInvitationToken(route) {
+  if (route.name !== "AcceptCampaignInvitation") return null
+  const fragment = new URLSearchParams(route.hash.replace(/^#/, ""))
+  const value = fragment.get("token") ?? route.query.token
+  return typeof value === "string" && value ? value : null
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -53,10 +62,28 @@ const router = createRouter({
       meta: { requiresAuth: true, authPage: true },
     },
     {
+      path: '/invitations',
+      name: 'CampaignInvitations',
+      component: () => import('../views/campaignInvitationView.vue'),
+      meta: { requiresAuth: true, hostedOnly: true, authPage: true },
+    },
+    {
+      path: '/invitations/accept',
+      name: 'AcceptCampaignInvitation',
+      component: () => import('../views/campaignInvitationView.vue'),
+      meta: { requiresAuth: true, hostedOnly: true, authPage: true },
+    },
+    {
       path: '/dashboard',
       name: 'Dashboard',
       component: () => import('../views/dashboardView.vue'),
       meta: { requiresAuth: true },
+    },
+    {
+      path: '/members',
+      name: 'CampaignMembers',
+      component: () => import('../views/campaignMembersView.vue'),
+      meta: { requiresAuth: true, hostedOnly: true },
     },
     {
       path: '/sessions/:id(\\d+)?',
@@ -179,11 +206,29 @@ router.beforeEach(async (to) => {
     await auth.bootstrap()
   }
 
+  const invitationToken = campaignInvitationToken(to)
+  if (invitationToken) {
+    sessionStorage.setItem(
+      pendingCampaignInvitationKey,
+      invitationToken,
+    )
+  }
+
   if (to.meta.requiresAuth && !auth.isAuthenticated.value) {
     return {
       name: "Login",
-      query: { redirect: to.fullPath },
+      query: {
+        redirect: (
+          to.name === "AcceptCampaignInvitation"
+            ? "/invitations/accept"
+            : to.fullPath
+        ),
+      },
     }
+  }
+
+  if (to.meta.hostedOnly && !auth.authenticationRequired.value) {
+    return { name: "Dashboard" }
   }
 
   if (

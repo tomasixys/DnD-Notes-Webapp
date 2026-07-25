@@ -28,6 +28,12 @@ const mainLinks = computed(() => [
   { label: "Factions", to: "/factions" },
   { label: "Character", to: "/character/overview" },
   { label: "Inventory", to: "/inventory" },
+  ...(
+    auth.authenticationRequired.value
+    && selectedCampaign.value?.capabilities.includes("membership.read")
+      ? [{ label: "Members", to: "/members" }]
+      : []
+  ),
 ])
 
 const currentRouteGroup = computed(() => {
@@ -253,6 +259,12 @@ async function logout() {
           />
 
           <div class="account-nav">
+            <RouterLink
+              v-if="auth.authenticationRequired.value"
+              to="/invitations"
+            >
+              Invitations
+            </RouterLink>
             <RouterLink to="/profile">
               {{ auth.user.value?.displayName || auth.user.value?.username }}
             </RouterLink>
