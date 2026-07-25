@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import SecretStr
@@ -40,3 +41,24 @@ class AuthSessionRead(SQLModel):
 class SessionMutationRead(SQLModel):
     message: str
     revoked_sessions: int
+
+
+class InviteUserRequest(SQLModel):
+    username: str
+    display_name: str = ""
+
+
+class AccountTokenRequest(SQLModel):
+    token: SecretStr
+    password: SecretStr
+
+
+class IssuedAccountTokenRead(SQLModel):
+    user: AuthUserRead
+    token: str
+    expires_at: datetime
+
+
+class AccountMutationRead(SQLModel):
+    user: AuthUserRead
+    message: str

@@ -29,6 +29,9 @@ and this changelog follows the structure described by
 - Enabled hosted startup with mounted authentication endpoints, complete
   session/CSRF protection for hosted API and upload paths, and a non-login
   internal identity for local mode.
+- Added administrator-issued activation and password-reset tokens, invite-only
+  account creation, account tombstoning, keyed source login throttling, and
+  persistent security events.
 - Added typed SQLite/PostgreSQL database URL and pool settings with
   environment-referenced hosted credentials.
 - Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy

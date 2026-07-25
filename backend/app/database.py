@@ -110,7 +110,9 @@ def _load_database_models() -> None:
     from app.auth.models import (  # noqa: F401
         AccountToken,
         AuthSession,
+        LoginThrottle,
         PasswordCredential,
+        SecurityEvent,
         User,
     )
     from app.models.database import (  # noqa: F401

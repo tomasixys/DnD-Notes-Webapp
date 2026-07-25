@@ -11,7 +11,9 @@ from sqlmodel import SQLModel
 from app.auth.models import (
     AccountToken,
     AuthSession,
+    LoginThrottle,
     PasswordCredential,
+    SecurityEvent,
     User,
 )
 from app.models.database import Installation
@@ -23,6 +25,8 @@ DEVELOPMENT_TABLE_NAMES = (
     "password_credential",
     "auth_session",
     "account_token",
+    "login_throttle",
+    "security_event",
 )
 
 

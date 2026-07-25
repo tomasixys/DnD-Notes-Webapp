@@ -1,6 +1,6 @@
 # Hosted multi-user development plan
 
-Status: Milestone 1 in progress
+Status: Milestones 1-2 implemented; PostgreSQL CI verification pending
 
 Updated: 2026-07-25
 
@@ -372,7 +372,7 @@ Exit criteria:
 **Purpose:** establish who is making a request, without yet claiming that login
 alone grants campaign access.
 
-Status: identity persistence in progress
+Status: implementation complete; CI verification pending
 
 Progress:
 
@@ -385,8 +385,13 @@ Progress:
 - [x] Add generic local credential verification, bounded account lockout,
   digest-backed revocable sessions, idle/absolute expiry, session-bound CSRF,
   and login/logout/current-session router foundations.
-- [ ] Add login/logout/current-session APIs, CSRF enforcement, throttling, and
+- [x] Add login/logout/current-session APIs, CSRF enforcement, throttling, and
   complete hosted route protection.
+- [x] Add invite-only activation, administrator-issued password reset,
+  account tombstoning, keyed source throttling, and persistent security
+  events.
+- [x] Keep development identities in isolated test fixtures only; production
+  has no fixture switch or default credential.
 
 Suggested data model:
 

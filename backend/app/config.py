@@ -318,6 +318,31 @@ class SecuritySettings(StrictSettingsModel):
         ge=1,
         le=86400,
     )
+    login_source_failure_limit: int = Field(
+        default=20,
+        ge=5,
+        le=1000,
+    )
+    login_source_window_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=86400,
+    )
+    login_source_lock_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=86400,
+    )
+    activation_token_lifetime_minutes: int = Field(
+        default=10080,
+        ge=5,
+        le=43200,
+    )
+    password_reset_token_lifetime_minutes: int = Field(
+        default=60,
+        ge=5,
+        le=1440,
+    )
 
     @field_validator("session_secret_env")
     @classmethod

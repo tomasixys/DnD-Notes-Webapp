@@ -20,15 +20,15 @@ SQLite and uploaded files remain in the operating system's user-data directory.
 - Search campaign resources, including character notes and backstory.
 - Link directly to individual resources through their URLs.
 
-DnD Notes currently runs as a local, single-user application. A self-hosted
-multi-user mode for private servers is under development. It will keep local
-DnD Notes user accounts, PostgreSQL data, and protected files under the
-operator's control; hosted startup remains disabled until authentication and
-authorization are complete.
+DnD Notes supports the established local single-user mode and has an
+in-development authenticated server mode for private hosting. Server mode
+keeps application-managed user accounts, PostgreSQL data, and protected files
+under the operator's control. Campaign membership and resource authorization
+remain the next development milestone before a hosted release.
 
 ## Technology
 
-- FastAPI, SQLModel, and SQLite
+- FastAPI, SQLModel, SQLite, and PostgreSQL
 - Vue, Vue Router, TypeScript, and Vite
 - PyInstaller for host-native Windows and Linux application builds
 

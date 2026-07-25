@@ -27,6 +27,11 @@ session_absolute_lifetime_minutes = 10080
 login_failure_limit = 5
 login_initial_lock_seconds = 30
 login_maximum_lock_seconds = 900
+login_source_failure_limit = 20
+login_source_window_seconds = 300
+login_source_lock_seconds = 300
+activation_token_lifetime_minutes = 10080
+password_reset_token_lifetime_minutes = 60
 
 [server]
 # Bind loopback when a reverse proxy runs on the same server.

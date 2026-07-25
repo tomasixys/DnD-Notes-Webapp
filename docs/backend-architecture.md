@@ -193,7 +193,8 @@ administrator credentials are separate application-managed records.
 
 Hosted local identity is an independent application domain under `app/auth`.
 Its persistence state is split across `User`, `PasswordCredential`,
-`AuthSession`, and `AccountToken`. Password operations go through
+`AuthSession`, `AccountToken`, `LoginThrottle`, and `SecurityEvent`. Password
+operations go through
 `auth/passwords.py`, which delegates hashing and verification to
 `argon2-cffi`, upgrades hashes after successful verification when parameters
 change, and revokes server-side sessions during password reset. Offline
@@ -211,6 +212,17 @@ response body. Hosted mode mounts these routes and protects every other API
 path, including uploaded files, with session authentication and CSRF checks
 for unsafe methods. Local mode seeds one non-login internal user instead of
 exposing a hosted authentication bypass.
+
+System administrators create pending accounts through one-time activation
+tokens and may issue one-time password-reset tokens. Raw account tokens are
+returned once for the administrator to share and only their SHA-256 digests
+are stored. Password resets revoke existing sessions. Account deletion removes
+the credential, revokes sessions and active account tokens, and retains a
+tombstoned user row.
+
+Login defenses combine username/account lockout with a keyed, source-aware
+throttle. The source key is an HMAC derived from the runtime session secret, so
+throttle and security-event rows do not retain a raw network address.
 Pre-installation databases containing campaigns can be claimed only by local
 mode; moving desktop data into hosted mode remains an explicit import process.
 

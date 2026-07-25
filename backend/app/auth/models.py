@@ -3,7 +3,12 @@ from datetime import datetime, timezone
 from sqlalchemy import CheckConstraint, Enum as SAEnum, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
-from app.auth.enums import AccountTokenPurpose, SystemRole, UserStatus
+from app.auth.enums import (
+    AccountTokenPurpose,
+    SecurityEventType,
+    SystemRole,
+    UserStatus,
+)
 
 
 def utc_now() -> datetime:
@@ -130,3 +135,43 @@ class AccountToken(SQLModel, table=True):
         ondelete="SET NULL",
         index=True,
     )
+
+
+class LoginThrottle(SQLModel, table=True):
+    __tablename__ = "login_throttle"
+    __table_args__ = (
+        CheckConstraint(
+            "failed_attempts >= 0",
+            name="ck_login_throttle_failed_attempts",
+        ),
+    )
+
+    source_digest: str = Field(primary_key=True)
+    failed_attempts: int = 0
+    window_started_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+    locked_until: datetime | None = None
+
+
+class SecurityEvent(SQLModel, table=True):
+    __tablename__ = "security_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_type: SecurityEventType = Field(
+        sa_type=string_enum(SecurityEventType, "security_event_type"),
+        index=True,
+    )
+    user_id: int | None = Field(
+        default=None,
+        foreign_key="app_user.id",
+        ondelete="SET NULL",
+        index=True,
+    )
+    actor_user_id: int | None = Field(
+        default=None,
+        foreign_key="app_user.id",
+        ondelete="SET NULL",
+        index=True,
+    )
+    source_digest: str | None = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=utc_now, index=True)

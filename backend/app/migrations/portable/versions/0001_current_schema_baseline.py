@@ -9,6 +9,7 @@ from alembic import op
 from sqlmodel import SQLModel
 
 # Register all current tables before creating the baseline.
+from app.auth import models as auth_models  # noqa: F401
 from app.models import database as database_models  # noqa: F401
 
 

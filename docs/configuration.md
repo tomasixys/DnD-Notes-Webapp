@@ -143,10 +143,12 @@ access_key_env = "DND_NOTES_STORAGE_ACCESS_KEY"
 secret_key_env = "DND_NOTES_STORAGE_SECRET_KEY"
 ```
 
-Both choices validate the hosted storage boundary. The asset-authorization
-milestone replaces the public static upload mount with authorized file
-responses or short-lived signed object URLs. Filesystem storage is therefore
-not treated as public simply because it resides on the server.
+Both choices validate the hosted storage boundary. Session authentication
+already protects the hosted upload path. The asset-authorization milestone
+adds campaign membership checks and replaces broad authenticated serving with
+authorized file responses or short-lived signed object URLs. Filesystem
+storage is therefore not treated as public simply because it resides on the
+server.
 
 ### Security
 
@@ -164,6 +166,11 @@ session_absolute_lifetime_minutes = 10080
 login_failure_limit = 5
 login_initial_lock_seconds = 30
 login_maximum_lock_seconds = 900
+login_source_failure_limit = 20
+login_source_window_seconds = 300
+login_source_lock_seconds = 300
+activation_token_lifetime_minutes = 10080
+password_reset_token_lifetime_minutes = 60
 ```
 
 The referenced session secret must contain at least 32 bytes. Runtime startup
@@ -175,7 +182,14 @@ credentials are required only when that backend is selected.
 shorter. Failed passwords increment an account counter; after
 `login_failure_limit`, the lock begins at `login_initial_lock_seconds` and
 increases up to `login_maximum_lock_seconds`. Source-aware request throttling
-is still required before hosted startup is enabled.
+counts failures within `login_source_window_seconds`, blocks the keyed source
+digest at `login_source_failure_limit`, and releases it after
+`login_source_lock_seconds`. Raw source addresses are not stored in throttle
+or security-event records.
+
+Activation tokens default to seven days and password-reset tokens to one hour.
+Both are single-use, stored only as SHA-256 digests, and replaced when an
+administrator issues a newer token for the same account and purpose.
 
 ### Server
 
@@ -233,11 +247,11 @@ The singleton installation row records:
 Mode mismatch is a startup error. A future hosted/local conversion must use an
 explicit migration or export/import workflow.
 
-## Next hosted configuration consumers
+## Hosted security consumers
 
-Milestone 1 validates and resolves the security-sensitive configuration.
-Identity/session work consumes the cookie settings and adds password/session
-policy in Milestone 2.
-Authorized filesystem/object access is introduced with the asset milestone.
-Persisted application users and administrators remain application-managed
-state rather than configuration.
+Milestones 1 and 2 validate and consume the deployment, cookie, password,
+session, throttling, and token settings. Hosted API paths and filesystem
+uploads require authentication; campaign membership and per-resource access
+are introduced in later authorization milestones. Persisted application users
+and administrators remain application-managed state rather than
+configuration.

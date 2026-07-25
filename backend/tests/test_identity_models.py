@@ -167,6 +167,8 @@ class IdentityDevelopmentMigrationTests(unittest.TestCase):
                     "password_credential",
                     "auth_session",
                     "account_token",
+                    "login_throttle",
+                    "security_event",
                 }.issubset(tables)
             )
         finally:

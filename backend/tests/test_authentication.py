@@ -315,6 +315,7 @@ class AuthenticationRouterFoundationTests(
                 request=request(),
                 response=response,
                 settings=hosted_settings(),
+                session_secret="s" * 32,
                 db=db,
             )
 
@@ -343,6 +344,7 @@ class AuthenticationRouterFoundationTests(
                     request=request(),
                     response=Response(),
                     settings=hosted_settings(),
+                    session_secret="s" * 32,
                     db=db,
                 )
             self.assertEqual(401, error.exception.status_code)

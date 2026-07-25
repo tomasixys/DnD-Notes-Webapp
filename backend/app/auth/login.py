@@ -57,12 +57,16 @@ class AuthenticationService:
             return None
 
         user = self.db.exec(
-            select(User).where(
-                User.normalized_username == normalized
-            )
+            select(User)
+            .where(User.normalized_username == normalized)
+            .with_for_update()
         ).first()
         credential = (
-            self.db.get(PasswordCredential, user.id)
+            self.db.exec(
+                select(PasswordCredential)
+                .where(PasswordCredential.user_id == user.id)
+                .with_for_update()
+            ).first()
             if user is not None and user.id is not None
             else None
         )
