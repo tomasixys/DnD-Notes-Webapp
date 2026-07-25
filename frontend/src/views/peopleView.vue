@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref, onBeforeMount } from "vue"
 import { RouterLink } from "vue-router"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import type {
@@ -113,17 +119,18 @@ async function fetchPeople() {
     return
   }
 
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/people`)
-  if (response.success === false) {
+  const response = await GetAPI<PersonDto[]>(
+    `campaigns/${selectedCampaignId.value}/people`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to fetch people:", response.error)
     return
   }
-
   if (!Array.isArray(response)) {
     console.error("Failed to fetch people: Response is not an array")
     return
   }
-  people.value = response as PersonDto[]
+  people.value = response
 }
 
 async function createPerson() {
@@ -140,12 +147,15 @@ async function createPerson() {
     tags: parseTags(personForm.tags),
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/people`, person)
-  if (response.success === false) {
+  const response = await PostAPI<PersonDto>(
+    `campaigns/${selectedCampaignId.value}/people`,
+    person,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create person:", response.error)
     return
   }
-  const createdPerson = response as PersonDto
+  const createdPerson = response
   people.value = upsertById(
     people.value,
     createdPerson,
@@ -171,12 +181,15 @@ async function updatePerson() {
     tags: parseTags(personForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/people/${personId}`, person)
-  if (response.success === false) {
+  const response = await PutAPI<PersonDto>(
+    `campaigns/${selectedCampaignId.value}/people/${personId}`,
+    person,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update person:", response.error)
     return
   }
-  const updatedPerson = response as PersonDto
+  const updatedPerson = response
   people.value = upsertById(
     people.value,
     updatedPerson,
@@ -191,13 +204,14 @@ async function deletePerson() {
   const campaignId = selectedCampaignId.value
   const deletedPersonWasActive = selectedEntry.value.isActiveCharacter
 
-  const response = await DeleteAPI(`campaigns/${campaignId}/people/${selectedEntry.value.id}`)
-  if (response.success === false) {
+  const response = await DeleteAPI<DeleteResponseDto>(
+    `campaigns/${campaignId}/people/${selectedEntry.value.id}`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to delete person:", response.error)
     return
   }
-  const deleted = response as DeleteResponseDto
-  people.value = removeById(people.value, deleted.deletedId)
+  people.value = removeById(people.value, response.deletedId)
   if (deletedPersonWasActive) {
     setCampaignActiveCharacter(campaignId, null)
   }

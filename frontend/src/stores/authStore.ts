@@ -10,6 +10,7 @@ import type {
   AccountMutationDto,
   AuthSessionDto,
   AuthUserDto,
+  SessionMutationDto,
 } from "@/types/DataTransferObjects"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useSearchStore } from "@/stores/searchStore"
@@ -79,7 +80,7 @@ async function bootstrap() {
   if (bootstrapPromise) return bootstrapPromise
   bootstrapPromise = (async () => {
     state.value = "loading"
-    const response = await GetAPI(
+    const response = await GetAPI<AuthSessionDto>(
       "auth/session",
       { notifyFailures: false },
     )
@@ -88,13 +89,13 @@ async function bootstrap() {
       clearSession("anonymous")
       return
     }
-    applySession(response as AuthSessionDto)
+    applySession(response)
   })()
   return bootstrapPromise
 }
 
 async function login(username: string, password: string) {
-  const response = await PostAPI(
+  const response = await PostAPI<AuthSessionDto>(
     "auth/login",
     { username, password },
     { notifyFailures: false },
@@ -103,12 +104,12 @@ async function login(username: string, password: string) {
     lastFailure.value = response
     return response
   }
-  applySession(response as AuthSessionDto)
-  return response as AuthSessionDto
+  applySession(response)
+  return response
 }
 
 async function logout(allSessions = false) {
-  await PostAPI(
+  await PostAPI<SessionMutationDto>(
     allSessions ? "auth/logout-all" : "auth/logout",
     {},
     { notifyFailures: false },
@@ -121,7 +122,7 @@ async function completeAccountToken(
   token: string,
   password: string,
 ) {
-  const response = await PostAPI(
+  const response = await PostAPI<AccountMutationDto>(
     `auth/${purpose}`,
     { token, password },
     { notifyFailures: false },
@@ -131,7 +132,7 @@ async function completeAccountToken(
     return response
   }
   lastFailure.value = null
-  return response as AccountMutationDto
+  return response
 }
 
 function setNavigationHandler(handler: NavigationHandler) {

@@ -2,7 +2,7 @@
 import { computed, provide, ref, watch } from "vue"
 import { RouterView, useRoute, useRouter } from "vue-router"
 
-import { GetAPI } from "@/apihelpers"
+import { GetAPI, isApiFailure } from "@/apihelpers"
 import { sessionContextKey } from "@/composables/useSessionContext"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type { SessionListItemDto } from "@/types/DataTransferObjects"
@@ -45,12 +45,18 @@ async function loadSessions() {
   sessions.value = []
   if (!selectedCampaignId.value) return
 
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/sessions`)
-  if (!Array.isArray(response)) {
-    console.error("Failed to fetch sessions:", response?.error ?? "Response is not an array")
+  const response = await GetAPI<SessionListItemDto[]>(
+    `campaigns/${selectedCampaignId.value}/sessions`,
+  )
+  if (isApiFailure(response)) {
+    console.error("Failed to fetch sessions:", response.error)
     return
   }
-  sessions.value = response as SessionListItemDto[]
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch sessions: Response is not an array")
+    return
+  }
+  sessions.value = response
 }
 
 function upsertSession(session: SessionListItemDto) {

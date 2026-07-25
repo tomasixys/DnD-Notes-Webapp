@@ -58,6 +58,11 @@ export type AccountMutationDto = {
   message: string
 }
 
+export type SessionMutationDto = {
+  message: string
+  revokedSessions: number
+}
+
 export type DeleteResponseDto = {
   deletedId: number
 }

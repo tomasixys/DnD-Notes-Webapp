@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { reactive, ref, onBeforeMount } from "vue"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import type {
@@ -104,12 +110,18 @@ async function fetchLocations() {
     console.error("No campaign selected. Cannot fetch locations.")
     return
   }
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/locations`)
-  if (response.success === false || !Array.isArray(response)) {
-    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
+  const response = await GetAPI<LocationDto[]>(
+    `campaigns/${selectedCampaignId.value}/locations`,
+  )
+  if (isApiFailure(response)) {
+    console.error("Failed to fetch locations:", response.error)
     return
   }
-  locations.value = response as LocationDto[]
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch locations: Response is not an array")
+    return
+  }
+  locations.value = response
 }
 
 async function createLocation() {
@@ -124,12 +136,15 @@ async function createLocation() {
     tags: parseTags(locationForm.tags),
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/locations`, location)
-  if (response.success === false) {
+  const response = await PostAPI<LocationDto>(
+    `campaigns/${selectedCampaignId.value}/locations`,
+    location,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create location:", response.error)
     return
   }
-  const createdLocation = response as LocationDto
+  const createdLocation = response
 
   locations.value = upsertById(
     locations.value,
@@ -153,12 +168,15 @@ async function updateLocation() {
     tags: parseTags(locationForm.tags),
   }
   const locationId = selectedEntry.value.id
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${locationId}`, location)
-  if (response.success === false) {
+  const response = await PutAPI<LocationDto>(
+    `campaigns/${selectedCampaignId.value}/locations/${locationId}`,
+    location,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update location:", response.error)
     return
   }
-  const updatedLocation = response as LocationDto
+  const updatedLocation = response
   locations.value = upsertById(
     locations.value,
     updatedLocation,
@@ -171,15 +189,16 @@ async function updateLocation() {
 async function deleteLocation() {
   if (!selectedCampaignId.value || !selectedEntry.value) return
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`)
-  if (response.success === false) {
+  const response = await DeleteAPI<DeleteResponseDto>(
+    `campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to delete location:", response.error)
     return
   }
-  const deleted = response as DeleteResponseDto
   locations.value = removeById(
     locations.value,
-    deleted.deletedId,
+    response.deletedId,
   )
   await replaceWithFirstEntry()
 }

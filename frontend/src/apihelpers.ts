@@ -181,7 +181,7 @@ type RequestOptions = {
   notifyFailures?: boolean
 }
 
-export async function GetAPI<T = any>(
+export async function GetAPI<T = unknown>(
   endpoint: string,
   {
     parseResponseJson = true,
@@ -198,14 +198,14 @@ export async function GetAPI<T = any>(
   return applyMutationSideEffects(endpoint, method, response) as T | ApiFailure
 }
 
-export async function DeleteAPI<T = any>(
+export async function DeleteAPI<T = unknown>(
   endpoint: string,
   options: RequestOptions = {},
 ): Promise<T | ApiFailure> {
   return GetAPI<T>(endpoint, { ...options, method: "DELETE" })
 }
 
-export async function PostAPI<T = any>(
+export async function PostAPI<T = unknown>(
   endpoint: string,
   data: unknown,
   {
@@ -227,7 +227,7 @@ export async function PostAPI<T = any>(
   return applyMutationSideEffects(endpoint, method, response) as T | ApiFailure
 }
 
-export async function PutAPI<T = any>(
+export async function PutAPI<T = unknown>(
   endpoint: string,
   data: unknown,
   options: RequestOptions = {},
@@ -235,7 +235,7 @@ export async function PutAPI<T = any>(
   return PostAPI<T>(endpoint, data, { ...options, method: "PUT" })
 }
 
-export async function PatchAPI<T = any>(
+export async function PatchAPI<T = unknown>(
   endpoint: string,
   data: unknown,
   options: RequestOptions = {},
@@ -243,7 +243,7 @@ export async function PatchAPI<T = any>(
   return PostAPI<T>(endpoint, data, { ...options, method: "PATCH" })
 }
 
-export async function PostFormDataAPI<T = any>(
+export async function PostFormDataAPI<T = unknown>(
   endpoint: string,
   formData: FormData,
   {
@@ -261,7 +261,7 @@ export async function PostFormDataAPI<T = any>(
   return applyMutationSideEffects(endpoint, method, response) as T | ApiFailure
 }
 
-export async function PutFormDataAPI<T = any>(
+export async function PutFormDataAPI<T = unknown>(
   endpoint: string,
   formData: FormData,
   options: RequestOptions = {},

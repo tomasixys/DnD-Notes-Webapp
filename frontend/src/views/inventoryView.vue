@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeMount, reactive, ref } from "vue"
 
-import { DeleteAPI, GetAPI, PatchAPI, PostAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PatchAPI,
+  PostAPI,
+} from "@/apihelpers"
 import ConfirmationPopup from "@/components/ConfirmationPopup.vue"
 import Popup from "@/components/Popup.vue"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
@@ -129,15 +135,6 @@ const purseChanges = reactive<Record<CurrencyDenomination, number>>({
   pp: 0,
 })
 
-function isApiError(response: unknown): response is { success: false; message?: string } {
-  return (
-    typeof response === "object" &&
-    response !== null &&
-    "success" in response &&
-    response.success === false
-  )
-}
-
 function moneyValue(money: { amount: string } | null | undefined): number {
   if (!money) return 0
   const amount = Number(money.amount)
@@ -205,15 +202,15 @@ async function fetchInventory() {
 
   loading.value = true
   pageError.value = ""
-  const response = await GetAPI(inventoryEndpoint())
+  const response = await GetAPI<InventoryDto>(inventoryEndpoint())
 
-  if (isApiError(response)) {
-    pageError.value = response.message ?? "Could not load the inventory."
+  if (isApiFailure(response)) {
+    pageError.value = response.message
     loading.value = false
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   loading.value = false
   await ensureDefaultEntry()
 }
@@ -272,13 +269,16 @@ async function createItem() {
 
   formError.value = ""
   const existingIds = new Set(items.value.map((item) => item.id))
-  const response = await PostAPI(inventoryEndpoint("/items"), itemPayload())
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not add the item."
+  const response = await PostAPI<InventoryDto>(
+    inventoryEndpoint("/items"),
+    itemPayload(),
+  )
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   const createdItem = inventory.value.items.find((item) => !existingIds.has(item.id))
   resetItemForm()
   viewMode.value = ViewModes.Details
@@ -291,16 +291,16 @@ async function updateItem() {
   formError.value = ""
   const itemId = selectedEntry.value.id
   const payload: InventoryItemUpdateDto = itemPayload()
-  const response = await PatchAPI(
+  const response = await PatchAPI<InventoryDto>(
     inventoryEndpoint(`/items/${itemId}`),
     payload,
   )
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not update the item."
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   resetItemForm()
   viewMode.value = ViewModes.Details
   await openEntry(itemId, true)
@@ -309,16 +309,16 @@ async function updateItem() {
 async function deleteItem() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
 
-  const response = await DeleteAPI(
+  const response = await DeleteAPI<InventoryDto>(
     inventoryEndpoint(`/items/${selectedEntry.value.id}`),
   )
   showDeleteConfirmation.value = false
-  if (isApiError(response)) {
-    pageError.value = response.message ?? "Could not remove the item."
+  if (isApiFailure(response)) {
+    pageError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   viewMode.value = ViewModes.Details
   await replaceWithFirstEntry()
 }
@@ -362,13 +362,16 @@ async function updatePurse(action: PurseAction) {
   }
 
   const payload: PurseUpdateDto = { balances }
-  const response = await PatchAPI(inventoryEndpoint("/purse"), payload)
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not update the purse."
+  const response = await PatchAPI<InventoryDto>(
+    inventoryEndpoint("/purse"),
+    payload,
+  )
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   showPurseManager.value = false
 }
 

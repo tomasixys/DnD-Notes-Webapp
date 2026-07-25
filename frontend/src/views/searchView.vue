@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
-import { PostAPI } from "@/apihelpers"
+import { isApiFailure, PostAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useSearchStore } from "@/stores/searchStore"
 import type { SearchResponseDto, SearchResultDto, SearchQueryDto} from "@/types/DataTransferObjects"
@@ -68,12 +68,15 @@ async function getSearchResults(query: string, resourceTypes: ResourceType[])
     return
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/search`, searchQuery)
-  if (response.success === false) {
+  const response = await PostAPI<SearchResponseDto>(
+    `campaigns/${selectedCampaignId.value}/search`,
+    searchQuery,
+  )
+  if (isApiFailure(response)) {
     console.error("Search API request failed:", response.error)
     return
   }
-  const responseDto = response as SearchResponseDto
+  const responseDto = response
 
   console.log("Search API response:", responseDto)
 

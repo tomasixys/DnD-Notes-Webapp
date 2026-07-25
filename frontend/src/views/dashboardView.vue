@@ -7,7 +7,15 @@ import type {
   ExportResponse,
 } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
+import {
+  apiUrl,
+  DeleteAPI,
+  DownloadAPI,
+  GetAPI,
+  isApiFailure,
+  PostFormDataAPI,
+  PutFormDataAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import ConfirmationPopup from "../components/ConfirmationPopup.vue";
 
@@ -132,9 +140,9 @@ function buildCampaignFormData(): FormData {
 }
 
 async function fetchCampaigns() {
-    const response = await GetAPI("campaigns")
+    const response = await GetAPI<CampaignsDto[]>("campaigns")
 
-    if (response.success === false) {
+    if (isApiFailure(response)) {
         console.error("Failed to fetch campaigns:", response.error)
         return
     }
@@ -150,14 +158,17 @@ async function createCampaign() {
 
   if (!newCampaign.name.trim()) return
 
-  let campaign = buildCampaignFormData()
+  const campaign = buildCampaignFormData()
 
-  const response = await PostFormDataAPI("campaigns", campaign)
-  if (response.success === false) {
+  const response = await PostFormDataAPI<CampaignsDto>(
+    "campaigns",
+    campaign,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create campaign:", response.error)
     return
   }
-  const created = response as CampaignsDto;
+  const created = response;
   if (created.id === 0) {
     console.error("Failed to create campaign: Invalid campaign ID returned")
     return
@@ -174,12 +185,15 @@ async function updateCampaign(campaignId: number) {
 
   const campaign = buildCampaignFormData()
 
-  const response = await PutFormDataAPI(`campaigns/${campaignId}`, campaign)
-  if (response.success === false) {
+  const response = await PutFormDataAPI<CampaignsDto>(
+    `campaigns/${campaignId}`,
+    campaign,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update campaign:", response.error)
     return
   }
-  const updatedCampaign = response as CampaignsDto;
+  const updatedCampaign = response;
   upsertCampaign(updatedCampaign)
   switchCampaign(updatedCampaign.id)
 
@@ -187,27 +201,28 @@ async function updateCampaign(campaignId: number) {
 }
 
 async function deleteCampaign(campaignId: number) {
-  const response = await DeleteAPI(`campaigns/${campaignId}`)
+  const response = await DeleteAPI<DeleteResponseDto>(
+    `campaigns/${campaignId}`,
+  )
 
-  if (response.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to delete campaign:", response.error)
     return
   }
-  const deleted = response as DeleteResponseDto
-  removeCampaign(deleted.deletedId)
+  removeCampaign(response.deletedId)
 }
 
 async function exportCampaign(campaignId: number) {
-  const response = await GetAPI(`campaigns/${campaignId}/backup/export`)
-  if (response.success === false) {
+  const response = await GetAPI<ExportResponse>(
+    `campaigns/${campaignId}/backup/export`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to export campaign:", response.error)
     return
   }
   console.log("Exported campaign:", response)
-  const exportResponse = response as ExportResponse
-
-  const downloadResponse = await DownloadAPI(exportResponse.backupUrl)
-  if (!downloadResponse.success) {
+  const downloadResponse = await DownloadAPI(response.backupUrl)
+  if (isApiFailure(downloadResponse)) {
     console.error("Failed to download campaign backup:", downloadResponse.error)
     return
   }
@@ -225,15 +240,17 @@ async function importCampaign() {
     const formData = new FormData()
     formData.append("backup", file)
 
-    const response = await PostFormDataAPI("campaigns/backup/import", formData)
-    if (response.success === false) {
+    const response = await PostFormDataAPI<CampaignsDto>(
+      "campaigns/backup/import",
+      formData,
+    )
+    if (isApiFailure(response)) {
       console.error("Failed to import campaign:", response.error)
       return
     }
     console.log("Imported campaign:", response)
-    const importedCampaign = response as CampaignsDto
-    upsertCampaign(importedCampaign)
-    switchCampaign(importedCampaign.id)
+    upsertCampaign(response)
+    switchCampaign(response.id)
   }
   input.click()
 }

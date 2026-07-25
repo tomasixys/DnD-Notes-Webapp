@@ -2,7 +2,13 @@
 import { computed, reactive, ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
-import { DeleteAPI, GetAPI, PostAPI, PutAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useCharacterContext } from "@/composables/useCharacterContext"
 import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
@@ -139,23 +145,30 @@ async function fetchEntries() {
   mode.value = "details"
   requestError.value = ""
   if (!selectedCampaignId.value || !character.value) return
-  const response = await GetAPI(notesEndpoint())
-  if (!Array.isArray(response)) {
+  const response = await GetAPI<CharacterNoteDto[]>(notesEndpoint())
+  if (isApiFailure(response)) {
     requestError.value = `The ${sectionTitle.value.toLowerCase()} could not be loaded.`
     return
   }
-  entries.value = response as CharacterNoteDto[]
+  if (!Array.isArray(response)) {
+    requestError.value = `The ${sectionTitle.value.toLowerCase()} response was invalid.`
+    return
+  }
+  entries.value = response
   await ensureDefaultEntry()
 }
 
 async function createEntry() {
   if (!form.title.trim() || !character.value) return
-  const response = await PostAPI(notesEndpoint(), notePayload())
-  if (response?.success === false) {
+  const response = await PostAPI<CharacterNoteDto>(
+    notesEndpoint(),
+    notePayload(),
+  )
+  if (isApiFailure(response)) {
     requestError.value = `The ${singularTitle.value} could not be created.`
     return
   }
-  const created = response as CharacterNoteDto
+  const created = response
   entries.value = upsertById(
     entries.value,
     created,
@@ -168,15 +181,15 @@ async function createEntry() {
 
 async function updateEntry() {
   if (!form.title.trim() || !selectedEntry.value) return
-  const response = await PutAPI(
+  const response = await PutAPI<CharacterNoteDto>(
     `${notesEndpoint()}/${selectedEntry.value.id}`,
     notePayload(),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = `The ${singularTitle.value} could not be updated.`
     return
   }
-  const updated = response as CharacterNoteDto
+  const updated = response
   entries.value = upsertById(
     entries.value,
     updated,
@@ -189,13 +202,14 @@ async function updateEntry() {
 async function deleteEntry() {
   if (!selectedEntry.value) return
   const deletedId = selectedEntry.value.id
-  const response = await DeleteAPI(`${notesEndpoint()}/${deletedId}`)
-  if (response?.success === false) {
+  const response = await DeleteAPI<DeleteResponseDto>(
+    `${notesEndpoint()}/${deletedId}`,
+  )
+  if (isApiFailure(response)) {
     requestError.value = `The ${singularTitle.value} could not be deleted.`
     return
   }
-  const deleted = response as DeleteResponseDto
-  entries.value = removeById(entries.value, deleted.deletedId)
+  entries.value = removeById(entries.value, response.deletedId)
   const firstEntry = entries.value[0]
   await router.replace({
     name: routeName.value,

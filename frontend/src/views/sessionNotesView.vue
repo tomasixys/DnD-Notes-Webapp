@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue"
 
-import { DeleteAPI, PostAPI, PutAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useSessionContext } from "@/composables/useSessionContext"
 import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
@@ -86,16 +91,16 @@ function sessionPayload(sessionNumber: number): SessionDataDto {
 async function createSession() {
   if (!selectedCampaignId.value || !sessionForm.title.trim()) return
   const campaignId = selectedCampaignId.value
-  const response = await PostAPI(
+  const response = await PostAPI<SessionListItemDto>(
     `campaigns/${campaignId}/sessions`,
     sessionPayload(nextSessionNumber.value),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be created."
     return
   }
 
-  const createdSession = response as SessionListItemDto
+  const createdSession = response
   upsertSession(createdSession)
   adjustCampaignSessionCount(campaignId, 1)
   resetSessionForm()
@@ -106,16 +111,16 @@ async function createSession() {
 async function updateSession() {
   if (!selectedCampaignId.value || !selectedSession.value || !sessionForm.title.trim()) return
   const sessionId = selectedSession.value.id
-  const response = await PutAPI(
+  const response = await PutAPI<SessionListItemDto>(
     `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
     sessionPayload(selectedSession.value.sessionNumber),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be updated."
     return
   }
 
-  const updatedSession = response as SessionListItemDto
+  const updatedSession = response
   upsertSession(updatedSession)
   resetSessionForm()
   viewMode.value = ViewModes.Details
@@ -125,16 +130,15 @@ async function updateSession() {
 async function deleteSession() {
   if (!selectedCampaignId.value || !selectedSession.value) return
   const campaignId = selectedCampaignId.value
-  const response = await DeleteAPI(
+  const response = await DeleteAPI<DeleteResponseDto>(
     `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be deleted."
     return
   }
 
-  const deleted = response as DeleteResponseDto
-  removeSession(deleted.deletedId)
+  removeSession(response.deletedId)
   adjustCampaignSessionCount(campaignId, -1)
   await replaceWithFirstSession()
 }

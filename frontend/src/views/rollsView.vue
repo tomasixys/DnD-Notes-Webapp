@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
 
-import { DeleteAPI, GetAPI, PostAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+} from "@/apihelpers"
 import { useSessionContext } from "@/composables/useSessionContext"
 import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
@@ -31,27 +36,27 @@ function formatRollLuck(value: number) {
 
 async function fetchCampaignStats() {
   if (!selectedCampaignId.value) return
-  const response = await GetAPI(
+  const response = await GetAPI<CampaignRollDto>(
     `campaigns/${selectedCampaignId.value}/rolls/campaign-stats`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to fetch campaign stats:", response.error)
     return
   }
-  campaignRollStats.value = response as CampaignRollDto
+  campaignRollStats.value = response
 }
 
 async function fetchSessionRolls() {
   sessionRolls.value = null
   if (!selectedCampaignId.value || !selectedSession.value) return
-  const response = await GetAPI(
+  const response = await GetAPI<SessionRollDto>(
     `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to fetch session rolls:", response.error)
     return
   }
-  sessionRolls.value = response as SessionRollDto
+  sessionRolls.value = response
 }
 
 async function addRoll() {
@@ -63,17 +68,16 @@ async function addRoll() {
     sessionId: selectedSession.value.id,
     roll,
   }
-  const response = await PostAPI(
+  const response = await PostAPI<RollMutationDto>(
     `campaigns/${selectedCampaignId.value}/rolls`,
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to add roll:", response.error)
     return
   }
-  const mutation = response as RollMutationDto
-  sessionRolls.value = mutation.sessionStats
-  campaignRollStats.value = mutation.campaignStats
+  sessionRolls.value = response.sessionStats
+  campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }
 
@@ -84,16 +88,15 @@ async function deleteRolls() {
     || !sessionRolls.value?.rolls.length
   ) return
 
-  const response = await DeleteAPI(
+  const response = await DeleteAPI<RollMutationDto>(
     `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to delete rolls:", response.error)
     return
   }
-  const mutation = response as RollMutationDto
-  sessionRolls.value = mutation.sessionStats
-  campaignRollStats.value = mutation.campaignStats
+  sessionRolls.value = response.sessionStats
+  campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }
 

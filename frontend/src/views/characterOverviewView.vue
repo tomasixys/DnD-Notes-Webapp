@@ -5,6 +5,7 @@ import { useRouter } from "vue-router"
 import {
   DeleteAPI,
   GetAPI,
+  isApiFailure,
   PostAPI,
   PutAPI,
   PutFormDataAPI,
@@ -108,9 +109,11 @@ function resetForm() {
 
 async function fetchPeople() {
   if (!selectedCampaignId.value) return
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/people`)
-  if (Array.isArray(response)) {
-    people.value = response as PersonDto[]
+  const response = await GetAPI<PersonDto[]>(
+    `campaigns/${selectedCampaignId.value}/people`,
+  )
+  if (!isApiFailure(response) && Array.isArray(response)) {
+    people.value = response
   }
 }
 
@@ -166,15 +169,15 @@ async function uploadPortrait(personId: number): Promise<CharacterDto | null> {
   }
   const data = new FormData()
   data.append("image", portraitFile.value)
-  const response = await PutFormDataAPI(
+  const response = await PutFormDataAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters/${personId}/image`,
     data,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character was saved, but the portrait upload failed."
     return null
   }
-  return response as CharacterDto
+  return response
 }
 
 async function createCharacter() {
@@ -192,16 +195,16 @@ async function createCharacter() {
     appearance: form.appearance.trim(),
     makeActive: true,
   }
-  const response = await PostAPI(
+  const response = await PostAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters`,
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character could not be created."
     return
   }
 
-  let savedCharacter = response as CharacterDto
+  let savedCharacter = response
   const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
@@ -224,16 +227,16 @@ async function updateCharacter() {
     shortBio: form.shortBio.trim(),
     appearance: form.appearance.trim(),
   }
-  const response = await PutAPI(
+  const response = await PutAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character could not be updated."
     return
   }
 
-  let savedCharacter = response as CharacterDto
+  let savedCharacter = response
   const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
@@ -243,42 +246,38 @@ async function updateCharacter() {
 
 async function activateCharacter() {
   if (!selectedCampaignId.value || !character.value) return
-  const response = await PostAPI(
+  const response = await PostAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/activate`,
     {},
   )
-  if (response?.success !== false) {
-    const activeCharacter = response as CharacterDto
-    setCharacter(activeCharacter)
+  if (!isApiFailure(response)) {
+    setCharacter(response)
     setCampaignActiveCharacter(
       selectedCampaignId.value,
-      activeCharacter.person.id,
+      response.person.id,
     )
   }
 }
 
 async function removePortrait() {
   if (!selectedCampaignId.value || !character.value) return
-  const response = await DeleteAPI(
+  const response = await DeleteAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/image`,
   )
-  if (response?.success !== false) {
-    setCharacter(response as CharacterDto)
-  }
+  if (!isApiFailure(response)) setCharacter(response)
 }
 
 async function deleteProfile() {
   showDeletePopup.value = false
   if (!selectedCampaignId.value || !character.value) return
-  const response = await DeleteAPI(
+  const response = await DeleteAPI<CharacterDeleteResponseDto>(
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
   )
-  if (response?.success === false) return
-  const deleted = response as CharacterDeleteResponseDto
-  setCharacter(deleted.activeCharacter)
+  if (isApiFailure(response)) return
+  setCharacter(response.activeCharacter)
   setCampaignActiveCharacter(
     selectedCampaignId.value,
-    deleted.activeCharacter?.person.id ?? null,
+    response.activeCharacter?.person.id ?? null,
   )
   await router.replace({
     name: "CharacterOverview",

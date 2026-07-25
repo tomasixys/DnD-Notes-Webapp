@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { reactive, ref, onBeforeMount } from "vue"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import type {
@@ -110,12 +116,18 @@ async function fetchFactions() {
     return
   }
 
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/factions`)
-  if (response.success === false || !Array.isArray(response)) {
-    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
+  const response = await GetAPI<FactionDto[]>(
+    `campaigns/${selectedCampaignId.value}/factions`,
+  )
+  if (isApiFailure(response)) {
+    console.error("Failed to fetch factions:", response.error)
     return
   }
-  factions.value = response as FactionDto[]
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch factions: Response is not an array")
+    return
+  }
+  factions.value = response
 }
 
 
@@ -133,12 +145,15 @@ async function createFaction() {
     tags: parseTags(factionForm.tags),
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/factions`, faction)
-  if (response.success === false) {
+  const response = await PostAPI<FactionDto>(
+    `campaigns/${selectedCampaignId.value}/factions`,
+    faction,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create faction:", response.error)
     return
   }
-  const createdFaction = response as FactionDto
+  const createdFaction = response
 
   factions.value = upsertById(
     factions.value,
@@ -165,13 +180,16 @@ async function updateFaction() {
     tags: parseTags(factionForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`, updatedFaction)
-  if (response.success === false) {
+  const response = await PutAPI<FactionDto>(
+    `campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`,
+    updatedFaction,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update faction:", response.error)
     return
   }
 
-  const savedFaction = response as FactionDto
+  const savedFaction = response
   factions.value = upsertById(
     factions.value,
     savedFaction,
@@ -188,14 +206,15 @@ async function deleteFaction(factionId: number) {
     return
   }
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/factions/${factionId}`)
-  if (response.success === false) {
+  const response = await DeleteAPI<DeleteResponseDto>(
+    `campaigns/${selectedCampaignId.value}/factions/${factionId}`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to delete faction:", response.error)
     return
   }
 
-  const deleted = response as DeleteResponseDto
-  factions.value = removeById(factions.value, deleted.deletedId)
+  factions.value = removeById(factions.value, response.deletedId)
   await replaceWithFirstEntry()
 }
 
