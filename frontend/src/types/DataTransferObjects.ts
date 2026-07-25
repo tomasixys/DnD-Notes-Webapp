@@ -19,6 +19,43 @@ export type CampaignsDto = {
   imageUrl: string
   bannerImageUrl: string
   activeCharacterPersonId: number | null
+  assignedCharacterPersonId: number | null
+  membershipRole: CampaignRole
+  capabilities: CampaignCapability[]
+}
+
+export type CampaignRole = "owner" | "member" | "viewer"
+
+export type CampaignCapability =
+  | "campaign.read"
+  | "campaign.update"
+  | "campaign.delete"
+  | "campaign.export"
+  | "membership.read"
+  | "membership.manage"
+  | "character.assign"
+  | "character.self_create"
+  | "shared_resource.read"
+  | "shared_resource.write"
+  | "assigned_character.write"
+
+export type AuthUserDto = {
+  id: number
+  username: string
+  displayName: string
+  status: "pending" | "active" | "suspended" | "deleted"
+  systemRole: "user" | "admin" | "custodian"
+}
+
+export type AuthSessionDto = {
+  user: AuthUserDto
+  csrfToken: string
+  authenticationRequired: boolean
+}
+
+export type AccountMutationDto = {
+  user: AuthUserDto
+  message: string
 }
 
 export type DeleteResponseDto = {

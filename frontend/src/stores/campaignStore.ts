@@ -1,5 +1,8 @@
 import { computed, ref } from "vue"
-import type { CampaignsDto } from "@/types/DataTransferObjects"
+import type {
+  CampaignCapability,
+  CampaignsDto,
+} from "@/types/DataTransferObjects"
 import { apiUrl } from "@/apihelpers"
 import {
   compareById,
@@ -8,9 +11,18 @@ import {
 } from "@/utils/resourceCollections"
 
 const SELECTED_CAMPAIGN_KEY = "selectedCampaignId"
+const userScope = ref<string | null>(null)
+
+function storageKey(): string | null {
+  return userScope.value
+    ? `${SELECTED_CAMPAIGN_KEY}:${userScope.value}`
+    : null
+}
 
 function readStoredCampaignId(): number | null {
-  const storedValue = localStorage.getItem(SELECTED_CAMPAIGN_KEY)
+  const key = storageKey()
+  if (!key) return null
+  const storedValue = localStorage.getItem(key)
 
   if (!storedValue) {
     return null
@@ -25,7 +37,7 @@ function readStoredCampaignId(): number | null {
 }
 
 const campaigns = ref<CampaignsDto[]>([])
-const selectedCampaignId = ref<number | null>(readStoredCampaignId())
+const selectedCampaignId = ref<number | null>(null)
 
 const selectedCampaign = computed(() => {
   return campaigns.value.find((campaign) => campaign.id === selectedCampaignId.value) ?? null
@@ -106,16 +118,40 @@ function selectCampaign(campaignId: number) {
 
 function clearSelectedCampaign() {
   selectedCampaignId.value = null
-  localStorage.removeItem(SELECTED_CAMPAIGN_KEY)
+  const key = storageKey()
+  if (key) localStorage.removeItem(key)
 }
 
 function persistSelectedCampaign(campaignId?: number | null) {
+  const key = storageKey()
+  if (!key) return
   if (campaignId === null) {
-    localStorage.removeItem(SELECTED_CAMPAIGN_KEY)
+    localStorage.removeItem(key)
     return
   }
 
-  localStorage.setItem(SELECTED_CAMPAIGN_KEY, String(selectedCampaignId.value))
+  localStorage.setItem(key, String(selectedCampaignId.value))
+}
+
+function setUserScope(userId: number | null) {
+  const nextScope = userId === null ? null : String(userId)
+  if (userScope.value === nextScope) return
+  campaigns.value = []
+  selectedCampaignId.value = null
+  userScope.value = nextScope
+  selectedCampaignId.value = readStoredCampaignId()
+}
+
+function clearUserState() {
+  const key = storageKey()
+  if (key) localStorage.removeItem(key)
+  campaigns.value = []
+  selectedCampaignId.value = null
+  userScope.value = null
+}
+
+function hasCapability(capability: CampaignCapability): boolean {
+  return selectedCampaign.value?.capabilities.includes(capability) ?? false
 }
 
 export function useCampaignStore() {
@@ -133,5 +169,8 @@ export function useCampaignStore() {
     adjustCampaignSessionCount,
     selectCampaign,
     clearSelectedCampaign,
+    setUserScope,
+    clearUserState,
+    hasCapability,
   }
 }

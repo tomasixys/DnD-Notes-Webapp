@@ -3,10 +3,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
 import { useCampaignStore } from "@/stores/campaignStore"
+import { useAuthStore } from "@/stores/authStore"
 import bannerImageDefault from "./assets/banner.png"
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const {
   selectedCampaignId,
@@ -55,6 +57,7 @@ const submenuLinks = computed(() => {
 })
 
 const hasSubmenu = computed(() => submenuLinks.value.length > 0)
+const isAuthPage = computed(() => route.meta.authPage === true)
 
 const activeMainLinkIndex = computed(() => {
   const routeRoot = `/${route.path.split("/").filter(Boolean)[0] ?? ""}`
@@ -132,6 +135,9 @@ const canSearch = computed(() => {
 watch(
   () => [route.name, route.query.q],
   ([routeName, queryValue]) => {
+    if (route.meta.authPage === true || !auth.isAuthenticated.value) {
+      return
+    }
 
     if (selectedCampaignId.value === null && routeName !== "Dashboard") {
       searchPhrase.value = ""
@@ -178,10 +184,17 @@ async function submitSearch() {
   })
 }
 
+async function logout() {
+  await auth.logout()
+  await router.replace({ name: "Login" })
+}
+
 </script>
 
 <template>
-  <div id="app-shell">
+  <RouterView v-if="isAuthPage" />
+
+  <div v-else id="app-shell">
     <header id="app-header">
 
       <div>
@@ -238,6 +251,20 @@ async function submitSearch() {
             alt=""
             aria-hidden="true"
           />
+
+          <div class="account-nav">
+            <RouterLink to="/profile">
+              {{ auth.user.value?.displayName || auth.user.value?.username }}
+            </RouterLink>
+            <button
+              v-if="auth.authenticationRequired.value"
+              type="button"
+              class="secondary"
+              @click="logout"
+            >
+              Sign out
+            </button>
+          </div>
         </nav>
       </div>
 
