@@ -107,10 +107,14 @@ def _sqlite_database_path(engine: Engine) -> Path | None:
 
 def _load_database_models() -> None:
     # Explicit imports populate SQLModel metadata in source and frozen builds.
-    from app.models.database import (  # noqa: F401
-        BackstoryNote,
+    from app.auth.models import (  # noqa: F401
         AccountToken,
         AuthSession,
+        PasswordCredential,
+        User,
+    )
+    from app.models.database import (  # noqa: F401
+        BackstoryNote,
         Campaign,
         CharacterNote,
         CharacterProfile,
@@ -121,14 +125,12 @@ def _load_database_models() -> None:
         InventoryAccess,
         InventoryItem,
         Location,
-        PasswordCredential,
         Person,
         Purse,
         RollEntry,
         SessionNote,
         Tag,
         TagAssignment,
-        User,
     )
 
 

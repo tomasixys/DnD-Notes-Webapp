@@ -7,9 +7,9 @@ from argon2 import PasswordHasher
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from app.models.database import PasswordCredential, User
-from app.models.enums import SystemRole, UserStatus
-from app.services.credentials import (
+from app.auth.enums import SystemRole, UserStatus
+from app.auth.models import PasswordCredential, User
+from app.auth.passwords import (
     CredentialService,
     CredentialStateError,
     normalize_username,

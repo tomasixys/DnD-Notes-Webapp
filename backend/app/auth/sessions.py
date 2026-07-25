@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 
 from sqlmodel import Session, select
 
-from app.models.database import AuthSession, User
-from app.models.enums import UserStatus
-from app.services.credentials import utc_now
+from app.auth.enums import UserStatus
+from app.auth.models import AuthSession, User
+from app.auth.passwords import utc_now
 
 
 SESSION_TOKEN_BYTES = 32

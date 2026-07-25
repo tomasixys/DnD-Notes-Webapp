@@ -8,13 +8,13 @@ into a numbered migration and restore this function to a no-op.
 
 from sqlmodel import SQLModel
 
-from app.models.database import (
+from app.auth.models import (
     AccountToken,
     AuthSession,
-    Installation,
     PasswordCredential,
     User,
 )
+from app.models.database import Installation
 
 
 DEVELOPMENT_TABLE_NAMES = (

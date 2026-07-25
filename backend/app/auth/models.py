@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import CheckConstraint, Enum as SAEnum, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
-from app.models.enums import AccountTokenPurpose, SystemRole, UserStatus
+from app.auth.enums import AccountTokenPurpose, SystemRole, UserStatus
 
 
 def utc_now() -> datetime:

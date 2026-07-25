@@ -22,6 +22,7 @@ before mounting the frontend catch-all, and owns startup initialization.
 
 ```text
 backend/app/
+  auth/               Local identity, credentials, login, and browser sessions
   dependencies/       Reusable FastAPI request dependencies
   migrations/         Ordered SQLite schema migrations
   models/
@@ -171,20 +172,23 @@ installation identity, deployment mode, and initialization time. Startup
 rejects a requested mode that differs from the stored mode. User accounts and
 administrator credentials are separate application-managed records.
 
-Hosted local identity state is split across `User`, `PasswordCredential`,
-`AuthSession`, and `AccountToken`. Password operations go through the
-credential service, which delegates hashing and verification to
+Hosted local identity is an independent application domain under `app/auth`.
+Its persistence state is split across `User`, `PasswordCredential`,
+`AuthSession`, and `AccountToken`. Password operations go through
+`auth/passwords.py`, which delegates hashing and verification to
 `argon2-cffi`, upgrades hashes after successful verification when parameters
 change, and revokes server-side sessions during password reset. Offline
-administrator creation and password reset use the same service while holding
-the installation lock.
+administrator creation and password reset use the same authentication-domain
+services while holding the installation lock.
 
 The authentication foundation issues independent random session and CSRF
 tokens. Only SHA-256 token digests are persisted. Sessions have renewable idle
 expiry, an absolute expiry ceiling, explicit revocation, and account-state
-checks. The authentication router returns the session token only in a
-host-only, secure, HTTP-only cookie and returns the session-bound CSRF token in
-the response body. It remains unmounted while hosted startup is disabled.
+checks. Authentication request dependencies and routes remain inside the same
+domain package; resource services do not import password or login mechanics.
+The authentication router returns the session token only in a host-only,
+secure, HTTP-only cookie and returns the session-bound CSRF token in the
+response body. It remains unmounted while hosted startup is disabled.
 Pre-installation databases containing campaigns can be claimed only by local
 mode; moving desktop data into hosted mode remains an explicit import process.
 

@@ -6,22 +6,22 @@ from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.models.database import (
+from app.auth.administration import (
+    IdentityAdminError,
+    IdentityAdminService,
+)
+from app.auth.enums import SystemRole, UserStatus
+from app.auth.models import (
     AuthSession,
     PasswordCredential,
     User,
 )
-from app.models.enums import SystemRole, UserStatus
-from app.services.credentials import (
+from app.auth.passwords import (
     CredentialService,
     PasswordPolicyError,
     UsernamePolicyError,
     normalize_username,
     validate_password,
-)
-from app.services.identity_admin import (
-    IdentityAdminError,
-    IdentityAdminService,
 )
 
 

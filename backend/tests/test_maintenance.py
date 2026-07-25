@@ -8,12 +8,12 @@ from sqlmodel import Session
 
 from app import database as database_module
 from app.app_paths import configure_app_data_dir
+from app.auth.passwords import CredentialError
 from app.config import ApplicationSettings
 from app.database import create_db_and_tables
 from app.instance_lock import InstanceLock, InstanceLockError
 from app.models.database import Campaign
 from app.services.installations import InstallationService
-from app.services.credentials import CredentialError
 from maintenance import (
     export_campaign,
     inspect_installation,

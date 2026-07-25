@@ -6,14 +6,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.migrations import run_database_migrations
-from app.models.database import (
+from app.auth.enums import AccountTokenPurpose, SystemRole, UserStatus
+from app.auth.models import (
     AccountToken,
     AuthSession,
     PasswordCredential,
     User,
 )
-from app.models.enums import AccountTokenPurpose, SystemRole, UserStatus
+from app.migrations import run_database_migrations
 
 
 NOW = datetime(2026, 7, 25, 12, 0, tzinfo=timezone.utc)

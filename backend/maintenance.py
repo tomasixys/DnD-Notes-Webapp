@@ -13,6 +13,11 @@ from app.app_paths import (
     get_app_data_dir,
     get_uploads_dir,
 )
+from app.auth.administration import (
+    IdentityAdminError,
+    IdentityAdminService,
+)
+from app.auth.passwords import CredentialError
 from app.config import (
     ApplicationSettings,
     ConfigurationError,
@@ -24,11 +29,6 @@ from app.database import create_database_engine, create_db_and_tables
 from app.instance_lock import InstanceLock, InstanceLockError
 from app.models.database import Campaign, Installation
 from app.services.campaign_backups import CampaignBackupService
-from app.services.credentials import CredentialError
-from app.services.identity_admin import (
-    IdentityAdminError,
-    IdentityAdminService,
-)
 from app.services.installations import InstallationService
 
 

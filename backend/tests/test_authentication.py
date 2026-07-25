@@ -8,19 +8,15 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 from starlette.requests import Request
 
+from app.auth.dependencies import AuthContext, require_csrf_context
+from app.auth.enums import SystemRole, UserStatus
+from app.auth.login import AuthenticationService
+from app.auth.models import AuthSession, PasswordCredential, User
+from app.auth.passwords import CredentialService
+from app.auth.router import INVALID_CREDENTIALS, login
+from app.auth.schemas import LoginRequest
+from app.auth.sessions import AuthSessionService, token_digest
 from app.config import ApplicationSettings
-from app.models.api import LoginRequest
-from app.models.database import AuthSession, PasswordCredential, User
-from app.models.enums import SystemRole, UserStatus
-from app.routers.auth import (
-    INVALID_CREDENTIALS,
-    AuthContext,
-    login,
-    require_csrf_context,
-)
-from app.services.auth_sessions import AuthSessionService, token_digest
-from app.services.authentication import AuthenticationService
-from app.services.credentials import CredentialService
 
 
 NOW = datetime(2026, 7, 25, 18, 0, tzinfo=timezone.utc)

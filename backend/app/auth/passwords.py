@@ -9,7 +9,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlmodel import Session, select
 
-from app.models.database import AuthSession, PasswordCredential, User
+from app.auth.models import AuthSession, PasswordCredential, User
 
 
 MIN_PASSWORD_LENGTH = 15

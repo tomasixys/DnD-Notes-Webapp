@@ -7,9 +7,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 from sqlmodel import Session, select
 
-from app.models.database import PasswordCredential, User
-from app.models.enums import UserStatus
-from app.services.credentials import (
+from app.auth.enums import UserStatus
+from app.auth.models import PasswordCredential, User
+from app.auth.passwords import (
     DUMMY_PASSWORD_HASH,
     CredentialService,
     normalize_username,
