@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, Request
@@ -32,6 +33,19 @@ def get_auth_settings(request: Request) -> ApplicationSettings:
 
 def get_application_settings(request: Request) -> ApplicationSettings:
     return request.app.state.settings
+
+
+def get_session_secret(
+    settings: ApplicationSettings = Depends(get_auth_settings),
+) -> str:
+    environment_name = settings.security.session_secret_env or ""
+    secret = os.environ.get(environment_name, "")
+    if len(secret.encode("utf-8")) < 32:
+        raise HTTPException(
+            status_code=500,
+            detail="Hosted session secret is unavailable.",
+        )
+    return secret
 
 
 def session_service(

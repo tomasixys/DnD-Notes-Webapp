@@ -42,6 +42,7 @@ from app.routers import (
     episodes,
     factions,
     inventory,
+    invitations,
     locations,
     people,
     rolls,
@@ -137,6 +138,7 @@ def create_app(
 
     application.include_router(campaigns.router)
     application.include_router(assets.router)
+    application.include_router(invitations.router)
     application.include_router(memberships.router)
     application.include_router(campaign_backups.router)
     application.include_router(authorization_admin.router)

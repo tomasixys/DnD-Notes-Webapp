@@ -343,6 +343,22 @@ class SecuritySettings(StrictSettingsModel):
         ge=5,
         le=1440,
     )
+    campaign_invitation_lifetime_minutes: int = Field(
+        default=10080,
+        ge=5,
+        le=43200,
+    )
+    invitation_failure_limit: int = Field(default=10, ge=3, le=100)
+    invitation_failure_window_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=86400,
+    )
+    invitation_lock_seconds: int = Field(
+        default=300,
+        ge=10,
+        le=86400,
+    )
 
     @field_validator("session_secret_env")
     @classmethod

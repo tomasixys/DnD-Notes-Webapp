@@ -19,7 +19,10 @@ from app.auth.enums import (
 from app.auth.events import SecurityEventService
 from app.auth.models import AccountToken, PasswordCredential, User
 from app.authorization.enums import CampaignRole
-from app.authorization.models import CampaignMembership
+from app.authorization.models import (
+    CampaignInvitation,
+    CampaignMembership,
+)
 from app.models.database import Campaign
 from app.auth.passwords import (
     CredentialService,
@@ -227,6 +230,7 @@ class AccountLifecycleService:
             )
 
         now = self.clock()
+        self._revoke_campaign_invitations(user, actor, now)
         self._release_campaign_memberships(user, actor)
         self.credentials.revoke_sessions(user_id, revoked_at=now)
         credential = self.db.get(PasswordCredential, user_id)
@@ -254,6 +258,33 @@ class AccountLifecycleService:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def _revoke_campaign_invitations(
+        self,
+        user: User,
+        actor: User,
+        revoked_at: datetime,
+    ) -> None:
+        invitations = self.db.exec(
+            select(CampaignInvitation).where(
+                (
+                    (CampaignInvitation.invited_user_id == user.id)
+                    | (CampaignInvitation.created_by_user_id == user.id)
+                ),
+                CampaignInvitation.accepted_at.is_(None),
+                CampaignInvitation.revoked_at.is_(None),
+            )
+        ).all()
+        for invitation in invitations:
+            invitation.revoked_at = revoked_at
+            self.db.add(invitation)
+            self.events.record(
+                SecurityEventType.MEMBERSHIP_CHANGED,
+                user_id=invitation.invited_user_id,
+                actor_user_id=actor.id,
+                campaign_id=invitation.campaign_id,
+                reason="action=invitation_revoked account_deleted",
+            )
 
     def _release_campaign_memberships(
         self,

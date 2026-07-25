@@ -7,9 +7,9 @@ from app.authorization.dependencies import (
 )
 from app.authorization.memberships import CampaignMembershipService
 from app.authorization.schemas import (
-    CampaignMemberAdd,
     CampaignMembershipRead,
     CampaignMemberRoleUpdate,
+    CampaignOwnershipTransferRead,
     CharacterAssignmentUpdate,
 )
 from app.models.api import DeleteResponse
@@ -28,17 +28,6 @@ def list_members(
     return CampaignMembershipService(context).list_reads()
 
 
-@router.post("")
-def add_member(
-    payload: CampaignMemberAdd,
-    context: CampaignContext = Depends(get_membership_manage_context),
-) -> CampaignMembershipRead:
-    return CampaignMembershipService(context).add_user(
-        payload.username,
-        payload.role,
-    )
-
-
 @router.put("/{user_id}/role")
 def change_member_role(
     user_id: int,
@@ -48,6 +37,16 @@ def change_member_role(
     return CampaignMembershipService(context).change_role(
         user_id,
         payload.role,
+    )
+
+
+@router.post("/{user_id}/transfer-ownership")
+def transfer_campaign_ownership(
+    user_id: int,
+    context: CampaignContext = Depends(get_membership_manage_context),
+) -> CampaignOwnershipTransferRead:
+    return CampaignMembershipService(context).transfer_ownership(
+        user_id
     )
 
 

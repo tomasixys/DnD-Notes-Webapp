@@ -2,6 +2,8 @@ from fastapi import UploadFile
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.auth.enums import SecurityEventType
+from app.auth.events import SecurityEventService
 from app.auth.models import User
 from app.authorization.capabilities import ROLE_CAPABILITIES
 from app.authorization.context import CampaignContext
@@ -281,6 +283,14 @@ class CampaignService:
         )
 
         try:
+            SecurityEventService(self.db).record(
+                SecurityEventType.MEMBERSHIP_CHANGED,
+                user_id=context.user.id,
+                actor_user_id=context.user.id,
+                campaign_id=context.campaign_id,
+                reason="action=campaign_deleted",
+                used_elevation=context.elevated,
+            )
             self.db.delete(campaign)
             self.db.commit()
         except Exception:

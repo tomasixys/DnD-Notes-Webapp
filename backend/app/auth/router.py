@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlmodel import Session
 
@@ -17,6 +15,7 @@ from app.auth.dependencies import (
     get_application_settings,
     get_auth_settings,
     get_current_user,
+    get_session_secret,
     require_auth_context,
     require_csrf_context,
     session_service,
@@ -50,19 +49,6 @@ session_router = APIRouter(
 
 INVALID_CREDENTIALS = "Invalid username or password."
 ADMIN_REQUIRED = "System administrator privileges are required."
-
-
-def get_session_secret(
-    settings: ApplicationSettings = Depends(get_auth_settings),
-) -> str:
-    environment_name = settings.security.session_secret_env or ""
-    secret = os.environ.get(environment_name, "")
-    if len(secret.encode("utf-8")) < 32:
-        raise HTTPException(
-            status_code=500,
-            detail="Hosted session secret is unavailable.",
-        )
-    return secret
 
 
 def require_admin_context(

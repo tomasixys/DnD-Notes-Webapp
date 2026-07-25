@@ -17,7 +17,10 @@ from app.auth.models import (
     User,
 )
 from app.models.database import Installation
-from app.authorization.models import CampaignMembership
+from app.authorization.models import (
+    CampaignInvitation,
+    CampaignMembership,
+)
 from sqlalchemy import inspect, text
 
 
@@ -30,6 +33,7 @@ DEVELOPMENT_TABLE_NAMES = (
     "login_throttle",
     "security_event",
     "campaign_membership",
+    "campaign_invitation",
 )
 
 

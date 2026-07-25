@@ -116,6 +116,7 @@ def _load_database_models() -> None:
         User,
     )
     from app.authorization.models import (  # noqa: F401
+        CampaignInvitation,
         CampaignMembership,
     )
     from app.models.database import (  # noqa: F401

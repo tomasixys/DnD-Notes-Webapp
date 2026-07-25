@@ -1,15 +1,17 @@
 from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
-from app.auth.enums import SecurityEventType, SystemRole, UserStatus
+from app.auth.enums import SecurityEventType, UserStatus
 from app.auth.events import SecurityEventService
 from app.auth.models import User
-from app.auth.passwords import normalize_username
 from app.authorization.capabilities import ROLE_CAPABILITIES
 from app.authorization.context import CampaignContext
 from app.authorization.enums import CampaignCapability, CampaignRole
 from app.authorization.models import CampaignMembership
-from app.authorization.schemas import CampaignMembershipRead
+from app.authorization.schemas import (
+    CampaignMembershipRead,
+    CampaignOwnershipTransferRead,
+)
 from app.models.database import CharacterProfile, Person
 
 
@@ -60,43 +62,6 @@ class CampaignMembershipService:
             for membership, user in rows
         ]
 
-    def add_user(
-        self,
-        username: str,
-        role: CampaignRole,
-    ) -> CampaignMembershipRead:
-        self.context.require(CampaignCapability.MEMBERSHIP_MANAGE)
-        normalized = normalize_username(username)
-        user = self.db.exec(
-            select(User).where(
-                User.normalized_username == normalized,
-                User.status.in_(
-                    (UserStatus.PENDING, UserStatus.ACTIVE)
-                ),
-                User.can_login.is_(True),
-                User.system_role != SystemRole.CUSTODIAN,
-            )
-        ).first()
-        if user is None:
-            raise HTTPException(status_code=404, detail="User not found")
-        existing = self._get_by_user(user.id)
-        if existing is not None:
-            raise HTTPException(
-                status_code=409,
-                detail="User is already a campaign member",
-            )
-        membership = CampaignMembership(
-            campaign_id=self.context.campaign_id,
-            user_id=user.id,
-            role=role,
-        )
-        self.db.add(membership)
-        self.db.flush()
-        self._record_change(user.id)
-        self.db.commit()
-        self.db.refresh(membership)
-        return self.to_read(membership, user)
-
     def change_role(
         self,
         user_id: int,
@@ -111,7 +76,10 @@ class CampaignMembershipService:
             self._require_another_enabled_owner(user_id)
         membership.role = role
         self.db.add(membership)
-        self._record_change(user_id)
+        self._record_change(
+            user_id,
+            reason=f"action=role_changed role={role.value}",
+        )
         self.db.commit()
         self.db.refresh(membership)
         return self.to_read(membership, user)
@@ -122,7 +90,10 @@ class CampaignMembershipService:
         if membership.role is CampaignRole.OWNER:
             self._require_another_enabled_owner(user_id)
         self.db.delete(membership)
-        self._record_change(user_id)
+        self._record_change(
+            user_id,
+            reason="action=member_removed",
+        )
         self.db.commit()
 
     def leave(self) -> None:
@@ -130,8 +101,59 @@ class CampaignMembershipService:
         if membership.role is CampaignRole.OWNER:
             self._require_another_enabled_owner(self.context.user.id)
         self.db.delete(membership)
-        self._record_change(self.context.user.id)
+        self._record_change(
+            self.context.user.id,
+            reason="action=member_left",
+        )
         self.db.commit()
+
+    def transfer_ownership(
+        self,
+        user_id: int,
+    ) -> CampaignOwnershipTransferRead:
+        self.context.require(CampaignCapability.MEMBERSHIP_MANAGE)
+        current = self.context.membership
+        if current.role is not CampaignRole.OWNER:
+            raise HTTPException(
+                status_code=403,
+                detail="Campaign ownership is required",
+            )
+        if user_id == self.context.user.id:
+            raise HTTPException(
+                status_code=409,
+                detail="Select another campaign member",
+            )
+        target, target_user = self._get_human_member(user_id)
+        if (
+            target_user.status is not UserStatus.ACTIVE
+            or not target_user.can_login
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Ownership requires an enabled campaign member",
+            )
+
+        current.role = CampaignRole.MEMBER
+        target.role = CampaignRole.OWNER
+        self.db.add(current)
+        self.db.add(target)
+        self._record_change(
+            target_user.id,
+            reason=(
+                "action=ownership_transferred "
+                f"previous_owner_user_id={self.context.user.id}"
+            ),
+        )
+        self.db.commit()
+        self.db.refresh(current)
+        self.db.refresh(target)
+        return CampaignOwnershipTransferRead(
+            previous_owner=self.to_read(
+                current,
+                self.context.user,
+            ),
+            new_owner=self.to_read(target, target_user),
+        )
 
     def assign_character(
         self,
@@ -170,22 +192,17 @@ class CampaignMembershipService:
         if membership.active_character_person_id != person_id:
             membership.active_character_person_id = None
         self.db.add(membership)
-        self._record_change(user_id)
+        self._record_change(
+            user_id,
+            reason=(
+                f"character_person_id={person_id}"
+                if person_id is not None
+                else "character_person_id=none"
+            ),
+        )
         self.db.commit()
         self.db.refresh(membership)
         return self.to_read(membership, user)
-
-    def _get_by_user(
-        self,
-        user_id: int,
-    ) -> CampaignMembership | None:
-        return self.db.exec(
-            select(CampaignMembership).where(
-                CampaignMembership.campaign_id
-                == self.context.campaign_id,
-                CampaignMembership.user_id == user_id,
-            )
-        ).first()
 
     def _get_human_member(
         self,
@@ -232,10 +249,16 @@ class CampaignMembershipService:
                 detail="Campaign must retain an enabled human owner",
             )
 
-    def _record_change(self, user_id: int) -> None:
+    def _record_change(
+        self,
+        user_id: int,
+        *,
+        reason: str | None = None,
+    ) -> None:
         self.events.record(
             SecurityEventType.MEMBERSHIP_CHANGED,
             user_id=user_id,
             actor_user_id=self.context.user.id,
             campaign_id=self.context.campaign_id,
+            reason=reason,
         )
