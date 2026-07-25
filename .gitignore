@@ -125,7 +125,6 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 .vscode/*
-!.vscode/tasks.json
 !.vscode/settings.json
 
 # pnpm
