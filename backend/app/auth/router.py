@@ -11,9 +11,12 @@ from app.auth.accounts import (
     IssuedAccountToken,
 )
 from app.auth.dependencies import (
+    AUTHENTICATION_REQUIRED,
     AuthContext,
     client_ip,
+    get_application_settings,
     get_auth_settings,
+    get_current_user,
     require_auth_context,
     require_csrf_context,
     session_service,
@@ -32,11 +35,15 @@ from app.auth.schemas import (
     SessionMutationRead,
 )
 from app.auth.throttling import LoginThrottleService, source_digest
-from app.config import ApplicationSettings
+from app.config import ApplicationSettings, DeploymentMode
 from app.database import get_session
 
 
 router = APIRouter(
+    prefix="/api/auth",
+    tags=["authentication"],
+)
+session_router = APIRouter(
     prefix="/api/auth",
     tags=["authentication"],
 )
@@ -263,15 +270,38 @@ def delete_user(
     )
 
 
-@router.get("/session")
+@session_router.get("/session")
 def current_session(
-    context: AuthContext = Depends(require_auth_context),
+    request: Request,
+    settings: ApplicationSettings = Depends(get_application_settings),
     db: Session = Depends(get_session),
 ) -> AuthSessionRead:
-    csrf_token = context.service.rotate_csrf(context.session)
+    if settings.installation.mode is DeploymentMode.LOCAL:
+        user = get_current_user(request, settings, db)
+        if user is None:
+            raise HTTPException(status_code=500, detail="Local identity missing.")
+        return AuthSessionRead(
+            user=AuthUserRead.from_user(user),
+            csrf_token="",
+            authentication_required=False,
+        )
+
+    service = session_service(db, settings)
+    resolved = service.resolve(
+        request.cookies.get(settings.security.cookie_name),
+        client_ip=client_ip(request),
+    )
+    if resolved is None:
+        db.commit()
+        raise HTTPException(
+            status_code=401,
+            detail=AUTHENTICATION_REQUIRED,
+        )
+    auth_session, user = resolved
+    csrf_token = service.rotate_csrf(auth_session)
     db.commit()
     return AuthSessionRead(
-        user=AuthUserRead.from_user(context.user),
+        user=AuthUserRead.from_user(user),
         csrf_token=csrf_token,
     )
 

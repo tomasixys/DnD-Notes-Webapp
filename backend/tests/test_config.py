@@ -208,6 +208,18 @@ class ApplicationSettingsFileTests(unittest.TestCase):
         self.assertIn("/api/auth/login", paths)
         self.assertIn("/api/auth/session", paths)
 
+    def test_local_application_mounts_only_session_bootstrap_route(self):
+        from app.application import create_app
+
+        application = create_app(
+            ApplicationSettings(),
+            build_profile=DeploymentMode.LOCAL,
+        )
+        paths = set(application.openapi()["paths"])
+        self.assertIn("/api/auth/session", paths)
+        self.assertNotIn("/api/auth/login", paths)
+        self.assertNotIn("/api/auth/activate", paths)
+
     def test_runtime_settings_reject_config_from_another_build_profile(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_config(directory, HOSTED_CONFIG)

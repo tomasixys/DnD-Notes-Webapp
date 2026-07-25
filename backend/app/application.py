@@ -115,6 +115,7 @@ def create_app(
         name="uploads",
     )
 
+    application.include_router(auth_router.session_router)
     if settings.installation.mode is DeploymentMode.HOSTED:
         application.include_router(auth_router.router)
 

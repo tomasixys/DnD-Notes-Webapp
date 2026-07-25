@@ -36,6 +36,7 @@ class AuthUserRead(SQLModel):
 class AuthSessionRead(SQLModel):
     user: AuthUserRead
     csrf_token: str
+    authentication_required: bool = True
 
 
 class SessionMutationRead(SQLModel):

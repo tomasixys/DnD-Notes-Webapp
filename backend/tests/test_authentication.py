@@ -9,13 +9,14 @@ from sqlmodel import Session, SQLModel, create_engine
 from starlette.requests import Request
 
 from app import database as database_module
+from app.auth.administration import IdentityBootstrapService
 from app.auth.dependencies import AuthContext, require_csrf_context
 from app.auth.enums import SystemRole, UserStatus
 from app.auth.login import AuthenticationService
 from app.auth.middleware import authorize_hosted_api_request
 from app.auth.models import AuthSession, PasswordCredential, User
 from app.auth.passwords import CredentialService
-from app.auth.router import INVALID_CREDENTIALS, login
+from app.auth.router import INVALID_CREDENTIALS, current_session, login
 from app.auth.schemas import LoginRequest
 from app.auth.sessions import AuthSessionService, token_digest
 from app.config import ApplicationSettings
@@ -302,6 +303,19 @@ class AuthSessionServiceTests(AuthenticationDatabaseTestCase):
 class AuthenticationRouterFoundationTests(
     AuthenticationDatabaseTestCase
 ):
+    def test_local_session_bootstraps_without_login_or_csrf(self):
+        with Session(self.engine) as db:
+            local_user = IdentityBootstrapService(db).ensure_local_user()
+            result = current_session(
+                request=protected_request("GET"),
+                settings=ApplicationSettings(),
+                db=db,
+            )
+
+            self.assertEqual(local_user.id, result.user.id)
+            self.assertFalse(result.authentication_required)
+            self.assertEqual("", result.csrf_token)
+
     def test_login_sets_host_only_secure_http_only_cookie(self):
         with Session(self.engine) as db:
             user, credential = self.add_user(db)
@@ -320,6 +334,7 @@ class AuthenticationRouterFoundationTests(
             )
 
             self.assertEqual(user.id, result.user.id)
+            self.assertTrue(result.authentication_required)
             self.assertTrue(result.csrf_token)
             set_cookie = response.headers["set-cookie"]
             self.assertIn("__Host-dnd_notes_session=", set_cookie)
