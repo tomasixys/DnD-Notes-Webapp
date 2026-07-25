@@ -22,6 +22,8 @@ from app.models.database import (
     Episode,
 )
 from app.services.inventory import InventoryService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class CampaignService:
@@ -46,6 +48,8 @@ class CampaignService:
             else image_url
         )
         return CampaignRead(
+            revision=campaign.revision,
+            updated_at=campaign.updated_at,
             id=campaign.id,
             name=campaign.name,
             player_character=campaign.player_character,
@@ -201,6 +205,7 @@ class CampaignService:
         description: str = "",
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
+        expected_revision: int | None = None,
     ) -> CampaignRead:
         context.require(CampaignCapability.CAMPAIGN_UPDATE)
         campaign = context.campaign
@@ -215,6 +220,12 @@ class CampaignService:
         saved_paths: list[str] = []
 
         try:
+            claim_revision(
+                self.db,
+                campaign,
+                expected_revision or campaign.revision,
+                resource_type="campaign",
+            )
             campaign.name = name
             campaign.player_character = player_character
             campaign.description = description
@@ -233,6 +244,12 @@ class CampaignService:
                 saved_paths.append(campaign.banner_image_path)
 
             self.db.add(campaign)
+            CampaignChangeService(context).stage_record(
+                "campaign",
+                campaign.id,
+                action="updated",
+                revision=campaign.revision,
+            )
             self.db.commit()
             self.db.refresh(campaign)
         except Exception:
@@ -258,7 +275,12 @@ class CampaignService:
             self.count_episodes(context.campaign_id),
         )
 
-    def delete(self, context: CampaignContext) -> DeleteResponse:
+    def delete(
+        self,
+        context: CampaignContext,
+        *,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
         context.require(CampaignCapability.CAMPAIGN_DELETE)
         campaign = context.campaign
         uploaded_paths = {
@@ -283,6 +305,12 @@ class CampaignService:
         )
 
         try:
+            claim_revision(
+                self.db,
+                campaign,
+                expected_revision or campaign.revision,
+                resource_type="campaign",
+            )
             SecurityEventService(self.db).record(
                 SecurityEventType.MEMBERSHIP_CHANGED,
                 user_id=context.user.id,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlmodel import Session
 
 from app.auth.dependencies import require_current_user
@@ -63,6 +63,7 @@ def update_campaign(
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
     context: CampaignContext = Depends(get_campaign_update_context),
+    expected_revision: int = Form(..., ge=1),
 ) -> CampaignRead:
     return CampaignService(context.db, context.user).update(
         context,
@@ -71,11 +72,16 @@ def update_campaign(
         description=description,
         image=image,
         banner=banner,
+        expected_revision=expected_revision,
     )
 
 
 @router.delete("/{campaign_id}")
 def delete_campaign(
     context: CampaignContext = Depends(get_campaign_delete_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return CampaignService(context.db, context.user).delete(context)
+    return CampaignService(context.db, context.user).delete(
+        context,
+        expected_revision=expected_revision,
+    )

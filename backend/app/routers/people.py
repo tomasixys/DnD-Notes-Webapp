@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -45,13 +45,22 @@ def update_person(
     person_id: int,
     updated_person: PersonData,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> PersonRead:
-    return PersonService(context).update(person_id, updated_person)
+    return PersonService(context).update(
+        person_id,
+        updated_person,
+        expected_revision,
+    )
 
 
 @router.delete("/{person_id}")
 def delete_person(
     person_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return PersonService(context).delete(person_id)
+    return PersonService(context).delete(
+        person_id,
+        expected_revision,
+    )

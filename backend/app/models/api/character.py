@@ -9,6 +9,7 @@ from app.authorization.enums import (
 
 from .person import PersonData, PersonRead
 from .tag import ResourceTagRead
+from .revision import RevisionRead
 
 
 class CharacterCreate(SQLModel):
@@ -27,7 +28,7 @@ class CharacterUpdate(SQLModel):
     appearance: str = ""
 
 
-class CharacterRead(SQLModel):
+class CharacterRead(RevisionRead):
     person: PersonRead
     short_bio: str = ""
     appearance: str = ""
@@ -64,6 +65,7 @@ class CharacterNoteRead(CharacterNoteData):
     character_person_id: int
     created_at: datetime
     updated_at: datetime
+    revision: int
     created_by_user_id: int | None = None
     access_owner_user_id: int | None = None
     grants: list[CharacterNoteGrantRead] = Field(default_factory=list)

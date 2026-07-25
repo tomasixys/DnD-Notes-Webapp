@@ -1,6 +1,8 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
 from .campaign import CampaignRead
 from .mutation import DeleteResponse
+from .changes import CampaignChangeRead, CampaignChangesRead
+from .revision import RevisionRead
 from .tag import ResourceTagRead
 from .episode import EpisodeData, EpisodeRead
 from .person import PersonData, PersonRead
@@ -67,6 +69,9 @@ __all__ = [
     "RelationshipType",
     "CampaignRead",
     "DeleteResponse",
+    "CampaignChangeRead",
+    "CampaignChangesRead",
+    "RevisionRead",
     "ResourceTagRead",
     "EpisodeData",
     "EpisodeRead",

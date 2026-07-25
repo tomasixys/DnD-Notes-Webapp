@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -45,10 +45,12 @@ def update_location(
     location_id: int,
     updated_location: LocationData,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> LocationRead:
     return LocationService(context).update(
         location_id,
         updated_location,
+        expected_revision,
     )
 
 
@@ -56,5 +58,9 @@ def update_location(
 def delete_location(
     location_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return LocationService(context).delete(location_id)
+    return LocationService(context).delete(
+        location_id,
+        expected_revision,
+    )

@@ -23,7 +23,10 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
+from app.services.inventory import InventoryService
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class PersonService:
@@ -31,11 +34,14 @@ class PersonService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(self, person: Person) -> PersonRead:
         self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         character_profile = self.db.get(CharacterProfile, person.id)
         return PersonRead(
+            revision=person.revision,
+            updated_at=person.updated_at,
             id=person.id,
             campaign_id=person.campaign_id,
             name=person.name,
@@ -152,12 +158,19 @@ class PersonService:
             ResourceType.PERSON,
             db_person.id,
         )
+        self.changes.stage_record(
+            ResourceType.PERSON.value,
+            db_person.id,
+            action="created",
+            revision=db_person.revision,
+        )
         return db_person
 
     def stage_update(
         self,
         person_id: int,
         updated_person: PersonData,
+        expected_revision: int | None = None,
     ) -> Person:
         """Update a person in the caller-owned transaction."""
         person = self.get(person_id)
@@ -165,6 +178,12 @@ class PersonService:
             self.context.require_character_write(person_id)
         else:
             self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        claim_revision(
+            self.db,
+            person,
+            expected_revision or person.revision,
+            resource_type=ResourceType.PERSON.value,
+        )
         previous_name = person.name
         person.name = updated_person.name.strip()
         person.role = updated_person.role.strip()
@@ -201,6 +220,12 @@ class PersonService:
             person.id,
             previous_labels=[previous_name],
         )
+        self.changes.stage_record(
+            ResourceType.PERSON.value,
+            person.id,
+            action="updated",
+            revision=person.revision,
+        )
         return person
 
     def create(
@@ -221,12 +246,14 @@ class PersonService:
         self,
         person_id: int,
         updated_person: PersonData,
+        expected_revision: int | None = None,
     ) -> PersonRead:
         """Update and commit a person as a standalone operation."""
         try:
             person = self.stage_update(
                 person_id,
                 updated_person,
+                expected_revision,
             )
             self.db.commit()
             self.db.refresh(person)
@@ -235,13 +262,23 @@ class PersonService:
             self.db.rollback()
             raise
 
-    def delete(self, person_id: int) -> DeleteResponse:
+    def delete(
+        self,
+        person_id: int,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
         person = self.get(person_id)
         profile = self.db.get(CharacterProfile, person.id)
         if profile is not None:
             self.context.require_character_write(person_id)
         else:
             self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        claim_revision(
+            self.db,
+            person,
+            expected_revision or person.revision,
+            resource_type=ResourceType.PERSON.value,
+        )
         portrait_path = profile.image_path if profile is not None else ""
 
         try:
@@ -280,9 +317,16 @@ class PersonService:
                     membership.assigned_character_person_id = None
                 self.db.add(membership)
 
+            InventoryService(self.context).stage_sync_default_owner()
             self.tags.stage_handle_resource_deletion(
                 ResourceType.PERSON,
                 person.id,
+            )
+            self.changes.stage_record(
+                ResourceType.PERSON.value,
+                person.id,
+                action="deleted",
+                revision=person.revision,
             )
             self.db.delete(person)
             self.db.commit()

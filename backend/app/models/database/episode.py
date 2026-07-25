@@ -2,13 +2,14 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 
 from .note import NoteBase
+from .revision import MutableAggregate
 
 if TYPE_CHECKING:
     from .campaign import Campaign
     from .roll_entry import RollEntry
 
 
-class Episode(NoteBase, table=True):
+class Episode(NoteBase, MutableAggregate, table=True):
     # Preserve the released table name while using unambiguous domain wording.
     __tablename__ = "sessionnote"
 

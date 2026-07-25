@@ -25,6 +25,8 @@ from app.services.character_notes import (
 )
 from app.services.inventory import InventoryService
 from app.services.people import PersonService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class CharacterService:
@@ -38,6 +40,7 @@ class CharacterService:
         self.db = context.db
         self.people = people or PersonService(context)
         self.inventory = inventory or InventoryService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(
         self,
@@ -45,6 +48,8 @@ class CharacterService:
     ) -> CharacterRead:
         person = self.people.get(profile.person_id)
         return CharacterRead(
+            revision=profile.revision,
+            updated_at=profile.updated_at,
             person=self.people.to_read(person),
             short_bio=profile.short_bio,
             appearance=profile.appearance,
@@ -164,6 +169,12 @@ class CharacterService:
         )
         self.db.add(profile)
         self.db.flush()
+        self.changes.stage_record(
+            "character",
+            profile.person_id,
+            action="created",
+            revision=profile.revision,
+        )
         return profile
 
     def stage_create(
@@ -222,18 +233,33 @@ class CharacterService:
         self,
         person_id: int,
         updated_character: CharacterUpdate,
+        expected_revision: int | None = None,
+        expected_person_revision: int | None = None,
     ) -> CharacterProfile:
         """Update the person/profile aggregate in the caller-owned transaction."""
         self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         self.people.stage_update(
             person_id,
             updated_character.person,
+            expected_person_revision,
         )
         profile.short_bio = updated_character.short_bio.strip()
         profile.appearance = updated_character.appearance.strip()
         self.db.add(profile)
         self.db.flush()
+        self.changes.stage_record(
+            "character",
+            profile.person_id,
+            action="updated",
+            revision=profile.revision,
+        )
         return profile
 
     def set_active_pointer(
@@ -281,11 +307,15 @@ class CharacterService:
         self,
         person_id: int,
         updated_character: CharacterUpdate,
+        expected_revision: int | None = None,
+        expected_person_revision: int | None = None,
     ) -> CharacterRead:
         try:
             profile = self.stage_update(
                 person_id,
                 updated_character,
+                expected_revision,
+                expected_person_revision,
             )
             self.db.commit()
             self.db.refresh(profile)
@@ -312,9 +342,16 @@ class CharacterService:
         self,
         person_id: int,
         image: UploadFile,
+        expected_revision: int | None = None,
     ) -> CharacterRead:
         self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         old_portrait_path = profile.image_path
         saved_portrait_path: str | None = None
 
@@ -325,6 +362,12 @@ class CharacterService:
             )
             profile.image_path = saved_portrait_path
             self.db.add(profile)
+            self.changes.stage_record(
+                "character",
+                profile.person_id,
+                action="updated",
+                revision=profile.revision,
+            )
             self.db.commit()
             self.db.refresh(profile)
         except Exception:
@@ -343,14 +386,27 @@ class CharacterService:
     def remove_portrait(
         self,
         person_id: int,
+        expected_revision: int | None = None,
     ) -> CharacterRead:
         self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         old_portrait_path = profile.image_path
 
         try:
             profile.image_path = ""
             self.db.add(profile)
+            self.changes.stage_record(
+                "character",
+                profile.person_id,
+                action="updated",
+                revision=profile.revision,
+            )
             self.db.commit()
             self.db.refresh(profile)
         except Exception:
@@ -361,9 +417,19 @@ class CharacterService:
             delete_uploaded_file(old_portrait_path)
         return self.to_read(profile)
 
-    def delete(self, person_id: int) -> CharacterDeleteResponse:
+    def delete(
+        self,
+        person_id: int,
+        expected_revision: int | None = None,
+    ) -> CharacterDeleteResponse:
         self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         portrait_path = profile.image_path
 
         try:
@@ -384,8 +450,15 @@ class CharacterService:
             ):
                 self.context.membership.assigned_character_person_id = None
             self.db.add(self.context.membership)
+            self.inventory.stage_sync_default_owner()
 
             self.db.delete(profile)
+            self.changes.stage_record(
+                "character",
+                person_id,
+                action="deleted",
+                revision=profile.revision,
+            )
             self.db.commit()
         except Exception:
             self.db.rollback()

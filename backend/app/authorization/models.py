@@ -84,6 +84,7 @@ class CampaignMembership(SQLModel, table=True):
         index=True,
     )
     is_custodial: bool = False
+    change_cursor: int = Field(default=0, ge=0)
     joined_at: datetime = Field(default_factory=utc_now)
 
 

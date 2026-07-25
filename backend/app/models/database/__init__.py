@@ -12,6 +12,7 @@ from .inventory import Inventory, InventoryAccess
 from .purse import Purse, CurrencyBalance
 from .inventory_item import InventoryItem
 from .installation import Installation
+from .campaign_change import CampaignChange
 
 __all__ = [
     "Campaign",
@@ -32,4 +33,5 @@ __all__ = [
     "CurrencyBalance",
     "InventoryItem",
     "Installation",
+    "CampaignChange",
 ]

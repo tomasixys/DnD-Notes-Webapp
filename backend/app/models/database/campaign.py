@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 
+from .revision import MutableAggregate
+
 if TYPE_CHECKING:
     from .episode import Episode
     from .person import Person
@@ -10,7 +12,7 @@ if TYPE_CHECKING:
     from .inventory import Inventory
 
 
-class Campaign(SQLModel, table=True):
+class Campaign(MutableAggregate, SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     player_character: str = ""

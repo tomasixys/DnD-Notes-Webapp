@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -39,13 +39,21 @@ def get_episode_roll_stats(
 def create_roll(
     roll_create: RollCreate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> RollMutationResponse:
-    return RollService(context).create(roll_create)
+    return RollService(context).create(
+        roll_create,
+        expected_revision,
+    )
 
 
 @router.delete("/sessions/{episode_id}")
 def delete_episode_rolls(
     episode_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> RollMutationResponse:
-    return RollService(context).delete_for_episode(episode_id)
+    return RollService(context).delete_for_episode(
+        episode_id,
+        expected_revision,
+    )

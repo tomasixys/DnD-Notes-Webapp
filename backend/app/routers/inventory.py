@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -32,16 +32,24 @@ def get_inventory(
 def update_inventory(
     update: InventoryUpdate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> InventoryRead:
-    return InventoryService(context).update_metadata(update)
+    return InventoryService(context).update_metadata(
+        update,
+        expected_revision,
+    )
 
 
 @router.patch("/purse", response_model=InventoryRead)
 def update_purse(
     update: PurseUpdate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> InventoryRead:
-    return InventoryService(context).update_purse(update)
+    return InventoryService(context).update_purse(
+        update,
+        expected_revision,
+    )
 
 
 @router.post(
@@ -52,8 +60,12 @@ def update_purse(
 def create_inventory_item(
     item_data: InventoryItemCreate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> InventoryRead:
-    return InventoryService(context).create_item(item_data)
+    return InventoryService(context).create_item(
+        item_data,
+        expected_revision,
+    )
 
 
 @router.patch("/items/{item_id}", response_model=InventoryRead)
@@ -61,13 +73,22 @@ def update_inventory_item(
     item_id: int,
     update: InventoryItemUpdate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> InventoryRead:
-    return InventoryService(context).update_item(item_id, update)
+    return InventoryService(context).update_item(
+        item_id,
+        update,
+        expected_revision,
+    )
 
 
 @router.delete("/items/{item_id}", response_model=InventoryRead)
 def delete_inventory_item(
     item_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> InventoryRead:
-    return InventoryService(context).delete_item(item_id)
+    return InventoryService(context).delete_item(
+        item_id,
+        expected_revision,
+    )

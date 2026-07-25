@@ -11,12 +11,16 @@ from app.models.api import (
 )
 from app.models.database import Episode, RollEntry
 from app.authorization.context import CampaignContext
+from app.concurrency import claim_revision
+from app.models.enums import ResourceType
+from app.services.campaign_changes import CampaignChangeService
 
 
 class RollService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.changes = CampaignChangeService(context)
 
     def _get_episode(
         self,
@@ -93,6 +97,7 @@ class RollService:
         self,
         episode_id: int,
     ) -> EpisodeRollStats:
+        episode = self._get_episode(episode_id)
         rolls = [
             entry.roll
             for entry in self.get_entries_for_episode(
@@ -105,14 +110,22 @@ class RollService:
             rolls=rolls,
             average=self.calculate_average(rolls),
             roll_luck=self.calculate_luck(rolls),
+            revision=episode.revision,
         )
 
     def stage_create(
         self,
         roll_create: RollCreate,
+        expected_revision: int | None = None,
     ) -> RollEntry:
         self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
-        self._get_episode(roll_create.session_id)
+        episode = self._get_episode(roll_create.session_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
         if roll_create.roll < 1 or roll_create.roll > 20:
             raise HTTPException(
                 status_code=400,
@@ -125,14 +138,21 @@ class RollService:
         )
         self.db.add(roll_entry)
         self.db.flush()
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="updated",
+            revision=episode.revision,
+        )
         return roll_entry
 
     def create(
         self,
         roll_create: RollCreate,
+        expected_revision: int | None = None,
     ) -> RollMutationResponse:
         try:
-            self.stage_create(roll_create)
+            self.stage_create(roll_create, expected_revision)
             response = RollMutationResponse(
                 campaign_stats=self.get_campaign_stats(),
                 session_stats=self.get_episode_stats(
@@ -148,19 +168,37 @@ class RollService:
     def stage_delete_for_episode(
         self,
         episode_id: int,
+        expected_revision: int | None = None,
     ) -> None:
         self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        episode = self._get_episode(episode_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
         entries = self.get_entries_for_episode(episode_id)
         for entry in entries:
             self.db.delete(entry)
         self.db.flush()
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="updated",
+            revision=episode.revision,
+        )
 
     def delete_for_episode(
         self,
         episode_id: int,
+        expected_revision: int | None = None,
     ) -> RollMutationResponse:
         try:
-            self.stage_delete_for_episode(episode_id)
+            self.stage_delete_for_episode(
+                episode_id,
+                expected_revision,
+            )
             response = RollMutationResponse(
                 campaign_stats=self.get_campaign_stats(),
                 session_stats=self.get_episode_stats(

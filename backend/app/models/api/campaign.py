@@ -1,9 +1,10 @@
 from sqlmodel import SQLModel
 
 from app.authorization.enums import CampaignCapability, CampaignRole
+from .revision import RevisionRead
 
 
-class CampaignRead(SQLModel):
+class CampaignRead(RevisionRead):
     id: int
     name: str
     player_character: str = ""

@@ -1,6 +1,7 @@
 from sqlmodel import Field, SQLModel
 
 from .tag import ResourceTagRead
+from .revision import RevisionRead
 
 
 class EpisodeData(SQLModel):
@@ -11,7 +12,7 @@ class EpisodeData(SQLModel):
     tags: list[str] = Field(default_factory=list)
 
 
-class EpisodeRead(EpisodeData):
+class EpisodeRead(EpisodeData, RevisionRead):
     id: int
     campaign_id: int
     tags: list[ResourceTagRead] = Field(default_factory=list)

@@ -39,6 +39,7 @@ from app.routers import (
     campaigns,
     authorization_admin,
     characters,
+    changes,
     episodes,
     factions,
     inventory,
@@ -149,6 +150,7 @@ def create_app(
     application.include_router(rolls.router)
     application.include_router(search.router)
     application.include_router(characters.router)
+    application.include_router(changes.router)
     application.include_router(inventory.router)
     audit_campaign_route_authorization(application)
 

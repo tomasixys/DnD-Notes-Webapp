@@ -12,6 +12,8 @@ from app.models.enums import ResourceType
 from app.authorization.context import CampaignContext
 from app.services.rolls import RollService
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class EpisodeService:
@@ -24,9 +26,12 @@ class EpisodeService:
         self.db = context.db
         self.rolls = rolls or RollService(context)
         self.tags = TagService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(self, episode: Episode) -> EpisodeRead:
         return EpisodeRead(
+            revision=episode.revision,
+            updated_at=episode.updated_at,
             id=episode.id,
             campaign_id=episode.campaign_id,
             date=episode.date,
@@ -108,11 +113,18 @@ class EpisodeService:
             ResourceType.EPISODE,
             episode.id,
         )
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="created",
+            revision=episode.revision,
+        )
         return episode
 
     def stage_create(
         self,
         episode_data: EpisodeData,
+        expected_revision: int | None = None,
     ) -> Episode:
         return self._stage_insert(
             date=episode_data.date,
@@ -139,8 +151,15 @@ class EpisodeService:
         self,
         episode_id: int,
         episode_data: EpisodeData,
+        expected_revision: int | None = None,
     ) -> Episode:
         episode = self.get(episode_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
         previous_labels = [
             episode.title,
             str(episode.session_number),
@@ -176,17 +195,25 @@ class EpisodeService:
             episode.id,
             previous_labels=previous_labels,
         )
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="updated",
+            revision=episode.revision,
+        )
         return episode
 
     def update(
         self,
         episode_id: int,
         episode_data: EpisodeData,
+        expected_revision: int | None = None,
     ) -> EpisodeRead:
         try:
             episode = self.stage_update(
                 episode_id,
                 episode_data,
+                expected_revision,
             )
             self.db.commit()
             self.db.refresh(episode)
@@ -198,11 +225,24 @@ class EpisodeService:
     def stage_delete(
         self,
         episode_id: int,
+        expected_revision: int | None = None,
     ) -> None:
         episode = self.get(episode_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
         self.tags.stage_handle_resource_deletion(
             ResourceType.EPISODE,
             episode.id,
+        )
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="deleted",
+            revision=episode.revision,
         )
         self.db.delete(episode)
         self.db.flush()
@@ -210,9 +250,10 @@ class EpisodeService:
     def delete(
         self,
         episode_id: int,
+        expected_revision: int | None = None,
     ) -> DeleteResponse:
         try:
-            self.stage_delete(episode_id)
+            self.stage_delete(episode_id, expected_revision)
             self.db.commit()
         except Exception:
             self.db.rollback()

@@ -12,6 +12,7 @@ class EpisodeRollStats(SQLModel):
     rolls: list[int]
     average: float
     roll_luck: float
+    revision: int
 
 
 class CampaignRollStats(SQLModel):

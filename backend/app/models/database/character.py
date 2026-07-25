@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.authorization.enums import ResourceVisibility
 
 from .note import NoteBase
+from .revision import MutableAggregate, RevisionField
 
 if TYPE_CHECKING:
     from .person import Person
@@ -47,7 +48,7 @@ class PersonalNoteAccess:
     )
 
 
-class CharacterProfile(SQLModel, table=True):
+class CharacterProfile(MutableAggregate, SQLModel, table=True):
     """Private character details extending a campaign Person record."""
 
     person_id: int = Field(
@@ -77,7 +78,12 @@ class CharacterProfile(SQLModel, table=True):
     )
 
 
-class CharacterNote(NoteBase, PersonalNoteAccess, table=True):
+class CharacterNote(
+    NoteBase,
+    PersonalNoteAccess,
+    RevisionField,
+    table=True,
+):
     __table_args__ = (
         CheckConstraint(
             "visibility = 'campaign' "
@@ -102,7 +108,12 @@ class CharacterNote(NoteBase, PersonalNoteAccess, table=True):
     character_profile: CharacterProfile = Relationship(back_populates="notes")
 
 
-class BackstoryNote(NoteBase, PersonalNoteAccess, table=True):
+class BackstoryNote(
+    NoteBase,
+    PersonalNoteAccess,
+    RevisionField,
+    table=True,
+):
     __table_args__ = (
         CheckConstraint(
             "visibility = 'campaign' "

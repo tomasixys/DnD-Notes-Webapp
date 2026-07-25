@@ -1,11 +1,13 @@
 from typing import TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 
+from .revision import MutableAggregate
+
 if TYPE_CHECKING:
     from .campaign import Campaign
 
 
-class Location(SQLModel, table=True):
+class Location(MutableAggregate, SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
     campaign: "Campaign" = Relationship(back_populates="locations")

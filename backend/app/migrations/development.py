@@ -16,7 +16,7 @@ from app.auth.models import (
     SecurityEvent,
     User,
 )
-from app.models.database import Installation
+from app.models.database import CampaignChange, Installation
 from app.authorization.models import (
     BackstoryNoteGrant,
     CampaignInvitation,
@@ -38,6 +38,7 @@ DEVELOPMENT_TABLE_NAMES = (
     "campaign_invitation",
     "character_note_grant",
     "backstory_note_grant",
+    "campaign_change",
 )
 
 
@@ -116,3 +117,65 @@ def migrate_development_schema(connection) -> None:
                         f"{column_name} {definition}"
                     )
                 )
+
+    revision_tables = (
+        "campaign",
+        "sessionnote",
+        "person",
+        "location",
+        "faction",
+        "characterprofile",
+        "characternote",
+        "backstorynote",
+        "inventory",
+    )
+    for table_name in revision_tables:
+        if table_name not in table_names:
+            continue
+        columns = {
+            column["name"]
+            for column in inspector.get_columns(table_name)
+        }
+        if "revision" not in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE {table_name} ADD COLUMN "
+                    "revision INTEGER NOT NULL DEFAULT 1"
+                )
+            )
+        if (
+            table_name not in {"characternote", "backstorynote"}
+            and "updated_at" not in columns
+        ):
+            connection.execute(
+                text(
+                    f"ALTER TABLE {table_name} ADD COLUMN "
+                    "updated_at DATETIME NOT NULL "
+                    "DEFAULT '1970-01-01 00:00:00'"
+                )
+            )
+            connection.execute(
+                text(
+                    f"UPDATE {table_name} "
+                    "SET updated_at = CURRENT_TIMESTAMP"
+                )
+            )
+
+    membership_columns = (
+        {
+            column["name"]
+            for column in inspector.get_columns("campaign_membership")
+        }
+        if "campaign_membership" in table_names
+        else set()
+    )
+    if (
+        "campaign_membership" in table_names
+        and "change_cursor" not in membership_columns
+    ):
+        connection.execute(
+            text(
+                "ALTER TABLE campaign_membership ADD COLUMN "
+                "change_cursor INTEGER NOT NULL DEFAULT 0"
+            )
+        )

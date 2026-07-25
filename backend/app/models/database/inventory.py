@@ -4,6 +4,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models.enums import InventoryAccessRole
+from .revision import MutableAggregate
 
 if TYPE_CHECKING:
     from .campaign import Campaign
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
     from .purse import Purse
 
 
-class Inventory(SQLModel, table=True):
+class Inventory(MutableAggregate, SQLModel, table=True):
     """A campaign-scoped collection of items and currency."""
 
     id: int | None = Field(default=None, primary_key=True)

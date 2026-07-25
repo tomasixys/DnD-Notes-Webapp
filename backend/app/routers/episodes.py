@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -44,9 +44,12 @@ def update_episode(
     episode_id: int,
     updated_episode: EpisodeData,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> EpisodeRead:
     return EpisodeService(context).update(
-        episode_id, updated_episode
+        episode_id,
+        updated_episode,
+        expected_revision,
     )
 
 
@@ -54,5 +57,9 @@ def update_episode(
 def delete_episode(
     episode_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return EpisodeService(context).delete(episode_id)
+    return EpisodeService(context).delete(
+        episode_id,
+        expected_revision,
+    )

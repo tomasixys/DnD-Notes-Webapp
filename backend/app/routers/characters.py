@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from app.authorization.dependencies import (
     get_shared_read_context,
@@ -57,8 +57,15 @@ def update_character(
     person_id: int,
     updated_character: CharacterUpdate,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
+    expected_person_revision: int = Query(..., ge=1),
 ) -> CharacterRead:
-    return CharacterService(context).update(person_id, updated_character)
+    return CharacterService(context).update(
+        person_id,
+        updated_character,
+        expected_revision,
+        expected_person_revision,
+    )
 
 
 @router.post("/{person_id}/activate")
@@ -73,8 +80,12 @@ def activate_character(
 def delete_character(
     person_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> CharacterDeleteResponse:
-    return CharacterService(context).delete(person_id)
+    return CharacterService(context).delete(
+        person_id,
+        expected_revision,
+    )
 
 
 @router.put("/{person_id}/image")
@@ -82,10 +93,12 @@ def update_character_image(
     person_id: int,
     image: UploadFile = File(...),
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> CharacterRead:
     return CharacterService(context).replace_portrait(
         person_id,
         image,
+        expected_revision,
     )
 
 
@@ -93,8 +106,12 @@ def update_character_image(
 def delete_character_image(
     person_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> CharacterRead:
-    return CharacterService(context).remove_portrait(person_id)
+    return CharacterService(context).remove_portrait(
+        person_id,
+        expected_revision,
+    )
 
 
 @router.get("/{person_id}/notes")
@@ -130,8 +147,14 @@ def update_character_note(
     note_id: int,
     note: CharacterNoteData,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> CharacterNoteRead:
-    return CharacterNoteService(context).update(person_id, note_id, note)
+    return CharacterNoteService(context).update(
+        person_id,
+        note_id,
+        note,
+        expected_revision,
+    )
 
 
 @router.delete("/{person_id}/notes/{note_id}")
@@ -139,8 +162,13 @@ def delete_character_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return CharacterNoteService(context).delete(person_id, note_id)
+    return CharacterNoteService(context).delete(
+        person_id,
+        note_id,
+        expected_revision,
+    )
 
 
 @router.get("/{person_id}/backstory")
@@ -176,8 +204,14 @@ def update_backstory_note(
     note_id: int,
     note: CharacterNoteData,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> BackstoryNoteRead:
-    return BackstoryNoteService(context).update(person_id, note_id, note)
+    return BackstoryNoteService(context).update(
+        person_id,
+        note_id,
+        note,
+        expected_revision,
+    )
 
 
 @router.delete("/{person_id}/backstory/{note_id}")
@@ -185,5 +219,10 @@ def delete_backstory_note(
     person_id: int,
     note_id: int,
     context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return BackstoryNoteService(context).delete(person_id, note_id)
+    return BackstoryNoteService(context).delete(
+        person_id,
+        note_id,
+        expected_revision,
+    )

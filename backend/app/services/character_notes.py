@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Callable, Protocol
 
 from fastapi import HTTPException
@@ -34,6 +34,8 @@ from app.models.database import (
 from app.models.enums import ResourceType
 from app.authorization.context import CampaignContext
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 PersonalNote = CharacterNote | BackstoryNote
@@ -68,6 +70,7 @@ class _PersonalNoteOperations:
         self.definition = definition
         self.tags = TagService(context)
         self.policy = ResourceAccessPolicy(context)
+        self.changes = CampaignChangeService(context)
 
     def _verify_character(
         self,
@@ -92,6 +95,7 @@ class _PersonalNoteOperations:
     def to_read(self, note: PersonalNote) -> PersonalNoteRead:
         grants = self._grant_reads(note)
         return self.definition.read_model(
+            revision=note.revision,
             id=note.id,
             campaign_id=note.campaign_id,
             character_person_id=note.character_person_id,
@@ -202,6 +206,13 @@ class _PersonalNoteOperations:
             self.definition.resource_type,
             note.id,
         )
+        self.changes.stage_record(
+            self.definition.resource_type.value,
+            note.id,
+            action="created",
+            revision=note.revision,
+            recipient_user_ids=self._recipient_user_ids(note),
+        )
         return note
 
     def stage_create(
@@ -245,12 +256,20 @@ class _PersonalNoteOperations:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> PersonalNote:
         note = self.get(person_id, note_id)
         self.policy.require_write(
             note,
             self.definition.grant_model,
             detail=self.definition.not_found_detail,
+        )
+        previous_recipients = self._recipient_user_ids(note)
+        claim_revision(
+            self.db,
+            note,
+            expected_revision or note.revision,
+            resource_type=self.definition.resource_type.value,
         )
         requested_grants = self._normalized_grant_data(
             note_data.visibility,
@@ -275,7 +294,6 @@ class _PersonalNoteOperations:
         previous_title = note.title
         note.title = self._normalize_title(note_data.title)
         note.content = note_data.content.strip()
-        note.updated_at = datetime.now(timezone.utc)
         if (
             note_data.visibility is not ResourceVisibility.CAMPAIGN
             and note.access_owner_user_id is None
@@ -299,12 +317,23 @@ class _PersonalNoteOperations:
             note.id,
             previous_labels=[previous_title],
         )
+        self.changes.stage_record(
+            self.definition.resource_type.value,
+            note.id,
+            action="updated",
+            revision=note.revision,
+            recipient_user_ids=(
+                previous_recipients
+                | self._recipient_user_ids(note)
+            ),
+        )
         return note
 
     def stage_delete(
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> None:
         note = self.get(person_id, note_id)
         self.policy.require_write(
@@ -312,9 +341,23 @@ class _PersonalNoteOperations:
             self.definition.grant_model,
             detail=self.definition.not_found_detail,
         )
+        recipients = self._recipient_user_ids(note)
+        claim_revision(
+            self.db,
+            note,
+            expected_revision or note.revision,
+            resource_type=self.definition.resource_type.value,
+        )
         self.tags.stage_handle_resource_deletion(
             self.definition.resource_type,
             note.id,
+        )
+        self.changes.stage_record(
+            self.definition.resource_type.value,
+            note.id,
+            action="deleted",
+            revision=note.revision,
+            recipient_user_ids=recipients,
         )
         self.db.delete(note)
         self.db.flush()
@@ -337,9 +380,23 @@ class _PersonalNoteOperations:
                 self.definition.grant_model,
                 detail=self.definition.not_found_detail,
             )
+            recipients = self._recipient_user_ids(note)
+            claim_revision(
+                self.db,
+                note,
+                note.revision,
+                resource_type=self.definition.resource_type.value,
+            )
             self.tags.stage_handle_resource_deletion(
                 self.definition.resource_type,
                 note.id,
+            )
+            self.changes.stage_record(
+                self.definition.resource_type.value,
+                note.id,
+                action="deleted",
+                revision=note.revision,
+                recipient_user_ids=recipients,
             )
             self.db.delete(note)
         self.db.flush()
@@ -371,12 +428,14 @@ class _PersonalNoteOperations:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> PersonalNoteRead:
         return self._commit_note(
             lambda: self.stage_update(
                 person_id,
                 note_id,
                 note_data,
+                expected_revision,
             )
         )
 
@@ -384,9 +443,14 @@ class _PersonalNoteOperations:
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> DeleteResponse:
         try:
-            self.stage_delete(person_id, note_id)
+            self.stage_delete(
+                person_id,
+                note_id,
+                expected_revision,
+            )
             self.db.commit()
         except Exception:
             self.db.rollback()
@@ -436,6 +500,29 @@ class _PersonalNoteOperations:
             .where(model.note_id == note_id)
             .order_by(model.user_id)
         ).all()
+
+    def _recipient_user_ids(self, note: PersonalNote) -> set[int]:
+        if note.visibility is ResourceVisibility.CAMPAIGN:
+            return set(
+                self.db.exec(
+                    select(CampaignMembership.user_id).where(
+                        CampaignMembership.campaign_id
+                        == self.context.campaign_id,
+                        CampaignMembership.is_custodial.is_(False),
+                    )
+                ).all()
+            )
+        recipients = (
+            {note.access_owner_user_id}
+            if note.access_owner_user_id is not None
+            else set()
+        )
+        if note.visibility is ResourceVisibility.RESTRICTED:
+            recipients.update(
+                grant.user_id
+                for grant in self._grant_rows(note.id)
+            )
+        return recipients
 
     def _grant_reads(
         self,
@@ -599,11 +686,13 @@ class CharacterNoteService:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> CharacterNote:
         return self._operations.stage_update(
             person_id,
             note_id,
             note_data,
+            expected_revision,
         )
 
     def update(
@@ -611,26 +700,38 @@ class CharacterNoteService:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> CharacterNoteRead:
         return self._operations.update(
             person_id,
             note_id,
             note_data,
+            expected_revision,
         )
 
     def stage_delete(
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> None:
-        self._operations.stage_delete(person_id, note_id)
+        self._operations.stage_delete(
+            person_id,
+            note_id,
+            expected_revision,
+        )
 
     def delete(
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> DeleteResponse:
-        return self._operations.delete(person_id, note_id)
+        return self._operations.delete(
+            person_id,
+            note_id,
+            expected_revision,
+        )
 
     def stage_delete_all_for_character(
         self,
@@ -714,11 +815,13 @@ class BackstoryNoteService:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> BackstoryNote:
         return self._operations.stage_update(
             person_id,
             note_id,
             note_data,
+            expected_revision,
         )
 
     def update(
@@ -726,26 +829,38 @@ class BackstoryNoteService:
         person_id: int,
         note_id: int,
         note_data: CharacterNoteData,
+        expected_revision: int | None = None,
     ) -> BackstoryNoteRead:
         return self._operations.update(
             person_id,
             note_id,
             note_data,
+            expected_revision,
         )
 
     def stage_delete(
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> None:
-        self._operations.stage_delete(person_id, note_id)
+        self._operations.stage_delete(
+            person_id,
+            note_id,
+            expected_revision,
+        )
 
     def delete(
         self,
         person_id: int,
         note_id: int,
+        expected_revision: int | None = None,
     ) -> DeleteResponse:
-        return self._operations.delete(person_id, note_id)
+        return self._operations.delete(
+            person_id,
+            note_id,
+            expected_revision,
+        )
 
     def stage_delete_all_for_character(
         self,

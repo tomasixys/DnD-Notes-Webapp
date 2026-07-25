@@ -124,6 +124,7 @@ def _load_database_models() -> None:
     from app.models.database import (  # noqa: F401
         BackstoryNote,
         Campaign,
+        CampaignChange,
         CharacterNote,
         CharacterProfile,
         CurrencyBalance,

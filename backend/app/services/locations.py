@@ -14,6 +14,8 @@ from app.models.database import Location
 from app.models.enums import RelationshipType, ResourceType
 from app.authorization.context import CampaignContext
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class LocationService:
@@ -21,9 +23,12 @@ class LocationService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(self, location: Location) -> LocationRead:
         return LocationRead(
+            revision=location.revision,
+            updated_at=location.updated_at,
             id=location.id,
             campaign_id=location.campaign_id,
             name=location.name,
@@ -106,6 +111,12 @@ class LocationService:
             ResourceType.LOCATION,
             location.id,
         )
+        self.changes.stage_record(
+            ResourceType.LOCATION.value,
+            location.id,
+            action="created",
+            revision=location.revision,
+        )
         return location
 
     def stage_create(self, location_data: LocationData) -> Location:
@@ -131,8 +142,15 @@ class LocationService:
         self,
         location_id: int,
         location_data: LocationData,
+        expected_revision: int | None = None,
     ) -> Location:
         location = self.get(location_id)
+        claim_revision(
+            self.db,
+            location,
+            expected_revision or location.revision,
+            resource_type=ResourceType.LOCATION.value,
+        )
         previous_name = location.name
         location.name = location_data.name
         location.type = location_data.type
@@ -150,15 +168,26 @@ class LocationService:
             location.id,
             previous_labels=[previous_name],
         )
+        self.changes.stage_record(
+            ResourceType.LOCATION.value,
+            location.id,
+            action="updated",
+            revision=location.revision,
+        )
         return location
 
     def update(
         self,
         location_id: int,
         location_data: LocationData,
+        expected_revision: int | None = None,
     ) -> LocationRead:
         try:
-            location = self.stage_update(location_id, location_data)
+            location = self.stage_update(
+                location_id,
+                location_data,
+                expected_revision,
+            )
             self.db.commit()
             self.db.refresh(location)
             return self.to_read(location)
@@ -166,18 +195,38 @@ class LocationService:
             self.db.rollback()
             raise
 
-    def stage_delete(self, location_id: int) -> None:
+    def stage_delete(
+        self,
+        location_id: int,
+        expected_revision: int | None = None,
+    ) -> None:
         location = self.get(location_id)
+        claim_revision(
+            self.db,
+            location,
+            expected_revision or location.revision,
+            resource_type=ResourceType.LOCATION.value,
+        )
         self.tags.stage_handle_resource_deletion(
             ResourceType.LOCATION,
             location.id,
         )
+        self.changes.stage_record(
+            ResourceType.LOCATION.value,
+            location.id,
+            action="deleted",
+            revision=location.revision,
+        )
         self.db.delete(location)
         self.db.flush()
 
-    def delete(self, location_id: int) -> DeleteResponse:
+    def delete(
+        self,
+        location_id: int,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
         try:
-            self.stage_delete(location_id)
+            self.stage_delete(location_id, expected_revision)
             self.db.commit()
         except Exception:
             self.db.rollback()
