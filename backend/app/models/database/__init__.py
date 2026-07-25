@@ -11,6 +11,7 @@ from .character import CharacterProfile, CharacterNote, BackstoryNote
 from .inventory import Inventory, InventoryAccess
 from .purse import Purse, CurrencyBalance
 from .inventory_item import InventoryItem
+from .installation import Installation
 
 __all__ = [
     "Campaign",
@@ -30,4 +31,5 @@ __all__ = [
     "Purse",
     "CurrencyBalance",
     "InventoryItem",
+    "Installation",
 ]

@@ -1,0 +1,17 @@
+[installation]
+mode = "local"
+
+[database]
+# Omit url to use the platform-specific DnD Notes data directory.
+# url = "sqlite:///D:/path/to/notes.db"
+echo = false
+
+[storage]
+backend = "filesystem"
+# path = "D:/path/to/dnd-notes-data"
+
+[server]
+host = "127.0.0.1"
+port = 8000
+open_browser = true
+trusted_hosts = ["localhost", "127.0.0.1", "[::1]", "testserver"]

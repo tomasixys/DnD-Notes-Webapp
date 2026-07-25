@@ -10,6 +10,22 @@ and this changelog follows the structure described by
 
 ### Added
 
+- Added strict TOML launch configuration with local and hosted deployment
+  validation, safe discovery, and documented example files.
+- Added a persisted installation identity and immutable deployment mode;
+  administrator credentials remain application-managed rather than config.
+- Added embedded local/hosted build profiles, build-time config validation,
+  mode-specific artifact names, and packaged executable-specific config files.
+- Added typed SQLite/PostgreSQL database URL and pool settings with
+  environment-referenced hosted credentials.
+- Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy
+  SQLite adoption bridge, and disposable-schema PostgreSQL CI coverage.
+- Added trusted host/proxy, secure cookie, runtime secret, filesystem, and
+  object-storage configuration validation.
+- Allowed authenticated network deployments to use an explicit durable server
+  filesystem path by default instead of requiring remote object storage.
+- Added an exclusive instance lock and a separate offline inspection and
+  filesystem campaign-export command.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while

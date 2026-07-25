@@ -39,10 +39,11 @@ The build script:
 The default output is an `onedir` bundle:
 
 ```text
-dist/DnDNotes/DnDNotes.exe
+dist/DnDNotes-local/DnDNotes-local.exe
+dist/DnDNotes-local/DnDNotes-local.toml
 ```
 
-The entire `dist/DnDNotes` directory must be distributed together.
+The entire `dist/DnDNotes-local` directory must be distributed together.
 
 For a single executable:
 
@@ -53,13 +54,35 @@ python build.py --onefile
 Output:
 
 ```text
-dist/DnDNotes.exe
+dist/DnDNotes-local.exe
+dist/DnDNotes-local.toml
 ```
 
 The one-file version starts more slowly because PyInstaller extracts bundled
 files on launch.
 
 ## Build options
+
+The default artifact embeds the `local` security profile and validates
+`config/local.example.toml`. An explicit local configuration may be supplied:
+
+```powershell
+python build.py --profile local --config .\config\my-local.toml
+```
+
+A hosted build requires an explicit hosted configuration:
+
+```powershell
+python build.py --profile hosted --config .\config\my-hosted.toml
+```
+
+This produces a distinctly named `DnDNotes-hosted` artifact with an embedded
+hosted profile. Profile mismatch is a startup error. Hosted startup remains
+disabled until authentication and authorization are implemented.
+
+The packaged backend includes the portable Alembic migration environment.
+Normal startup creates or upgrades the selected SQLite/PostgreSQL database;
+legacy desktop SQLite databases are backed up and adopted into that history.
 
 Reuse existing `frontend/node_modules` and `.build-venv` dependencies:
 
@@ -101,8 +124,21 @@ started with `--no-browser`.
 The launcher also accepts `--host` and `--port`:
 
 ```powershell
-..\.venv\Scripts\python.exe run.py --host 0.0.0.0 --port 8080 --no-browser
+..\.venv\Scripts\python.exe run.py --host 127.0.0.1 --port 8080 --no-browser
 ```
+
+The typed TOML launcher also accepts `--config`. Local mode rejects
+non-loopback bind addresses; external binding remains available only to a
+future hosted profile with authentication enabled.
+
+```powershell
+..\.venv\Scripts\python.exe run.py `
+  --config ..\config\local.example.toml `
+  --port 8080
+```
+
+See [application configuration](docs/configuration.md) for discovery,
+validation, and first-launch installation behavior.
 
 ## Data location
 

@@ -1,0 +1,39 @@
+# Recommended single-server Linux deployment. The application, PostgreSQL,
+# and protected file storage can all run on the same private server.
+# Hosted startup remains disabled until authentication and authorization are
+# implemented.
+
+[installation]
+mode = "hosted"
+
+[database]
+# PostgreSQL credentials are supplied through this environment variable.
+url_env = "DND_NOTES_DATABASE_URL"
+pool_pre_ping = true
+pool_recycle_seconds = 1800
+
+[storage]
+backend = "filesystem"
+# Keep this durable directory outside the source tree and application image.
+path = "/srv/dnd-notes/data"
+
+[security]
+session_secret_env = "DND_NOTES_SESSION_SECRET"
+cookie_name = "__Host-dnd_notes_session"
+cookie_secure = true
+cookie_samesite = "lax"
+session_lifetime_minutes = 720
+
+[server]
+# Bind loopback when a reverse proxy runs on the same server.
+host = "127.0.0.1"
+port = 8000
+# A public IP may replace the hostname, but HTTPS is still required.
+public_origin = "https://notes.example.com"
+open_browser = false
+trusted_hosts = ["notes.example.com"]
+proxy_headers = true
+trusted_proxies = ["127.0.0.1"]
+
+# The first administrator will be created with the offline create-admin
+# command. User passwords and password hashes never belong in this file.

@@ -13,8 +13,10 @@ DnD Notes uses one FastAPI/Uvicorn process in production. It serves:
 - the compiled Vue frontend at `/`; and
 - Vue Router history routes through the frontend catch-all.
 
-`app/main.py` registers every API router before mounting the frontend catch-all.
-Application startup initializes storage and applies database migrations.
+`app/application.py` constructs the application, registers every API router
+before mounting the frontend catch-all, and owns startup initialization.
+`app/main.py` is the ASGI compatibility entry point. The typed launcher in
+`backend/run.py` validates configuration before constructing the application.
 
 ## Package boundaries
 
@@ -29,7 +31,9 @@ backend/app/
   routers/             HTTP paths, inputs, outputs, and status codes
   services/            Domain operations and transaction coordination
   tags/                Stateless parsing plus focused tag query helpers
+  application.py       FastAPI construction and startup lifecycle
   app_paths.py         Platform-specific persistent paths
+  config.py            Typed launch configuration and deployment validation
   file_storage.py      Shared validation and filesystem primitives
   frontend.py          Compiled-frontend mounting and history fallback
 ```
@@ -156,12 +160,35 @@ planning and migration tests.
 SQLite data and uploads live in the platform-specific user-data directory
 selected by `platformdirs`, outside the executable and source tree.
 
-Numbered migration modules are registered in `app/migrations/runner.py`.
-Before migrating an older database, the runner creates a pre-migration backup.
-The development migration hook is unversioned and must remain idempotent; its
-work is promoted into a numbered migration before release.
+The engine is configured lazily during application startup from typed settings.
+Local mode defaults to the platform data-directory SQLite file; hosted
+configuration references a PostgreSQL URL through an environment variable.
+Request dependencies resolve the initialized engine rather than importing a
+hard-coded global connection.
 
-The current schema version is 4.
+Every initialized database has one `Installation` row. It records the
+installation identity, deployment mode, and initialization time. Startup
+rejects a requested mode that differs from the stored mode. User accounts and
+administrator credentials are separate application-managed records.
+Pre-installation databases containing campaigns can be claimed only by local
+mode; moving desktop data into hosted mode remains an explicit import process.
+
+Alembic in `app/migrations/portable` owns the cross-database migration history.
+Its first revision is a current-schema baseline used to create empty SQLite and
+PostgreSQL databases.
+
+The original numbered SQLite migrations remain as an adoption bridge. An
+existing SQLite database is backed up, upgraded through legacy schema version
+4 plus the final development hook, and stamped at the Alembic baseline in the
+same startup operation. A non-empty PostgreSQL database without Alembic history
+is rejected and requires an explicit reviewed adoption process.
+
+PostgreSQL integration tests create a unique temporary schema and remove only
+that generated schema. CI runs them against a disposable PostgreSQL service.
+
+Normal startup holds an exclusive instance lock. The separate offline
+maintenance command uses the same lock for non-secret inspection and
+filesystem-backed campaign export.
 
 ## Verification expectations
 
