@@ -150,10 +150,14 @@ class CampaignAuthorizationTests(unittest.TestCase):
                 )
             )
             member = create_user(db)
-            CampaignMembershipService(owner_context).add_user(
-                member.username,
-                CampaignRole.MEMBER,
+            db.add(
+                CampaignMembership(
+                    campaign_id=campaign.id,
+                    user_id=member.id,
+                    role=CampaignRole.MEMBER,
+                )
             )
+            db.flush()
             CampaignMembershipService(owner_context).assign_character(
                 owner_context.user.id,
                 None,
