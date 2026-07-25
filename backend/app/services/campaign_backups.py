@@ -1,5 +1,7 @@
 import io
 import json
+import stat
+from dataclasses import dataclass
 from pathlib import Path
 from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
@@ -15,9 +17,9 @@ from app.authorization.enums import CampaignCapability, CampaignRole
 from app.authorization.models import CampaignMembership
 from app.file_storage import (
     add_upload_to_archive,
-    build_upload_url,
     delete_uploaded_file,
     get_uploaded_file_path,
+    is_safe_archive_member_path,
     make_backup_archive_path,
     read_archive_member,
     write_image_from_bytes,
@@ -27,7 +29,6 @@ from app.models.api import (
     CampaignBackup,
     CampaignBackupCampaign,
     CampaignBackupCharacter,
-    CampaignBackupExportRead,
     CampaignRead,
     PersonData,
 )
@@ -51,6 +52,18 @@ def _sqlmodel_to_dict(model: SQLModel) -> dict:
     return model.dict()
 
 
+MAX_BACKUP_UPLOAD_BYTES = 100 * 1024 * 1024
+MAX_BACKUP_EXPANDED_BYTES = 250 * 1024 * 1024
+MAX_BACKUP_MANIFEST_BYTES = 5 * 1024 * 1024
+MAX_BACKUP_MEMBERS = 2_000
+
+
+@dataclass(frozen=True)
+class CampaignBackupArchive:
+    path: Path
+    filename: str
+
+
 class CampaignBackupService:
     def __init__(self, db: Session, user: User):
         self.db = db
@@ -60,7 +73,7 @@ class CampaignBackupService:
     def export(
         self,
         context: CampaignContext,
-    ) -> CampaignBackupExportRead:
+    ) -> CampaignBackupArchive:
         context.require(CampaignCapability.CAMPAIGN_EXPORT)
         campaign = context.campaign
         people = PersonService(context)
@@ -74,7 +87,7 @@ class CampaignBackupService:
         locations = LocationService(context)
         factions = FactionService(context)
 
-        archive_path, relative_path = make_backup_archive_path(
+        archive_path, filename = make_backup_archive_path(
             campaign.name
         )
         character_image_archive_paths: dict[int, str] = {}
@@ -154,6 +167,13 @@ class CampaignBackupService:
                         indent=2,
                     ),
                 )
+            if archive_path.stat().st_size > MAX_BACKUP_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Backup archive is too large",
+                )
+            with ZipFile(archive_path, "r") as generated_archive:
+                self._validate_archive(generated_archive)
         except Exception:
             archive_path.unlink(missing_ok=True)
             raise
@@ -165,14 +185,20 @@ class CampaignBackupService:
             used_elevation=context.elevated,
         )
         self.db.commit()
-        return CampaignBackupExportRead(
-            backup_url=build_upload_url(relative_path),
-            filename=archive_path.name,
+        return CampaignBackupArchive(
+            path=archive_path,
+            filename=filename,
         )
 
     def import_archive(self, raw_data: bytes) -> CampaignRead:
+        if len(raw_data) > MAX_BACKUP_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail="Backup archive is too large",
+            )
         try:
             with ZipFile(io.BytesIO(raw_data), "r") as archive:
+                self._validate_archive(archive)
                 backup = self._read_backup(archive)
                 campaign = self._restore(archive, backup)
         except BadZipFile:
@@ -202,6 +228,60 @@ class CampaignBackupService:
             context.membership,
             session_count=len(backup.sessions),
         )
+
+    @staticmethod
+    def _validate_archive(archive: ZipFile) -> None:
+        members = archive.infolist()
+        if len(members) > MAX_BACKUP_MEMBERS:
+            raise HTTPException(
+                status_code=400,
+                detail="Backup archive contains too many files",
+            )
+
+        seen_paths: set[str] = set()
+        expanded_size = 0
+        for member in members:
+            member_path = member.filename
+            if (
+                "\\" in member_path
+                or not is_safe_archive_member_path(member_path)
+                or member_path in seen_paths
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid backup archive path",
+                )
+            seen_paths.add(member_path)
+            if member.flag_bits & 0x1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Encrypted backup entries are not supported",
+                )
+            unix_mode = member.external_attr >> 16
+            if stat.S_ISLNK(unix_mode):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Backup archive links are not supported",
+                )
+            expanded_size += member.file_size
+            if expanded_size > MAX_BACKUP_EXPANDED_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Expanded backup archive is too large",
+                )
+
+        try:
+            manifest = archive.getinfo("backup.json")
+        except KeyError:
+            raise HTTPException(
+                status_code=400,
+                detail="Backup archive is missing backup.json",
+            )
+        if manifest.file_size > MAX_BACKUP_MANIFEST_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail="Backup manifest is too large",
+            )
 
     @staticmethod
     def _uploaded_suffix(relative_path: str) -> str:
@@ -455,7 +535,7 @@ class CampaignBackupService:
         cls,
         db: Session,
         campaign_id: int,
-    ) -> CampaignBackupExportRead:
+    ) -> CampaignBackupArchive:
         """Export through an existing owner identity for offline maintenance."""
         row = db.exec(
             select(User, CampaignMembership)

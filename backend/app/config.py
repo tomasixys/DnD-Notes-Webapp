@@ -539,6 +539,11 @@ def validate_build_profile(
             f"requests '{configured_mode.value}'. Use an artifact built for "
             "the requested deployment mode."
         )
+    if settings.storage.backend is StorageBackend.OBJECT:
+        raise ConfigurationError(
+            "Object storage is reserved for a future storage adapter. "
+            "Use storage.backend = 'filesystem' for current builds."
+        )
     return settings
 
 

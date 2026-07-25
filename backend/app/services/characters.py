@@ -2,7 +2,7 @@ from fastapi import HTTPException, UploadFile
 from sqlmodel import select
 
 from app.file_storage import (
-    build_upload_url,
+    build_character_asset_url,
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
@@ -49,7 +49,10 @@ class CharacterService:
             short_bio=profile.short_bio,
             appearance=profile.appearance,
             image_url=(
-                build_upload_url(profile.image_path)
+                build_character_asset_url(
+                    self.context.campaign_id,
+                    profile.person_id,
+                )
                 if profile.image_path
                 else ""
             ),

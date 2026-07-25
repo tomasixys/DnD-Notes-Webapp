@@ -8,7 +8,7 @@ from app.authorization.context import CampaignContext
 from app.authorization.enums import CampaignCapability, CampaignRole
 from app.authorization.models import CampaignMembership
 from app.file_storage import (
-    build_upload_url,
+    build_campaign_asset_url,
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
@@ -34,12 +34,12 @@ class CampaignService:
         session_count: int = 0,
     ) -> CampaignRead:
         image_url = (
-            build_upload_url(campaign.image_path)
+            build_campaign_asset_url(campaign.id, "image")
             if campaign.image_path
             else ""
         )
         banner_image_url = (
-            build_upload_url(campaign.banner_image_path)
+            build_campaign_asset_url(campaign.id, "banner")
             if campaign.banner_image_path
             else image_url
         )

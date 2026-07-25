@@ -4,7 +4,6 @@ import type {
   CampaignCapability,
   CampaignsDto,
   DeleteResponseDto,
-  ExportResponse,
 } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
 import {
@@ -213,17 +212,11 @@ async function deleteCampaign(campaignId: number) {
 }
 
 async function exportCampaign(campaignId: number) {
-  const response = await GetAPI<ExportResponse>(
+  const response = await DownloadAPI(
     `campaigns/${campaignId}/backup/export`,
   )
   if (isApiFailure(response)) {
     console.error("Failed to export campaign:", response.error)
-    return
-  }
-  console.log("Exported campaign:", response)
-  const downloadResponse = await DownloadAPI(response.backupUrl)
-  if (isApiFailure(downloadResponse)) {
-    console.error("Failed to download campaign backup:", downloadResponse.error)
     return
   }
 }

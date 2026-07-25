@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import FileResponse
 from sqlmodel import Session
 
 from app.auth.dependencies import require_current_user
@@ -10,8 +11,11 @@ from app.authorization.schemas import (
     AdminCampaignRead,
     CampaignRecoveryRequest,
 )
+from app.backup_downloads import (
+    BINARY_DOWNLOAD_RESPONSE,
+    backup_file_response,
+)
 from app.database import get_session
-from app.models.api import CampaignBackupExportRead
 from app.services.campaign_backups import CampaignBackupService
 
 
@@ -60,15 +64,21 @@ def recover_campaign(
     )
 
 
-@router.get("/{campaign_id}/backup/export")
+@router.get(
+    "/{campaign_id}/backup/export",
+    response_class=FileResponse,
+    responses=BINARY_DOWNLOAD_RESPONSE,
+)
 def export_campaign(
     campaign_id: int,
     reason: str = Query(min_length=1),
     user: User = Depends(require_current_user),
     db: Session = Depends(get_session),
-) -> CampaignBackupExportRead:
+) -> FileResponse:
     context = CampaignAuthorizationAdminService(db, user).inspect(
         campaign_id,
         reason,
     )
-    return CampaignBackupService(db, user).export(context)
+    return backup_file_response(
+        CampaignBackupService(db, user).export(context)
+    )

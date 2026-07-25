@@ -11,7 +11,6 @@ from sqlmodel import Session, select
 from app.app_paths import (
     configure_app_data_dir,
     get_app_data_dir,
-    get_uploads_dir,
 )
 from app.auth.administration import (
     IdentityAdminError,
@@ -121,8 +120,7 @@ def export_campaign(
                 db,
                 campaign_id,
             )
-            relative_path = result.backup_url.removeprefix("uploads/")
-            generated_path = get_uploads_dir() / relative_path
+            generated_path = result.path
             shutil.copy2(generated_path, output)
         return output
     finally:

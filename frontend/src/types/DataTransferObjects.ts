@@ -306,11 +306,6 @@ export type InventoryDto = {
   items: InventoryItemDto[]
 }
 
-export type ExportResponse = {
-  backupUrl: string
-  filename: string
-}
-
 export type SearchQueryDto = {
   query: string
   resourceTypes: ResourceType[]

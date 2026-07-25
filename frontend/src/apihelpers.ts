@@ -284,7 +284,11 @@ export async function DownloadAPI(
   const objectUrl = URL.createObjectURL(blob)
   const link = Object.assign(document.createElement("a"), {
     href: objectUrl,
-    download: filename ?? (endpoint.split("/").pop() || endpoint),
+    download: (
+      filename
+      ?? downloadFilename(result)
+      ?? (endpoint.split("/").pop() || endpoint)
+    ),
   })
   document.body.appendChild(link)
   link.click()
@@ -294,6 +298,27 @@ export async function DownloadAPI(
     success: true as const,
     message: "File downloaded successfully.",
   }
+}
+
+function downloadFilename(response: Response): string | null {
+  const disposition = response.headers.get("Content-Disposition")
+  if (!disposition) return null
+
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+  const quoted = /filename="([^"]+)"/i.exec(disposition)?.[1]
+  const plain = /filename=([^;]+)/i.exec(disposition)?.[1]
+  let candidate = (quoted ?? plain)?.trim()
+  if (encoded) {
+    try {
+      candidate = decodeURIComponent(encoded)
+    } catch {
+      candidate = encoded
+    }
+  }
+  if (!candidate) return null
+
+  const basename = candidate.split(/[\\/]/).pop()?.trim()
+  return basename || null
 }
 
 function snakeToCamel(key: string) {

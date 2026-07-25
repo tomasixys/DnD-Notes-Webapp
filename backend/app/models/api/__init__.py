@@ -17,7 +17,6 @@ from .location import LocationData, LocationRead
 from .faction import FactionData, FactionRead
 from .backup import (
     CAMPAIGN_BACKUP_SCHEMA_VERSION,
-    CampaignBackupExportRead,
     CampaignBackupCampaign,
     CampaignBackupEpisode,
     CampaignBackupPerson,
@@ -83,7 +82,6 @@ __all__ = [
     "FactionData",
     "FactionRead",
     "CAMPAIGN_BACKUP_SCHEMA_VERSION",
-    "CampaignBackupExportRead",
     "CampaignBackupCampaign",
     "CampaignBackupEpisode",
     "CampaignBackupPerson",

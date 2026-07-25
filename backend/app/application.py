@@ -1,6 +1,7 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, staticfiles
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlmodel import Session
@@ -10,6 +11,7 @@ from app.app_paths import (
     get_app_data_dir,
     get_campaign_images_dir,
     get_uploads_dir,
+    get_transient_backups_dir,
 )
 from app.auth.administration import IdentityBootstrapService
 from app.auth.middleware import install_authentication_middleware
@@ -26,8 +28,13 @@ from app.config import (
 )
 from app.database import create_db_and_tables
 from app.frontend import mount_frontend
+from app.file_storage import (
+    BACKUP_EXPIRY_SECONDS,
+    cleanup_expired_backup_archives,
+)
 from app.instance_lock import InstanceLock
 from app.routers import (
+    assets,
     campaign_backups,
     campaigns,
     authorization_admin,
@@ -48,6 +55,13 @@ def initialize_app_storage() -> None:
     get_app_data_dir()
     get_uploads_dir()
     get_campaign_images_dir()
+    get_transient_backups_dir()
+
+
+async def cleanup_transient_backups_periodically() -> None:
+    while True:
+        await asyncio.sleep(BACKUP_EXPIRY_SECONDS)
+        cleanup_expired_backup_archives()
 
 
 def create_app(
@@ -67,7 +81,11 @@ def create_app(
         initialize_app_storage()
         lock = InstanceLock(get_app_data_dir() / "instance.lock")
         with lock:
+            cleanup_expired_backup_archives()
             engine = create_db_and_tables(settings)
+            cleanup_task = asyncio.create_task(
+                cleanup_transient_backups_periodically()
+            )
             try:
                 with Session(engine) as db:
                     InstallationService(db).ensure(settings)
@@ -81,6 +99,9 @@ def create_app(
                         ).ensure_local_ownership()
                 yield
             finally:
+                cleanup_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup_task
                 engine.dispose()
 
     application = FastAPI(
@@ -103,16 +124,11 @@ def create_app(
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Content-Disposition"],
     )
     application.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.server.trusted_hosts,
-    )
-
-    application.mount(
-        "/api/uploads",
-        staticfiles.StaticFiles(directory=get_uploads_dir()),
-        name="uploads",
     )
 
     application.include_router(auth_router.session_router)
@@ -120,6 +136,7 @@ def create_app(
         application.include_router(auth_router.router)
 
     application.include_router(campaigns.router)
+    application.include_router(assets.router)
     application.include_router(memberships.router)
     application.include_router(campaign_backups.router)
     application.include_router(authorization_admin.router)

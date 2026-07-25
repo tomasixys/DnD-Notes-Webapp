@@ -42,3 +42,9 @@ def get_campaign_images_dir() -> Path:
     path = get_uploads_dir() / "campaigns"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def get_transient_backups_dir() -> Path:
+    path = get_app_data_dir() / "transient-backups"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
