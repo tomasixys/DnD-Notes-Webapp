@@ -55,6 +55,14 @@ and this changelog follows the structure described by
   authorization failures, and user-scoped campaign browser state.
 - Added capability-aware campaign, shared-resource, and assigned-character
   controls for owner, member, and viewer memberships.
+- Added authorized campaign-image and character-portrait delivery without a
+  public uploads mount, using existing database ownership relationships.
+- Added byte-decoded image validation with MIME, extension, filename, size,
+  pixel, and animation limits, including validation of restored backup images.
+- Changed campaign backup export to a direct authorized download whose
+  temporary archive is deleted after transfer and expired after interruption.
+- Added backup upload, archive-member, expansion, link, duplicate-path, and
+  manifest limits.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while

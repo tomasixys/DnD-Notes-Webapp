@@ -9,7 +9,8 @@ in the [July 2026 backend refactoring record](archive/backend-refactoring-2026-0
 DnD Notes uses one FastAPI/Uvicorn process in production. It serves:
 
 - the JSON API under `/api`;
-- uploaded campaign files under `/api/uploads`;
+- authorized campaign images and portraits under campaign-scoped API routes;
+- one-request campaign backup downloads backed by transient files;
 - the compiled Vue frontend at `/`; and
 - Vue Router history routes through the frontend catch-all.
 
@@ -34,10 +35,28 @@ backend/app/
   tags/                Stateless parsing plus focused tag query helpers
   application.py       FastAPI construction and startup lifecycle
   app_paths.py         Platform-specific persistent paths
+  backup_downloads.py  Private download responses and cleanup behavior
   config.py            Typed launch configuration and deployment validation
   file_storage.py      Shared validation and filesystem primitives
   frontend.py          Compiled-frontend mounting and history fallback
 ```
+
+### Protected files
+
+Stored image paths are internal persistence details and are never exposed as
+web paths. Campaign image records and character-profile relationships prove
+which campaign owns each file. Asset requests first resolve an authorized
+`CampaignContext`, then map the requested campaign or character ID to its
+stored path.
+
+Uploaded and restored images are decoded before storage, with byte, pixel,
+animation, MIME, filename, and extension limits. Files are revalidated before
+delivery and responses use private, no-store caching.
+
+Campaign exports are generated outside the asset directory and returned
+directly by the authorized export request. The response deletes its temporary
+archive after transfer; startup, an hourly cleanup cycle, and subsequent
+exports also remove expired archives left by interrupted processes.
 
 ### Routers
 

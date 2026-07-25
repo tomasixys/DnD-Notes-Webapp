@@ -25,8 +25,9 @@ in-development authenticated server mode for private hosting. Server mode
 keeps application-managed user accounts, PostgreSQL data, and protected files
 under the operator's control. Campaign membership and resource authorization
 are enforced across the API and reflected in the authenticated frontend.
-Protected asset and backup delivery is the next development milestone before
-a hosted release.
+Campaign images, portraits, and backup downloads are protected by those same
+membership boundaries. Controlled campaign invitations and member management
+are the next development milestone before a collaborative hosted release.
 
 ## Technology
 
@@ -34,8 +35,9 @@ a hosted release.
 - Vue, Vue Router, TypeScript, and Vite
 - PyInstaller for host-native Windows and Linux application builds
 
-The backend API is available under `/api`. Uploaded campaign assets are served
-under `/api/uploads`.
+The backend API is available under `/api`. Campaign assets are available only
+through authorized, campaign-scoped API routes; the storage directory is never
+mounted as public static content.
 
 ## Development setup
 

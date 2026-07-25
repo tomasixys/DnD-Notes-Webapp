@@ -1,5 +1,6 @@
-# Optional object-storage variant. Most single-server installations should use
-# config/hosted.example.toml and keep files on the server filesystem.
+# Reserved object-storage shape for a future storage adapter. Current builds
+# deliberately reject this configuration instead of silently writing locally.
+# Use config/hosted.example.toml for a supported hosted installation.
 
 [installation]
 mode = "hosted"

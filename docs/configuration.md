@@ -5,10 +5,10 @@ Updated: 2026-07-25
 DnD Notes reads typed TOML configuration. Unknown fields and invalid
 combinations fail startup rather than being ignored.
 
-The Milestone 1 configuration foundation now includes embedded build profiles,
-persisted installation mode, and database-engine settings. Hosted
-configuration can be build-validated, but application startup rejects hosted
-mode until authentication and authorization are implemented.
+The configuration foundation includes embedded build profiles, persisted
+installation mode, database-engine settings, and protected filesystem
+storage. Hosted mode includes application-managed authentication and campaign
+authorization.
 
 ## Build profile
 
@@ -48,7 +48,7 @@ Examples are available at:
 
 - [Local configuration](../config/local.example.toml)
 - [Recommended hosted configuration with server filesystem storage](../config/hosted.example.toml)
-- [Optional hosted configuration with object storage](../config/hosted-object.example.toml)
+- [Reserved object-storage configuration shape](../config/hosted-object.example.toml)
 
 Run from source:
 
@@ -131,7 +131,7 @@ path = "/srv/dnd-notes/data"
 The path should be outside the source tree and executable, included in server
 backups, and accessible only to the application service account and operators.
 
-Object storage remains available for deployments that need it:
+The object-storage configuration shape is reserved for a future adapter:
 
 ```toml
 [storage]
@@ -143,12 +143,17 @@ access_key_env = "DND_NOTES_STORAGE_ACCESS_KEY"
 secret_key_env = "DND_NOTES_STORAGE_SECRET_KEY"
 ```
 
-Both choices validate the hosted storage boundary. Session authentication
-already protects the hosted upload path. The asset-authorization milestone
-adds campaign membership checks and replaces broad authenticated serving with
-authorized file responses or short-lived signed object URLs. Filesystem
-storage is therefore not treated as public simply because it resides on the
-server.
+Current builds reject `backend = "object"` explicitly, so selecting it cannot
+silently fall back to the local filesystem. When an object adapter is added,
+the same campaign authorization boundary can issue short-lived signed URLs or
+stream private objects. Until then, `filesystem` is the supported backend for
+both local and hosted deployments.
+
+Filesystem assets are never mounted as a public static directory. Campaign
+images, banners, and character portraits are served by authorized API routes
+that check campaign access first. Backup exports are direct, authorized
+downloads from a transient directory and are removed after transfer, with
+hourly cleanup for expired remnants of interrupted responses.
 
 ### Security
 
@@ -174,8 +179,7 @@ password_reset_token_lifetime_minutes = 60
 ```
 
 The referenced session secret must contain at least 32 bytes. Runtime startup
-also requires a non-empty database URL environment variable. Object-storage
-credentials are required only when that backend is selected.
+also requires a non-empty database URL environment variable.
 
 `session_lifetime_minutes` is the renewable idle timeout.
 `session_absolute_lifetime_minutes` is the non-renewable ceiling and cannot be
@@ -249,9 +253,8 @@ explicit migration or export/import workflow.
 
 ## Hosted security consumers
 
-Milestones 1 and 2 validate and consume the deployment, cookie, password,
-session, throttling, and token settings. Hosted API paths and filesystem
-uploads require authentication; campaign membership and per-resource access
-are introduced in later authorization milestones. Persisted application users
-and administrators remain application-managed state rather than
-configuration.
+Hosted mode consumes the deployment, cookie, password, session, throttling,
+and token settings. Hosted API paths require authentication, while campaign
+resources and files additionally require campaign-level authorization.
+Persisted application users and administrators remain application-managed
+state rather than configuration.

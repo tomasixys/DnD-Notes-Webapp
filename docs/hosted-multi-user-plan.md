@@ -207,15 +207,17 @@ The current design provides a useful starting point:
 - Backup import is atomic and uploaded-file cleanup is coordinated with
   database transactions.
 
-The following assumptions must change before hosting:
+The original architecture review identified the following assumptions to
+change before hosting. The milestone status notes below record which items have
+since been completed:
 
 - `CampaignContext.resolve()` verifies existence, not membership.
 - Campaign list, create, update, delete, import, and export accept any caller.
 - SQLite configuration, `PRAGMA user_version`, and migration code are tied to
   one local database file.
-- `/api/uploads` is mounted as public static content. Campaign images,
-  character portraits, and generated campaign backup archives can therefore be
-  fetched without authorization.
+- `/api/uploads` was mounted as public static content. Campaign images,
+  character portraits, and generated campaign backup archives could therefore
+  be fetched without authorization.
 - `Campaign.active_character_person_id` is global. In a multi-user campaign,
   character selection belongs to a membership or user preference.
 - The frontend has no authenticated application bootstrap, route guards,
@@ -530,6 +532,14 @@ Exit criteria:
 - Viewer/member/owner controls match the server role matrix.
 
 ### Milestone 5 — Protected assets and backups
+
+**Status:** completed on 2026-07-25 for durable filesystem storage. Campaign
+and character database relationships are the authoritative asset ownership
+mapping, so no redundant asset table was required. The public uploads mount is
+gone, and backup downloads are authorized, one-request responses backed by
+temporary files removed after transfer or by hourly expiry cleanup. A future
+remote-object adapter may replace these responses with short-lived signed URLs
+without changing the authorization boundary.
 
 **Purpose:** close the largest current hosting-specific data leak.
 
