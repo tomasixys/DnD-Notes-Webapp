@@ -78,8 +78,8 @@ Services use composition instead of inheritance:
   backed by a person.
 - `CharacterNoteService` and `BackstoryNoteService` share private note
   mechanics while preserving separate models and public APIs.
-- `SessionNoteService` composes `RollService` for rolls stored beneath a
-  session.
+- `EpisodeService` owns played-game notes and composes `RollService` for rolls
+  stored beneath an episode.
 - `CampaignBackupService` composes domain services instead of reimplementing
   their rules.
 - `LocationService` and `FactionService` coordinate relationship-backed tags
@@ -90,6 +90,25 @@ Services use composition instead of inheritance:
   references, search matching, refresh, and deletion cleanup.
 
 Stateless tag parsing and formatting remain pure functions in `app/tags`.
+
+### Episode terminology and compatibility
+
+`Episode` is the backend domain term for one played game and its notes/rolls.
+This avoids collisions with SQLModel database `Session` objects and
+authentication `AuthSession` records.
+
+Existing compatibility boundaries deliberately keep their released names:
+
+- the database table remains `sessionnote`, with `session_id` roll foreign keys;
+- HTTP routes remain under `/api/campaigns/{campaign_id}/sessions`;
+- request/response fields retain `session_number`, `session_id`,
+  `session_stats`, and `session_count`;
+- tag resources continue to serialize as `"session"`; and
+- campaign backups continue to serialize their episode collection as
+  `sessions`.
+
+Those names may change only through an explicit API, database, or backup-schema
+migration. New internal backend code should otherwise use `Episode`.
 
 ## Transactions
 

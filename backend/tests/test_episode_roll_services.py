@@ -5,19 +5,20 @@ from sqlalchemy import event
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.models.api import RollCreate, SessionNoteData
+from app.models.api import EpisodeData, RollCreate
 from app.models.database import (
     Campaign,
+    Episode,
     RollEntry,
-    SessionNote,
     TagAssignment,
 )
+from app.models.enums import ResourceType
 from app.services.campaign_context import CampaignContext
+from app.services.episodes import EpisodeService
 from app.services.rolls import RollService
-from app.services.sessions import SessionNoteService
 
 
-class SessionAndRollServiceTests(unittest.TestCase):
+class EpisodeAndRollServiceTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine(
             "sqlite://",
@@ -36,6 +37,10 @@ class SessionAndRollServiceTests(unittest.TestCase):
     def tearDown(self):
         self.engine.dispose()
 
+    def test_episode_names_preserve_storage_and_wire_compatibility(self):
+        self.assertEqual("sessionnote", Episode.__tablename__)
+        self.assertEqual("session", ResourceType.EPISODE.value)
+
     @staticmethod
     def _create_campaign(db: Session, name: str = "Test") -> Campaign:
         campaign = Campaign(name=name)
@@ -44,33 +49,33 @@ class SessionAndRollServiceTests(unittest.TestCase):
         db.refresh(campaign)
         return campaign
 
-    def test_staged_session_and_rolls_share_the_outer_transaction(self):
+    def test_staged_episode_and_rolls_share_the_outer_transaction(self):
         with Session(self.engine) as db:
             campaign = self._create_campaign(db)
             context = CampaignContext(db, campaign)
-            sessions = SessionNoteService(context)
+            episodes = EpisodeService(context)
 
-            session_note = sessions.stage_create(
-                SessionNoteData(
+            episode = episodes.stage_create(
+                EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
                     session_number=1,
                     tags=["city"],
                 ),
             )
-            roll = sessions.rolls.stage_create(
-                RollCreate(session_id=session_note.id, roll=18),
+            roll = episodes.rolls.stage_create(
+                RollCreate(session_id=episode.id, roll=18),
             )
-            session_note_id = session_note.id
+            episode_id = episode.id
             roll_id = roll.id
 
-            self.assertIsNotNone(db.get(SessionNote, session_note_id))
+            self.assertIsNotNone(db.get(Episode, episode_id))
             self.assertIsNotNone(db.get(RollEntry, roll_id))
             self.assertEqual(1, len(db.exec(select(TagAssignment)).all()))
 
             db.rollback()
 
-            self.assertIsNone(db.get(SessionNote, session_note_id))
+            self.assertIsNone(db.get(Episode, episode_id))
             self.assertIsNone(db.get(RollEntry, roll_id))
             self.assertEqual([], db.exec(select(TagAssignment)).all())
 
@@ -78,30 +83,30 @@ class SessionAndRollServiceTests(unittest.TestCase):
         with Session(self.engine) as db:
             campaign = self._create_campaign(db)
             context = CampaignContext(db, campaign)
-            sessions = SessionNoteService(context)
-            created = sessions.create(
-                SessionNoteData(
+            episodes = EpisodeService(context)
+            created = episodes.create(
+                EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
                     session_number=1,
                 ),
             )
-            session_note_id = created.id
+            episode_id = created.id
             rolls = RollService(context)
 
             rolls.create(
-                RollCreate(session_id=session_note_id, roll=20),
+                RollCreate(session_id=episode_id, roll=20),
             )
             response = rolls.create(
-                RollCreate(session_id=session_note_id, roll=1),
+                RollCreate(session_id=episode_id, roll=1),
             )
 
             self.assertEqual(2, response.campaign_stats.num_rolls)
             self.assertEqual(10.5, response.session_stats.average)
 
-            updated = sessions.update(
-                session_note_id,
-                SessionNoteData(
+            updated = episodes.update(
+                episode_id,
+                EpisodeData(
                     date="2026-07-24",
                     title="The City",
                     session_number=2,
@@ -109,7 +114,7 @@ class SessionAndRollServiceTests(unittest.TestCase):
             )
             self.assertEqual(2, updated.session_number)
 
-            deleted_rolls = rolls.delete_for_session(session_note_id)
+            deleted_rolls = rolls.delete_for_episode(episode_id)
             self.assertEqual(
                 0,
                 deleted_rolls.campaign_stats.num_rolls,
@@ -119,22 +124,22 @@ class SessionAndRollServiceTests(unittest.TestCase):
                 deleted_rolls.session_stats.rolls,
             )
             self.assertEqual([], db.exec(select(RollEntry)).all())
-            self.assertIsNotNone(db.get(SessionNote, session_note_id))
+            self.assertIsNotNone(db.get(Episode, episode_id))
 
-            deleted_session = sessions.delete(session_note_id)
+            deleted_episode = episodes.delete(episode_id)
             self.assertEqual(
-                session_note_id,
-                deleted_session.deleted_id,
+                episode_id,
+                deleted_episode.deleted_id,
             )
-            self.assertIsNone(db.get(SessionNote, session_note_id))
+            self.assertIsNone(db.get(Episode, episode_id))
 
-    def test_roll_mutations_reject_a_session_from_another_campaign(self):
+    def test_roll_mutations_reject_an_episode_from_another_campaign(self):
         with Session(self.engine) as db:
             first_campaign = self._create_campaign(db, "First")
             second_campaign = self._create_campaign(db, "Second")
             first_context = CampaignContext(db, first_campaign)
-            session_note = SessionNoteService(first_context).create(
-                SessionNoteData(
+            episode = EpisodeService(first_context).create(
+                EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
                     session_number=1,
@@ -145,7 +150,7 @@ class SessionAndRollServiceTests(unittest.TestCase):
                 RollService(
                     CampaignContext(db, second_campaign)
                 ).create(
-                    RollCreate(session_id=session_note.id, roll=10),
+                    RollCreate(session_id=episode.id, roll=10),
                 )
 
             self.assertEqual(404, context.exception.status_code)

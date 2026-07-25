@@ -12,7 +12,7 @@ from app.models.database import (
     Campaign,
     CharacterProfile,
     Person,
-    SessionNote,
+    Episode,
 )
 from app.services.campaign_context import CampaignContext
 from app.services.inventory import InventoryService
@@ -56,19 +56,19 @@ class CampaignService:
             campaign_id,
         ).campaign
 
-    def count_sessions(self, campaign_id: int) -> int:
+    def count_episodes(self, campaign_id: int) -> int:
         return self.db.exec(
-            select(func.count(SessionNote.id)).where(
-                SessionNote.campaign_id == campaign_id
+            select(func.count(Episode.id)).where(
+                Episode.campaign_id == campaign_id
             )
         ).one()
 
     def list_reads(self) -> list[CampaignRead]:
         results = self.db.exec(
-            select(Campaign, func.count(SessionNote.id))
+            select(Campaign, func.count(Episode.id))
             .join(
-                SessionNote,
-                SessionNote.campaign_id == Campaign.id,
+                Episode,
+                Episode.campaign_id == Campaign.id,
                 isouter=True,
             )
             .group_by(Campaign.id)
@@ -83,7 +83,7 @@ class CampaignService:
         campaign = self.get(campaign_id)
         return self.to_read(
             campaign,
-            self.count_sessions(campaign_id),
+            self.count_episodes(campaign_id),
         )
 
     def stage_create(
@@ -209,7 +209,7 @@ class CampaignService:
 
         return self.to_read(
             campaign,
-            self.count_sessions(campaign_id),
+            self.count_episodes(campaign_id),
         )
 
     def delete(self, campaign_id: int) -> DeleteResponse:

@@ -1,7 +1,7 @@
 from .campaign import Campaign
 from .tag import Tag
 from .tag_assignment import TagAssignment
-from .session_note import SessionNote
+from .episode import Episode
 from .roll_entry import RollEntry
 from .person import Person
 from .location import Location
@@ -17,7 +17,7 @@ __all__ = [
     "Campaign",
     "Tag",
     "TagAssignment",
-    "SessionNote",
+    "Episode",
     "RollEntry",
     "Person",
     "Location",

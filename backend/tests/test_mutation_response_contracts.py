@@ -74,7 +74,7 @@ class MutationResponseContractTests(unittest.TestCase):
         )
         roll_delete = self._successful_response_schema(
             paths[
-                "/api/campaigns/{campaign_id}/rolls/sessions/{session_id}"
+                "/api/campaigns/{campaign_id}/rolls/sessions/{episode_id}"
             ]["delete"]
         )
 

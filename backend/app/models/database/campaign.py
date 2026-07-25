@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 
 if TYPE_CHECKING:
-    from .session_note import SessionNote
+    from .episode import Episode
     from .person import Person
     from .location import Location
     from .faction import Faction
@@ -24,7 +24,7 @@ class Campaign(SQLModel, table=True):
         index=True,
     )
 
-    sessions: list["SessionNote"] = Relationship(
+    episodes: list["Episode"] = Relationship(
         back_populates="campaign",
         cascade_delete=True,
         passive_deletes=True,

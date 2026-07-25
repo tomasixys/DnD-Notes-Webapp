@@ -25,13 +25,13 @@ from app.routers import (
     campaign_backups,
     campaigns,
     characters,
+    episodes,
     factions,
     inventory,
     locations,
     people,
     rolls,
     search,
-    sessions,
 )
 from app.services.installations import InstallationService
 
@@ -106,7 +106,7 @@ def create_app(
 
     application.include_router(campaigns.router)
     application.include_router(campaign_backups.router)
-    application.include_router(sessions.router)
+    application.include_router(episodes.router)
     application.include_router(people.router)
     application.include_router(locations.router)
     application.include_router(factions.router)

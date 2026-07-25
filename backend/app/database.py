@@ -128,7 +128,7 @@ def _load_database_models() -> None:
         Person,
         Purse,
         RollEntry,
-        SessionNote,
+        Episode,
         Tag,
         TagAssignment,
     )

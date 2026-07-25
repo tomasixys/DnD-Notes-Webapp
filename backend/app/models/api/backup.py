@@ -25,7 +25,7 @@ class CampaignBackupCampaign(SQLModel):
     active_character_person_backup_id: int | None = None
 
 
-class CampaignBackupSession(SQLModel):
+class CampaignBackupEpisode(SQLModel):
     date: str
     title: str
     description: str = ""
@@ -117,7 +117,8 @@ class CampaignBackupInventory(SQLModel):
 class CampaignBackup(SQLModel):
     schema_version: int = CAMPAIGN_BACKUP_SCHEMA_VERSION
     campaign: CampaignBackupCampaign
-    sessions: list[CampaignBackupSession] = Field(default_factory=list)
+    # Keep the serialized key for backup-schema compatibility.
+    sessions: list[CampaignBackupEpisode] = Field(default_factory=list)
     people: list[CampaignBackupPerson] = Field(default_factory=list)
     locations: list[CampaignBackupLocation] = Field(default_factory=list)
     factions: list[CampaignBackupFaction] = Field(default_factory=list)

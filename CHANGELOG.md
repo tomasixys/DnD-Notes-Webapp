@@ -56,6 +56,8 @@ and this changelog follows the structure described by
 - Isolated identity models, password handling, login, browser sessions,
   authentication dependencies, and account administration in a dedicated
   backend authentication domain.
+- Renamed the played-game backend domain from session notes to episodes while
+  preserving existing database, HTTP, tag, roll, and backup contracts.
 - Split tag parsing, reference resolution, assignments, and read queries into
   focused modules behind a small compatibility facade.
 - Consolidated the unreleased database changes into one version 1 to version 2

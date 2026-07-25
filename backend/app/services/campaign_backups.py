@@ -33,11 +33,11 @@ from app.services.character_notes import (
     CharacterNoteService,
 )
 from app.services.characters import CharacterService
+from app.services.episodes import EpisodeService
 from app.services.factions import FactionService
 from app.services.inventory import InventoryService
 from app.services.locations import LocationService
 from app.services.people import PersonService
-from app.services.sessions import SessionNoteService
 
 
 def _sqlmodel_to_dict(model: SQLModel) -> dict:
@@ -61,7 +61,7 @@ class CampaignBackupService:
             people=people,
             inventory=inventory,
         )
-        sessions = SessionNoteService(context)
+        episodes = EpisodeService(context)
         locations = LocationService(context)
         factions = FactionService(context)
 
@@ -128,7 +128,7 @@ class CampaignBackupService:
                             campaign.active_character_person_id
                         ),
                     ),
-                    sessions=sessions.list_backup_entries(),
+                    sessions=episodes.list_backup_entries(),
                     people=people.list_backup_entries(),
                     characters=characters.list_backup_entries(
                         character_image_archive_paths
@@ -257,7 +257,7 @@ class CampaignBackupService:
                 context,
                 characters,
             )
-            sessions = SessionNoteService(context)
+            episodes = EpisodeService(context)
             locations = LocationService(context)
             factions = FactionService(context)
 
@@ -279,8 +279,8 @@ class CampaignBackupService:
                 locations.stage_restore(location_backup)
             for faction_backup in backup.factions:
                 factions.stage_restore(faction_backup)
-            for session_backup in backup.sessions:
-                sessions.stage_restore(session_backup)
+            for episode_backup in backup.sessions:
+                episodes.stage_restore(episode_backup)
 
             for character_backup in backup.characters:
                 self._restore_character(

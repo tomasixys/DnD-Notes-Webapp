@@ -8,10 +8,13 @@ if TYPE_CHECKING:
     from .roll_entry import RollEntry
 
 
-class SessionNote(NoteBase, table=True):
+class Episode(NoteBase, table=True):
+    # Preserve the released table name while using unambiguous domain wording.
+    __tablename__ = "sessionnote"
+
     id: int | None = Field(default=None, primary_key=True)
 
-    campaign: "Campaign" = Relationship(back_populates="sessions")
+    campaign: "Campaign" = Relationship(back_populates="episodes")
     campaign_id: int = Field(
         foreign_key="campaign.id",
         ondelete="CASCADE",
@@ -21,7 +24,7 @@ class SessionNote(NoteBase, table=True):
     session_number: int = Field(index=True)
 
     rolls: list["RollEntry"] = Relationship(
-        back_populates="session",
+        back_populates="episode",
         cascade_delete=True,
         passive_deletes=True,
     )

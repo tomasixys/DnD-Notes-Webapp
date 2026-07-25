@@ -3,7 +3,7 @@ from sqlmodel import Field, SQLModel
 from .tag import ResourceTagRead
 
 
-class SessionNoteData(SQLModel):
+class EpisodeData(SQLModel):
     date: str
     title: str
     description: str = ""
@@ -11,7 +11,7 @@ class SessionNoteData(SQLModel):
     tags: list[str] = Field(default_factory=list)
 
 
-class SessionNoteRead(SessionNoteData):
+class EpisodeRead(EpisodeData):
     id: int
     campaign_id: int
     tags: list[ResourceTagRead] = Field(default_factory=list)

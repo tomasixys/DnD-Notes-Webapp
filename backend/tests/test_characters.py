@@ -20,7 +20,7 @@ from app.models.api import (
     CharacterNoteData,
     PersonData,
     SearchQueryDto,
-    SessionNoteData,
+    EpisodeData,
 )
 from app.models.database import (
     BackstoryNote,
@@ -33,7 +33,7 @@ from app.models.database import (
     InventoryItem,
     NoteBase,
     Person,
-    SessionNote,
+    Episode,
     TagAssignment,
 )
 from app.models.enums import (
@@ -54,7 +54,7 @@ from app.routers.characters import (
     get_character_notes,
 )
 from app.routers.people import delete_person
-from app.routers.sessions import create_session_note
+from app.routers.episodes import create_episode
 from app.routers.search import search_campaign
 from app.routers.campaign_backups import (
     export_campaign_backup,
@@ -127,8 +127,8 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             self.assertTrue(former_person.character_profile_available)
             self.assertFalse(former_person.is_active_character)
 
-    def test_all_note_models_share_note_base_and_sessions_keep_api_shape(self):
-        self.assertTrue(issubclass(SessionNote, NoteBase))
+    def test_all_note_models_share_note_base_and_episodes_keep_api_shape(self):
+        self.assertTrue(issubclass(Episode, NoteBase))
         self.assertTrue(issubclass(CharacterNote, NoteBase))
         self.assertTrue(issubclass(BackstoryNote, NoteBase))
 
@@ -139,8 +139,8 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.refresh(campaign)
             context = CampaignContext(db, campaign)
 
-            response = create_session_note(
-                SessionNoteData(
+            response = create_episode(
+                EpisodeData(
                     date="2026-07-21",
                     title="Arrival",
                     description="Reached the city",
@@ -148,7 +148,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 ),
                 context,
             )
-            stored = db.get(SessionNote, response.id)
+            stored = db.get(Episode, response.id)
 
             self.assertEqual(stored.content, "Reached the city")
             self.assertEqual(response.description, "Reached the city")
