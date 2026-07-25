@@ -23,6 +23,10 @@ cookie_name = "__Host-dnd_notes_session"
 cookie_secure = true
 cookie_samesite = "lax"
 session_lifetime_minutes = 720
+session_absolute_lifetime_minutes = 10080
+login_failure_limit = 5
+login_initial_lock_seconds = 30
+login_maximum_lock_seconds = 900
 
 [server]
 # Bind loopback when a reverse proxy runs on the same server.

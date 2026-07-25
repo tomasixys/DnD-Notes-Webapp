@@ -116,6 +116,26 @@ class ApplicationSettingsTests(unittest.TestCase):
                 }
             )
 
+    def test_security_rejects_inverted_session_and_lock_limits(self):
+        with self.assertRaises(ValueError):
+            ApplicationSettings.model_validate(
+                {
+                    "security": {
+                        "session_lifetime_minutes": 60,
+                        "session_absolute_lifetime_minutes": 30,
+                    }
+                }
+            )
+        with self.assertRaises(ValueError):
+            ApplicationSettings.model_validate(
+                {
+                    "security": {
+                        "login_initial_lock_seconds": 60,
+                        "login_maximum_lock_seconds": 30,
+                    }
+                }
+            )
+
 
 class ApplicationSettingsFileTests(unittest.TestCase):
     def write_config(self, directory: str, content: str) -> Path:

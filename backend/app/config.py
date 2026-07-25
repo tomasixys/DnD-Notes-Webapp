@@ -302,6 +302,22 @@ class SecuritySettings(StrictSettingsModel):
         ge=5,
         le=43200,
     )
+    session_absolute_lifetime_minutes: int = Field(
+        default=10080,
+        ge=5,
+        le=129600,
+    )
+    login_failure_limit: int = Field(default=5, ge=3, le=20)
+    login_initial_lock_seconds: int = Field(
+        default=30,
+        ge=1,
+        le=3600,
+    )
+    login_maximum_lock_seconds: int = Field(
+        default=900,
+        ge=1,
+        le=86400,
+    )
 
     @field_validator("session_secret_env")
     @classmethod
@@ -329,6 +345,26 @@ class SecuritySettings(StrictSettingsModel):
         ):
             raise ValueError("security.cookie_name is invalid")
         return value
+
+    @model_validator(mode="after")
+    def validate_security_lifetimes(self) -> "SecuritySettings":
+        if (
+            self.session_absolute_lifetime_minutes
+            < self.session_lifetime_minutes
+        ):
+            raise ValueError(
+                "security.session_absolute_lifetime_minutes cannot be "
+                "shorter than session_lifetime_minutes"
+            )
+        if (
+            self.login_maximum_lock_seconds
+            < self.login_initial_lock_seconds
+        ):
+            raise ValueError(
+                "security.login_maximum_lock_seconds cannot be shorter "
+                "than login_initial_lock_seconds"
+            )
+        return self
 
 
 class ApplicationSettings(StrictSettingsModel):

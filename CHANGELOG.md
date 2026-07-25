@@ -23,6 +23,9 @@ and this changelog follows the structure described by
 - Added Argon2id password hashing with automatic parameter upgrades, a
   15-character single-factor password policy, and lock-protected offline
   first-administrator and password-reset commands.
+- Added local login/session foundations with generic credential failures,
+  bounded account lockout, digest-backed revocable session and CSRF tokens,
+  idle/absolute expiry, and secure host-only cookie responses.
 - Added typed SQLite/PostgreSQL database URL and pool settings with
   environment-referenced hosted credentials.
 - Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy

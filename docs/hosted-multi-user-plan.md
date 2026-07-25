@@ -382,6 +382,9 @@ Progress:
   and databases already stamped at the Milestone 1 portable baseline.
 - [x] Add the Argon2id credential service, automatic hash-parameter upgrades,
   system custodian seed, and offline first-admin/password-reset commands.
+- [x] Add generic local credential verification, bounded account lockout,
+  digest-backed revocable sessions, idle/absolute expiry, session-bound CSRF,
+  and login/logout/current-session router foundations.
 - [ ] Add login/logout/current-session APIs, CSRF enforcement, throttling, and
   complete hosted route protection.
 

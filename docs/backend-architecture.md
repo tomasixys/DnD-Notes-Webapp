@@ -178,6 +178,13 @@ credential service, which delegates hashing and verification to
 change, and revokes server-side sessions during password reset. Offline
 administrator creation and password reset use the same service while holding
 the installation lock.
+
+The authentication foundation issues independent random session and CSRF
+tokens. Only SHA-256 token digests are persisted. Sessions have renewable idle
+expiry, an absolute expiry ceiling, explicit revocation, and account-state
+checks. The authentication router returns the session token only in a
+host-only, secure, HTTP-only cookie and returns the session-bound CSRF token in
+the response body. It remains unmounted while hosted startup is disabled.
 Pre-installation databases containing campaigns can be claimed only by local
 mode; moving desktop data into hosted mode remains an explicit import process.
 

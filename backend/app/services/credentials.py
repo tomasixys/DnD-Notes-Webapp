@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
+import secrets
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -17,6 +18,10 @@ MIN_USERNAME_LENGTH = 3
 MAX_USERNAME_LENGTH = 64
 PASSWORD_HASH_POLICY_VERSION = 1
 USERNAME_PUNCTUATION = {"_", "-", "."}
+DEFAULT_PASSWORD_HASHER = PasswordHasher()
+DUMMY_PASSWORD_HASH = DEFAULT_PASSWORD_HASHER.hash(
+    secrets.token_urlsafe(32)
+)
 
 
 class CredentialError(ValueError):
@@ -85,7 +90,7 @@ class CredentialService:
         clock: Callable[[], datetime] | None = None,
     ):
         self.db = db
-        self.password_hasher = password_hasher or PasswordHasher()
+        self.password_hasher = password_hasher or DEFAULT_PASSWORD_HASHER
         self.clock = clock or utc_now
 
     def set_password(

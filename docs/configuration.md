@@ -160,11 +160,22 @@ cookie_name = "__Host-dnd_notes_session"
 cookie_secure = true
 cookie_samesite = "lax"
 session_lifetime_minutes = 720
+session_absolute_lifetime_minutes = 10080
+login_failure_limit = 5
+login_initial_lock_seconds = 30
+login_maximum_lock_seconds = 900
 ```
 
 The referenced session secret must contain at least 32 bytes. Runtime startup
 also requires a non-empty database URL environment variable. Object-storage
 credentials are required only when that backend is selected.
+
+`session_lifetime_minutes` is the renewable idle timeout.
+`session_absolute_lifetime_minutes` is the non-renewable ceiling and cannot be
+shorter. Failed passwords increment an account counter; after
+`login_failure_limit`, the lock begins at `login_initial_lock_seconds` and
+increases up to `login_maximum_lock_seconds`. Source-aware request throttling
+is still required before hosted startup is enabled.
 
 ### Server
 
