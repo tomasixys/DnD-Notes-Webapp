@@ -127,6 +127,39 @@ class OptimisticConcurrencyTests(unittest.TestCase):
             self.assertEqual("Mage", preserved.role)
             self.assertEqual(2, preserved.revision)
 
+    def test_membership_removal_blocks_a_later_stale_edit_request(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Revoked access")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            person = PersonService(owner).create(PersonData(name="Imoen"))
+            member_user = create_user(db)
+            member = CampaignMembership(
+                campaign_id=campaign.id,
+                user_id=member_user.id,
+                role=CampaignRole.MEMBER,
+            )
+            db.add(member)
+            db.commit()
+
+            loaded_context = CampaignContext.resolve(
+                db,
+                campaign.id,
+                member_user,
+            )
+            loaded_revision = PersonService(loaded_context).get(
+                person.id
+            ).revision
+            self.assertEqual(1, loaded_revision)
+
+            db.delete(member)
+            db.commit()
+
+            with self.assertRaises(HTTPException) as removed:
+                CampaignContext.resolve(db, campaign.id, member_user)
+            self.assertEqual(404, removed.exception.status_code)
+
 
 class CampaignChangeCursorTests(unittest.TestCase):
     def setUp(self):
