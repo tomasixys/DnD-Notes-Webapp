@@ -156,6 +156,18 @@ class IdentityDevelopmentMigrationTests(unittest.TestCase):
                         "VALUES ('0001_current_schema')"
                     )
                 )
+                connection.execute(
+                    text(
+                        "CREATE TABLE characternote ("
+                        "id INTEGER NOT NULL PRIMARY KEY)"
+                    )
+                )
+                connection.execute(
+                    text(
+                        "CREATE TABLE backstorynote ("
+                        "id INTEGER NOT NULL PRIMARY KEY)"
+                    )
+                )
 
             run_database_migrations(engine)
             run_database_migrations(engine)
@@ -170,8 +182,24 @@ class IdentityDevelopmentMigrationTests(unittest.TestCase):
                     "login_throttle",
                     "security_event",
                     "campaign_invitation",
+                    "character_note_grant",
+                    "backstory_note_grant",
                 }.issubset(tables)
             )
+            inspector = inspect(engine)
+            for table_name in ("characternote", "backstorynote"):
+                self.assertTrue(
+                    {
+                        "created_by_user_id",
+                        "visibility",
+                        "access_owner_user_id",
+                    }.issubset(
+                        {
+                            column["name"]
+                            for column in inspector.get_columns(table_name)
+                        }
+                    )
+                )
         finally:
             engine.dispose()
 
