@@ -82,8 +82,19 @@ listed separately.
 
 ## Planned: hosted multi-user mode
 
-- Authentication
-- Campaign invitations
-- User and campaign roles
-- Shared and private visibility controls
-- Multi-client synchronization
+The ordered implementation and security gates are documented in the
+[hosted multi-user development plan](docs/hosted-multi-user-plan.md).
+The target is a self-contained private-server deployment with local
+username/password accounts, PostgreSQL, and protected server filesystem
+storage; a third-party identity provider is not required.
+
+- [x] Product rules and threat model
+- [ ] Server-ready configuration, database, and migrations
+- [ ] Identity and secure sessions
+- [ ] Campaign tenancy and authorization
+- [ ] Authenticated frontend shell
+- [ ] Protected assets and backups
+- [ ] Campaign invitations and member management
+- [ ] Shared and private visibility controls
+- [ ] Concurrent editing and multi-client synchronization
+- [ ] Production hosting, operations, and staged rollout

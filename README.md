@@ -20,8 +20,11 @@ SQLite and uploaded files remain in the operating system's user-data directory.
 - Search campaign resources, including character notes and backstory.
 - Link directly to individual resources through their URLs.
 
-DnD Notes currently runs as a local, single-user application. Authentication
-and hosted multi-user collaboration are future roadmap items.
+DnD Notes currently runs as a local, single-user application. A self-hosted
+multi-user mode for private servers is under development. It will keep local
+DnD Notes user accounts, PostgreSQL data, and protected files under the
+operator's control; hosted startup remains disabled until authentication and
+authorization are complete.
 
 ## Technology
 
@@ -55,6 +58,14 @@ Start the backend:
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
+```
+
+Or use the typed configuration launcher:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe run.py --config ..\config\local.example.toml
+cd ..
 ```
 
 In a second terminal, start the frontend:
@@ -96,6 +107,9 @@ source launches with a compiled frontend, and data-location details.
 ## Documentation
 
 - [Roadmap](ROADMAP.md)
+- [Hosted multi-user development plan](docs/hosted-multi-user-plan.md)
+- [Application configuration](docs/configuration.md)
+- [Offline maintenance and recovery](docs/maintenance.md)
 - [Changelog](CHANGELOG.md)
 - [Backend architecture](docs/backend-architecture.md)
 - [Completed backend refactoring record](docs/archive/backend-refactoring-2026-07.md)
