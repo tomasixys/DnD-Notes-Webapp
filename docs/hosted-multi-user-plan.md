@@ -444,6 +444,11 @@ Exit criteria:
 
 ### Milestone 3 — Campaign tenancy and authorization
 
+**Status:** completed on 2026-07-25. Resource-specific private visibility
+remains intentionally scheduled for Milestone 7; its schema and query migration
+matrix is documented in
+[`resource-visibility-migration.md`](resource-visibility-migration.md).
+
 **Purpose:** make membership, rather than possession of an ID, the boundary for
 all campaign data.
 

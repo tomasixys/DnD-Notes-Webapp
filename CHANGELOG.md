@@ -42,6 +42,14 @@ and this changelog follows the structure described by
   filesystem path by default instead of requiring remote object storage.
 - Added an exclusive instance lock and a separate offline inspection and
   filesystem campaign-export command.
+- Added campaign memberships with owner, member, and viewer roles, centralized
+  named capabilities, membership-filtered campaign access, and per-member
+  character assignment and active-character state.
+- Added last-owner protection, atomic account-deletion transfer to a non-login
+  system custodian, orphan recovery, and explicitly reasoned and audited system
+  administrator elevation.
+- Added startup route auditing so application API routes cannot be registered
+  without an authentication or campaign-authorization classification.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while

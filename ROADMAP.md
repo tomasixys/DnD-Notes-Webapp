@@ -1,6 +1,6 @@
 # DnD Notes roadmap
 
-Updated: 2026-07-23
+Updated: 2026-07-25
 
 DnD Notes is currently a local, single-user application. The completed
 milestones below describe the current application; deferred and planned work is
@@ -89,9 +89,9 @@ username/password accounts, PostgreSQL, and protected server filesystem
 storage; a third-party identity provider is not required.
 
 - [x] Product rules and threat model
-- [ ] Server-ready configuration, database, and migrations
-- [ ] Identity and secure sessions
-- [ ] Campaign tenancy and authorization
+- [x] Server-ready configuration, database, and migrations
+- [x] Identity and secure sessions
+- [x] Campaign tenancy and authorization
 - [ ] Authenticated frontend shell
 - [ ] Protected assets and backups
 - [ ] Campaign invitations and member management
