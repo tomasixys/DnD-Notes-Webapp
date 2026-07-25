@@ -667,28 +667,49 @@ Exit criteria:
 
 ### Milestone 8 — Concurrent editing and multi-client synchronization
 
+**Status:** completed on 2026-07-25. Ordinary mutable campaign aggregates now
+use optimistic revision checks, while identity, invitations, and memberships
+retain their existing purpose-built transactional invariants. Per-recipient
+change sequences preserve private-resource visibility and per-client source
+markers prevent a browser tab from reporting its own saves as remote changes.
+
 **Purpose:** prevent silent data loss before adding real-time convenience.
 
 Deliverables:
 
-- Add `updated_at` plus an integer version, or an equivalent revision token, to
-  mutable aggregates.
-- Require the revision on updates/deletes and return `409 Conflict` with the
-  current authoritative state when it is stale.
-- Add conflict UI offering reload/copy/reapply behavior. Do not silently choose
-  a winner for note text.
-- Refresh data on window focus and after reconnect.
-- Add a lightweight campaign change cursor so clients can poll for invalidated
-  resource types. Consider server-sent events or WebSockets only after this
-  protocol is correct.
-- Test simultaneous edit/edit, edit/delete, membership removal during editing,
-  and reconnect after missed changes.
+- [x] Add `updated_at` plus an integer version, or an equivalent revision
+  token, to mutable aggregates.
+- [x] Require the revision on updates/deletes and return `409 Conflict` with
+  the current authoritative state when it is stale.
+- [x] Add conflict UI offering reload/copy/reapply behavior. Do not silently
+  choose a winner for note text.
+- [x] Refresh data on window focus and after reconnect.
+- [x] Add a lightweight campaign change cursor so clients can poll for
+  invalidated resource types. Consider server-sent events or WebSockets only
+  after this protocol is correct.
+- [x] Test simultaneous edit/edit, edit/delete, membership removal during
+  editing, and reconnect after missed changes.
 
 Exit criteria:
 
 - Two users cannot silently overwrite each other's changes.
 - A connected client learns about remote changes without a full application
   reload.
+
+Implementation scope:
+
+- Revisions cover campaigns, episodes and rolls, people, locations, factions,
+  character profiles, character notes and backstory, and party inventory.
+- Stale writes return a structured conflict containing the resource identity,
+  expected revision, and current authoritative revision. The client preserves
+  the open form, can copy visible draft fields, and reloads only when the user
+  chooses.
+- Change rows contain no resource content. They are sequenced separately for
+  each campaign member, emitted only to users allowed to know about the
+  resource, and filtered by the requesting browser-tab identifier.
+- The client polls every 15 seconds and immediately on focus, visibility
+  restoration, and reconnect. A user-triggered view remount refreshes the
+  affected data without reloading the application shell.
 
 ### Milestone 9 — Production hosting and operations
 

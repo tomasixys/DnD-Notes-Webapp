@@ -96,5 +96,5 @@ storage; a third-party identity provider is not required.
 - [x] Protected assets and backups
 - [x] Campaign invitations and member management
 - [x] Shared and private visibility controls for character notes and backstory
-- [ ] Concurrent editing and multi-client synchronization
+- [x] Concurrent editing and multi-client synchronization
 - [ ] Production hosting, operations, and staged rollout

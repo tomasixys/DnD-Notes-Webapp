@@ -90,6 +90,13 @@ and this changelog follows the structure described by
   categories, rarities, values, and campaign wealth totals.
 - Added a purse with copper, silver, electrum, gold, and platinum balances.
 - Added inventory ownership metadata tied to campaign characters.
+- Added optimistic revision tokens and atomic stale-write checks for mutable
+  campaign aggregates, with structured `409 Conflict` responses.
+- Added privacy-aware, per-member campaign change cursors and per-browser
+  source markers for lightweight multi-client polling.
+- Added a conflict and remote-change banner that preserves open forms, can copy
+  visible draft fields, refreshes the current view on demand, and checks for
+  changes on a timer, focus, visibility restoration, and reconnect.
 
 ### Changed
 
@@ -125,6 +132,9 @@ and this changelog follows the structure described by
 - Standardized mutation and deletion responses with explicit API models.
 - Updated frontend mutation handling to apply authoritative response data
   locally instead of immediately fetching the same resource again.
+- Updated campaign-content mutations to send the revision that was originally
+  loaded, preventing a later save or delete from silently winning over newer
+  data.
 
 ### Fixed
 
@@ -139,6 +149,8 @@ and this changelog follows the structure described by
 - Made invalid backup imports return a consistent client error without leaving
   a partially created campaign.
 - Corrected location deletion to send the selected location ID.
+- Prevented one browser tab from reporting its own successful mutations as
+  remote changes while still notifying other tabs and devices.
 
 ## [0.2.0] - 2026-07-18
 
