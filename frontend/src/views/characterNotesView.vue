@@ -12,11 +12,15 @@ import {
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useCharacterContext } from "@/composables/useCharacterContext"
 import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
+import { useAuthStore } from "@/stores/authStore"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
+  CampaignMembershipDto,
   CharacterNoteDataDto,
   CharacterNoteDto,
   DeleteResponseDto,
+  ResourceGrantPermission,
+  ResourceVisibility,
 } from "@/types/DataTransferObjects"
 import {
   compareByUpdatedAtDescending,
@@ -30,10 +34,12 @@ const props = defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const { selectedCampaignId } = useCampaignStore()
 const { character, loading } = useCharacterContext()
 
 const entries = ref<CharacterNoteDto[]>([])
+const members = ref<CampaignMembershipDto[]>([])
 const mode = ref<"details" | "create" | "edit">("details")
 const requestError = ref("")
 const { canWriteCharacter } = useCampaignAuthorization(
@@ -44,6 +50,11 @@ const form = reactive({
   title: "",
   content: "",
   tags: "",
+  visibility: "campaign" as ResourceVisibility,
+  grantPermissions: {} as Record<
+    number,
+    ResourceGrantPermission | "none"
+  >,
 })
 
 const routeName = computed(() =>
@@ -71,6 +82,18 @@ const noteIdFromRoute = computed(() => {
 
 const selectedEntry = computed(() =>
   entries.value.find((entry) => entry.id === noteIdFromRoute.value) ?? null,
+)
+const formAccessOwnerId = computed(
+  () => (
+    mode.value === "edit"
+      ? selectedEntry.value?.accessOwnerUserId
+      : auth.user.value?.id
+  ) ?? null,
+)
+const grantCandidates = computed(() =>
+  members.value.filter(
+    (member) => member.userId !== formAccessOwnerId.value,
+  ),
 )
 
 function routeParams(noteId: number | "" = "") {
@@ -100,6 +123,8 @@ function resetForm() {
   form.title = ""
   form.content = ""
   form.tags = ""
+  form.visibility = "campaign"
+  form.grantPermissions = {}
   requestError.value = ""
 }
 
@@ -113,6 +138,13 @@ function showEditForm() {
   form.title = selectedEntry.value.title
   form.content = selectedEntry.value.content
   form.tags = selectedEntry.value.tags.map((tag) => tag.value).join(", ")
+  form.visibility = selectedEntry.value.visibility
+  form.grantPermissions = Object.fromEntries(
+    selectedEntry.value.grants.map((grant) => [
+      grant.userId,
+      grant.permission,
+    ]),
+  )
   mode.value = "edit"
 }
 
@@ -133,6 +165,15 @@ function notePayload(): CharacterNoteDataDto {
     title: form.title.trim(),
     content: form.content.trim(),
     tags: parseTags(form.tags),
+    visibility: form.visibility,
+    grants: form.visibility === "restricted"
+      ? Object.entries(form.grantPermissions)
+        .filter(([, permission]) => permission !== "none")
+        .map(([userId, permission]) => ({
+          userId: Number(userId),
+          permission: permission as ResourceGrantPermission,
+        }))
+      : [],
   }
 }
 
@@ -145,6 +186,10 @@ async function fetchEntries() {
   mode.value = "details"
   requestError.value = ""
   if (!selectedCampaignId.value || !character.value) return
+  const memberResponse = await GetAPI<CampaignMembershipDto[]>(
+    `campaigns/${selectedCampaignId.value}/members`,
+  )
+  members.value = isApiFailure(memberResponse) ? [] : memberResponse
   const response = await GetAPI<CharacterNoteDto[]>(notesEndpoint())
   if (isApiFailure(response)) {
     requestError.value = `The ${sectionTitle.value.toLowerCase()} could not be loaded.`
@@ -286,7 +331,9 @@ watch(noteIdFromRoute, () => {
             >
               <span class="resource-list-kicker">{{ singularTitle }}</span>
               <span class="resource-list-title">{{ entry.title }}</span>
-              <span class="resource-list-meta">Updated {{ formatUpdatedAt(entry.updatedAt) }}</span>
+              <span class="resource-list-meta">
+                {{ entry.visibility }} Â· Updated {{ formatUpdatedAt(entry.updatedAt) }}
+              </span>
             </button>
           </li>
         </ul>
@@ -296,8 +343,8 @@ watch(noteIdFromRoute, () => {
       <article class="resource-detail-panel">
         <template
           v-if="
-            canWriteCharacter
-            && (mode === 'create' || mode === 'edit')
+            (mode === 'create' && canWriteCharacter)
+            || (mode === 'edit' && selectedEntry?.canWrite)
           "
         >
           <header class="resource-detail-header">
@@ -323,6 +370,48 @@ watch(noteIdFromRoute, () => {
               Tags
               <input v-model="form.tags" type="text" placeholder="urgent, person:Nalia, location:Gernanti" />
             </label>
+            <fieldset
+              class="visibility-controls"
+              :disabled="mode === 'edit' && !selectedEntry?.canManageAccess"
+            >
+              <legend>Who can read this entry?</legend>
+              <label>
+                Visibility
+                <select v-model="form.visibility">
+                  <option value="campaign">Everyone in the campaign</option>
+                  <option value="restricted">Selected campaign members</option>
+                  <option value="private">Only me</option>
+                </select>
+              </label>
+              <p class="empty-text">
+                Campaign owners do not automatically see private or restricted entries.
+              </p>
+              <div
+                v-if="form.visibility === 'restricted'"
+                class="grant-list"
+              >
+                <label
+                  v-for="member in grantCandidates"
+                  :key="member.userId"
+                >
+                  <span>
+                    {{ member.displayName || member.username }}
+                    <small>@{{ member.username }}</small>
+                  </span>
+                  <select
+                    v-model="form.grantPermissions[member.userId]"
+                    :aria-label="`Access for ${member.username}`"
+                  >
+                    <option value="none">No access</option>
+                    <option value="read">Can read</option>
+                    <option value="write">Can write</option>
+                  </select>
+                </label>
+                <p v-if="!grantCandidates.length" class="empty-text">
+                  Invite another campaign member before restricting access.
+                </p>
+              </div>
+            </fieldset>
             <p v-if="requestError" class="form-error">{{ requestError }}</p>
             <div class="resource-form-actions">
               <button type="submit">{{ mode === "create" ? "Save" : "Update" }}</button>
@@ -335,11 +424,12 @@ watch(noteIdFromRoute, () => {
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
+                {{ selectedEntry.visibility }} Â·
                 Updated {{ formatUpdatedAt(selectedEntry.updatedAt) }}
               </p>
               <h3>{{ selectedEntry.title }}</h3>
             </div>
-            <div v-if="canWriteCharacter" class="resource-detail-actions">
+            <div v-if="selectedEntry.canWrite" class="resource-detail-actions">
               <button type="button" class="secondary" @click="showEditForm">Edit</button>
               <button type="button" class="danger" @click="deleteEntry">Delete</button>
             </div>
@@ -347,6 +437,18 @@ watch(noteIdFromRoute, () => {
 
           <p class="resource-description">
             {{ selectedEntry.content || "This entry is empty." }}
+          </p>
+          <p
+            v-if="selectedEntry.visibility === 'restricted'"
+            class="resource-access-summary"
+          >
+            Shared with
+            {{
+              selectedEntry.grants
+                .map((grant) => grant.displayName || grant.username)
+                .join(", ")
+                || "no other campaign members"
+            }}.
           </p>
           <div v-if="selectedEntry.tags.length" class="tag-list">
             <ResourceTag
@@ -365,3 +467,44 @@ watch(noteIdFromRoute, () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.visibility-controls {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+
+.visibility-controls:disabled {
+  opacity: 0.7;
+}
+
+.grant-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.grant-list label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.grant-list small {
+  display: block;
+  color: var(--color-text-muted);
+}
+
+.grant-list select {
+  width: auto;
+}
+
+.resource-access-summary {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+</style>

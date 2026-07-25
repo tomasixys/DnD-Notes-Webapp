@@ -224,6 +224,20 @@ export type CharacterUpdateDto = {
   appearance: string
 }
 
+export type ResourceVisibility = "campaign" | "restricted" | "private"
+
+export type ResourceGrantPermission = "read" | "write"
+
+export type CharacterNoteGrantDataDto = {
+  userId: number
+  permission: ResourceGrantPermission
+}
+
+export type CharacterNoteGrantDto = CharacterNoteGrantDataDto & {
+  username: string
+  displayName: string
+}
+
 export type CharacterNoteDto = {
   id: number
   campaignId: number
@@ -232,6 +246,12 @@ export type CharacterNoteDto = {
   content: string
   createdAt: string
   updatedAt: string
+  createdByUserId: number | null
+  visibility: ResourceVisibility
+  accessOwnerUserId: number | null
+  grants: CharacterNoteGrantDto[]
+  canWrite: boolean
+  canManageAccess: boolean
   tags: ResourceTagDto[]
 }
 
@@ -239,6 +259,8 @@ export type CharacterNoteDataDto = {
   title: string
   content: string
   tags: string[]
+  visibility: ResourceVisibility
+  grants: CharacterNoteGrantDataDto[]
 }
 
 export type LocationDto = {
