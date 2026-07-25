@@ -4,6 +4,8 @@ import type {
   CampaignsDto,
   DeleteResponseDto,
   ExportResponse,
+  FactionDto,
+  PersonDto,
 } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
 import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
@@ -27,17 +29,33 @@ const {
 const defaultCampaigndto: CampaignsDto = {
   id: 0,
   name: "",
-  playerCharacter: "",
   description: "",
   sessionCount: 0,
   imageUrl: "",
   bannerImageUrl: "",
-  activeCharacterPersonId: null,
+  activeCharacter: null,
 }
 
 const viewMode = ref<ViewModes>(ViewModes.Current)
 const newCampaign = reactive<CampaignsDto>({ ...defaultCampaigndto })
 const editingCampaignId = ref<number | null>(null)
+
+const newCampaignCharacterName = ref("")
+const newCampaignFactionName = ref("")
+
+const campaignFactions = ref<FactionDto[]>([])
+const campaignPeople = ref<PersonDto[]>([])
+const selectedFactionId = ref<number | null>(null)
+const selectedPersonId = ref<number | null>(null)
+
+const filteredPeople = computed(() => {
+  if (!selectedFactionId.value) {
+    return campaignPeople.value
+  }
+  return campaignPeople.value.filter(
+    (person) => person.faction?.referenceId === selectedFactionId.value
+  )
+})
 
 const newCampaignImageFile = ref<File | null>(null)
 const newCampaignBannerFile = ref<File | null>(null)
@@ -46,6 +64,10 @@ const showDeleteCampaignPopup = ref(false)
 
 function clearNewCampaignForm() {
   Object.assign(newCampaign, defaultCampaigndto)
+  newCampaignCharacterName.value = ""
+  newCampaignFactionName.value = ""
+  selectedFactionId.value = null
+  selectedPersonId.value = null
   newCampaignImageFile.value = null
   newCampaignBannerFile.value = null
 }
@@ -69,16 +91,37 @@ function showNewCampaignForm() {
   viewMode.value = ViewModes.Create
 }
 
-function showEditCampaignForm(campaignId: number) {
+async function showEditCampaignForm(campaignId: number) {
   selectCampaign(campaignId)
 
   editingCampaignId.value = campaignId
 
   newCampaign.name = selectedCampaign.value?.name ?? ""
-  newCampaign.playerCharacter = selectedCampaign.value?.playerCharacter ?? ""
   newCampaign.description = selectedCampaign.value?.description ?? ""
   newCampaignImageFile.value = null
   newCampaignBannerFile.value = null
+
+  const factionsResponse = await GetAPI(`campaigns/${campaignId}/factions`)
+  if (Array.isArray(factionsResponse)) {
+    campaignFactions.value = factionsResponse as FactionDto[]
+  } else {
+    campaignFactions.value = []
+  }
+
+  const peopleResponse = await GetAPI(`campaigns/${campaignId}/people`)
+  if (Array.isArray(peopleResponse)) {
+    campaignPeople.value = peopleResponse as PersonDto[]
+  } else {
+    campaignPeople.value = []
+  }
+
+  selectedPersonId.value = selectedCampaign.value?.activeCharacter?.id ?? null
+  if (selectedPersonId.value) {
+    const activePerson = campaignPeople.value.find((p) => p.id === selectedPersonId.value)
+    selectedFactionId.value = activePerson?.faction?.referenceId ?? null
+  } else {
+    selectedFactionId.value = null
+  }
 
   viewMode.value = ViewModes.Edit
 }
@@ -106,8 +149,21 @@ async function submitCampaign() {
 function buildCampaignFormData(): FormData {
   const formData = new FormData()
   formData.append("name", newCampaign.name.trim())
-  formData.append("player_character", newCampaign.playerCharacter.trim())
   formData.append("description", newCampaign.description.trim())
+
+  if (viewMode.value === ViewModes.Create) {
+    if (newCampaignCharacterName.value.trim()) {
+      formData.append("character_name", newCampaignCharacterName.value.trim())
+    }
+    if (newCampaignFactionName.value.trim()) {
+      formData.append("faction_name", newCampaignFactionName.value.trim())
+    }
+  } else if (viewMode.value === ViewModes.Edit) {
+    formData.append(
+      "active_character_person_id",
+      selectedPersonId.value ? String(selectedPersonId.value) : "0"
+    )
+  }
 
   if (newCampaignImageFile.value) {
     formData.append("image", newCampaignImageFile.value)
@@ -267,8 +323,20 @@ const campaignBannerPreviewUrl = computed(() => {
       </p>
     </header>
 
-    <article v-if="viewMode === ViewModes.Current" class="dashboard-card">
+    <article v-if="viewMode === ViewModes.Current" class="dashboard-card relative-card">
       <template v-if="selectedCampaign">
+        <button
+          type="button"
+          class="edit-icon-btn"
+          aria-label="Edit campaign"
+          title="Edit campaign"
+          @click="showEditCampaignForm(selectedCampaign.id)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+          </svg>
+        </button>
+
         <div class="campaign-summary">
           <img
             v-if="selectedCampaignImageUrl"
@@ -281,8 +349,8 @@ const campaignBannerPreviewUrl = computed(() => {
             <h3>{{ selectedCampaign.name }}</h3>
 
             <p class="player-character">
-              <strong>Player characters:</strong>
-              {{ selectedCampaign.playerCharacter || "None registered yet" }}
+              <strong>Active character:</strong>
+              {{ selectedCampaign.activeCharacter ? selectedCampaign.activeCharacter.name : "None registered yet" }}
             </p>
 
             <p>
@@ -322,8 +390,8 @@ const campaignBannerPreviewUrl = computed(() => {
       </template>
     </article>
 
-    <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
-      <h3>{{ viewMode === ViewModes.Create ? "Start new campaign" : "Edit campaign" }}</h3>
+    <article v-else-if="viewMode === ViewModes.Create" class="dashboard-card">
+      <h3>Start new campaign</h3>
 
       <form class="campaign-form" @submit.prevent="submitCampaign">
         <label>
@@ -337,11 +405,20 @@ const campaignBannerPreviewUrl = computed(() => {
         </label>
 
         <label>
-          Player character
+          Initial character name
           <input
-            v-model="newCampaign.playerCharacter"
+            v-model="newCampaignCharacterName"
             type="text"
-            placeholder="Nalia"
+            placeholder="Nalyathina Calemdor"
+          />
+        </label>
+
+        <label>
+          Initial faction name
+          <input
+            v-model="newCampaignFactionName"
+            type="text"
+            placeholder="Gernanti Watch"
           />
         </label>
 
@@ -372,9 +449,92 @@ const campaignBannerPreviewUrl = computed(() => {
         </label>
 
         <div class="dashboard-actions">
-
           <button type="submit">
-           {{ viewMode === ViewModes.Create ?  "Create campaign" : "Update campaign" }}
+            Create campaign
+          </button>
+
+          <button
+            type="button"
+            class="secondary"
+            @click="showCurrentCampaign"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </article>
+
+    <article v-else-if="viewMode === ViewModes.Edit" class="dashboard-card">
+      <h3>Edit campaign</h3>
+
+      <form class="campaign-form" @submit.prevent="submitCampaign">
+        <label>
+          Campaign name
+          <input
+            v-model="newCampaign.name"
+            type="text"
+            placeholder="Streets of Gernanti"
+            required
+          />
+        </label>
+
+        <label>
+          Faction filter
+          <select v-model="selectedFactionId">
+            <option :value="null">All factions / No filter</option>
+            <option
+              v-for="faction in campaignFactions"
+              :key="faction.id"
+              :value="faction.id"
+            >
+              {{ faction.name }}
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Active Character / Person
+          <select v-model="selectedPersonId">
+            <option :value="null">No active character</option>
+            <option
+              v-for="person in filteredPeople"
+              :key="person.id"
+              :value="person.id"
+            >
+              {{ person.name }} {{ person.characterProfileAvailable ? '' : '(No character sheet yet)' }}
+            </option>
+          </select>
+        </label>
+
+        <label>
+          Campaign description
+          <textarea
+            v-model="newCampaign.description"
+            rows="4"
+            placeholder="A short description of the campaign..."
+          />
+        </label>
+
+        <label>
+          Campaign image URL
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            @change="onCampaignImageSelected"
+          />
+        </label>
+        <label>
+          Campaign banner URL
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            @change="onCampaignBannerSelected"
+          />
+        </label>
+
+        <div class="dashboard-actions">
+          <button type="submit">
+            Update campaign
           </button>
 
           <button
@@ -400,7 +560,7 @@ const campaignBannerPreviewUrl = computed(() => {
           <div>
             <h4>{{ campaign.name }}
             </h4>
-            <small>{{ campaign.playerCharacter }} </small>
+            <small v-if="campaign.activeCharacter">{{ campaign.activeCharacter.name }}</small>
             <p>
               {{ campaign.description || "No description." }}
             </p>
@@ -496,6 +656,34 @@ const campaignBannerPreviewUrl = computed(() => {
   border: 1px solid var(--color-border);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.035);
+}
+
+.relative-card {
+  position: relative;
+}
+
+.edit-icon-btn {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.edit-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--color-accent, #646cff);
+  transform: scale(1.05);
 }
 
 .dashboard-card h3 {
