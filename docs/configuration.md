@@ -176,6 +176,10 @@ login_source_window_seconds = 300
 login_source_lock_seconds = 300
 activation_token_lifetime_minutes = 10080
 password_reset_token_lifetime_minutes = 60
+campaign_invitation_lifetime_minutes = 10080
+invitation_failure_limit = 10
+invitation_failure_window_seconds = 300
+invitation_lock_seconds = 300
 ```
 
 The referenced session secret must contain at least 32 bytes. Runtime startup
@@ -194,6 +198,13 @@ or security-event records.
 Activation tokens default to seven days and password-reset tokens to one hour.
 Both are single-use, stored only as SHA-256 digests, and replaced when an
 administrator issues a newer token for the same account and purpose.
+
+Campaign invitation tokens default to seven days. Failed redemption attempts
+are counted by keyed source digest within
+`invitation_failure_window_seconds`, blocked at
+`invitation_failure_limit`, and released after `invitation_lock_seconds`.
+Raw source addresses and raw tokens are not stored. Campaign invitation tokens
+are likewise digest-only, replaceable, revocable, expiring, and single-use.
 
 ### Server
 

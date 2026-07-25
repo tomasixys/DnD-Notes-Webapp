@@ -1,7 +1,7 @@
 # Recommended single-server Linux deployment. The application, PostgreSQL,
 # and protected file storage can all run on the same private server.
-# Hosted API data requires an authenticated local account. Campaign-specific
-# membership enforcement is introduced in Milestone 3.
+# Hosted API data requires an authenticated local account and campaign
+# membership.
 
 [installation]
 mode = "hosted"
@@ -32,6 +32,10 @@ login_source_window_seconds = 300
 login_source_lock_seconds = 300
 activation_token_lifetime_minutes = 10080
 password_reset_token_lifetime_minutes = 60
+campaign_invitation_lifetime_minutes = 10080
+invitation_failure_limit = 10
+invitation_failure_window_seconds = 300
+invitation_lock_seconds = 300
 
 [server]
 # Bind loopback when a reverse proxy runs on the same server.

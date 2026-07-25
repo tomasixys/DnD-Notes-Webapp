@@ -63,6 +63,14 @@ and this changelog follows the structure described by
   temporary archive is deleted after transfer and expired after interruption.
 - Added backup upload, archive-member, expansion, link, duplicate-path, and
   manifest limits.
+- Added digest-backed campaign invitations for existing active or
+  activation-pending accounts, with replacement, revocation, expiry,
+  exact-account redemption, source throttling, and atomic membership creation.
+- Added campaign membership and pending-invitation screens, administrator
+  account-invitation controls, role changes, member removal and leaving, and
+  explicit ownership transfer.
+- Added action-specific security audit records for campaign invitations,
+  membership role/removal changes, ownership transfer, and campaign deletion.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while

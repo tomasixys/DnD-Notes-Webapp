@@ -1,6 +1,6 @@
 # Hosted multi-user development plan
 
-Status: Milestones 1-2 implemented; PostgreSQL CI verification pending
+Status: Milestones 1-6 implemented; PostgreSQL CI verification pending
 
 Updated: 2026-07-25
 
@@ -572,6 +572,13 @@ and security testing. It is not yet the collaborative release.
 
 ### Milestone 6 — Invitations and campaign member management
 
+**Status:** completed on 2026-07-25. Campaign membership can now be created
+only by accepting a digest-backed invitation issued to an existing active or
+activation-pending server account. Owner management, explicit ownership
+transfer, exact-account redemption, source throttling, audit records, and the
+frontend invitation/member flows are implemented. Email delivery remains
+optional and is not part of the self-hosted first release.
+
 **Purpose:** introduce controlled collaboration after the authorization
 boundary is proven.
 
@@ -583,16 +590,16 @@ Suggested data model:
 
 Deliverables:
 
-- Add owner-only invite, list, resend/replace, revoke, role-change, remove
+- [x] Add owner-only invite, list, resend/replace, revoke, role-change, remove
   member, leave campaign, and transfer-ownership operations.
-- Make invitation acceptance one-time, expiring, rate-limited, and atomic with
+- [x] Make invitation acceptance one-time, expiring, rate-limited, and atomic with
   membership creation.
-- Define behavior when the signed-in account differs from the invited account.
-- Prevent removal or demotion of the last owner.
-- Add a membership screen and pending-invitation flow.
-- Add security audit events for invites, role changes, removals, ownership
+- [x] Define behavior when the signed-in account differs from the invited account.
+- [x] Prevent removal or demotion of the last owner.
+- [x] Add a membership screen and pending-invitation flow.
+- [x] Add security audit events for invites, role changes, removals, ownership
   transfers, exports, and campaign deletion.
-- Add optional email delivery only after the token flow works without email.
+- [x] Complete the token flow without email; email delivery remains optional.
 
 Exit criteria:
 

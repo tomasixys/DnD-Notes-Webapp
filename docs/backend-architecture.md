@@ -24,6 +24,7 @@ before mounting the frontend catch-all, and owns startup initialization.
 ```text
 backend/app/
   auth/               Local identity, credentials, login, and browser sessions
+  authorization/      Campaign context, roles, memberships, and invitations
   dependencies/       Reusable FastAPI request dependencies
   migrations/         Ordered SQLite schema migrations
   models/
@@ -40,6 +41,31 @@ backend/app/
   file_storage.py      Shared validation and filesystem primitives
   frontend.py          Compiled-frontend mounting and history fallback
 ```
+
+### Campaign admission
+
+Server account admission and campaign admission are separate. A system
+administrator first creates an activation-pending local account. A campaign
+owner can then issue that active or pending account a campaign invitation.
+The pending account must activate and sign in before redeeming the campaign
+token.
+
+Campaign invitation tokens are random and stored only as SHA-256 digests.
+Issuing a replacement invalidates the previous token. Redemption verifies the
+exact signed-in user, expiry, revocation state, campaign state, and current
+membership before atomically consuming the token and creating membership.
+Invalid attempts use a keyed source throttle. A token presented by a different
+signed-in user receives the same invalid-invitation response and never reveals
+the intended account. The frontend places issued tokens in URL fragments,
+which are not sent in HTTP request targets, carries them across login in
+session storage, removes them on entry, and submits them only in the protected
+acceptance request body.
+
+Direct membership creation by username is not an API operation. Owners manage
+roles, character assignments, removals, invitations, and explicit ownership
+transfer through the campaign authorization domain. Last-owner checks remain
+transactional, and account deletion revokes unaccepted invitations involving
+the deleted account.
 
 ### Protected files
 

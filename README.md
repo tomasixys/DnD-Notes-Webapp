@@ -4,9 +4,10 @@ DnD Notes is a local campaign-management application for keeping campaign
 information, session notes, characters, relationships, rolls, and party
 inventory in one place.
 
-The Vue frontend and FastAPI backend are packaged as a single application. In
-production, FastAPI serves both the JSON API and the compiled frontend, while
-SQLite and uploaded files remain in the operating system's user-data directory.
+The Vue frontend and FastAPI backend are packaged as a single application.
+FastAPI serves both the JSON API and compiled frontend. Local mode uses SQLite
+and the operating system's application-data directory; hosted mode uses
+PostgreSQL and an explicitly configured protected filesystem directory.
 
 ## Features
 
@@ -19,6 +20,7 @@ SQLite and uploaded files remain in the operating system's user-data directory.
 - Add free-form and typed reference tags that link related entries.
 - Search campaign resources, including character notes and backstory.
 - Link directly to individual resources through their URLs.
+- Invite existing server accounts into campaigns and manage member roles.
 
 DnD Notes supports the established local single-user mode and has an
 in-development authenticated server mode for private hosting. Server mode
@@ -26,8 +28,10 @@ keeps application-managed user accounts, PostgreSQL data, and protected files
 under the operator's control. Campaign membership and resource authorization
 are enforced across the API and reflected in the authenticated frontend.
 Campaign images, portraits, and backup downloads are protected by those same
-membership boundaries. Controlled campaign invitations and member management
-are the next development milestone before a collaborative hosted release.
+membership boundaries. Controlled campaign invitations, one-time account
+activation, role changes, removal, leaving, and ownership transfer are
+available without requiring an email provider. Explicit private-resource
+visibility is the next development milestone.
 
 ## Technology
 
