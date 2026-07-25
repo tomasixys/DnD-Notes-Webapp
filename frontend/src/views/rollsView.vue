@@ -16,9 +16,10 @@ import type {
   RollMutationDto,
   SessionRollDto,
 } from "@/types/DataTransferObjects"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const { selectedCampaignId } = useCampaignStore()
-const { selectedSession } = useSessionContext()
+const { selectedSession, upsertSession } = useSessionContext()
 const { canWriteSharedResources } = useCampaignAuthorization()
 
 const rollInput = ref<number | null>(null)
@@ -69,7 +70,10 @@ async function addRoll() {
     roll,
   }
   const response = await PostAPI<RollMutationDto>(
-    `campaigns/${selectedCampaignId.value}/rolls`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/rolls`,
+      selectedSession.value.revision,
+    ),
     payload,
   )
   if (isApiFailure(response)) {
@@ -77,6 +81,10 @@ async function addRoll() {
     return
   }
   sessionRolls.value = response.sessionStats
+  upsertSession({
+    ...selectedSession.value,
+    revision: response.sessionStats.revision,
+  })
   campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }
@@ -89,13 +97,20 @@ async function deleteRolls() {
   ) return
 
   const response = await DeleteAPI<RollMutationDto>(
-    `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
+      selectedSession.value.revision,
+    ),
   )
   if (isApiFailure(response)) {
     console.error("Failed to delete rolls:", response.error)
     return
   }
   sessionRolls.value = response.sessionStats
+  upsertSession({
+    ...selectedSession.value,
+    revision: response.sessionStats.revision,
+  })
   campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }

@@ -27,6 +27,7 @@ import {
   removeById,
   upsertById,
 } from "@/utils/resourceCollections"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const props = defineProps<{
   kind: "notes" | "backstory"
@@ -227,7 +228,10 @@ async function createEntry() {
 async function updateEntry() {
   if (!form.title.trim() || !selectedEntry.value) return
   const response = await PutAPI<CharacterNoteDto>(
-    `${notesEndpoint()}/${selectedEntry.value.id}`,
+    withExpectedRevision(
+      `${notesEndpoint()}/${selectedEntry.value.id}`,
+      selectedEntry.value.revision,
+    ),
     notePayload(),
   )
   if (isApiFailure(response)) {
@@ -248,7 +252,10 @@ async function deleteEntry() {
   if (!selectedEntry.value) return
   const deletedId = selectedEntry.value.id
   const response = await DeleteAPI<DeleteResponseDto>(
-    `${notesEndpoint()}/${deletedId}`,
+    withExpectedRevision(
+      `${notesEndpoint()}/${deletedId}`,
+      selectedEntry.value.revision,
+    ),
   )
   if (isApiFailure(response)) {
     requestError.value = `The ${singularTitle.value} could not be deleted.`

@@ -22,6 +22,7 @@ import {
   upsertById,
 } from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
@@ -181,7 +182,10 @@ async function updateFaction() {
   }
 
   const response = await PutAPI<FactionDto>(
-    `campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`,
+      selectedEntry.value.revision,
+    ),
     updatedFaction,
   )
   if (isApiFailure(response)) {
@@ -206,8 +210,13 @@ async function deleteFaction(factionId: number) {
     return
   }
 
+  const faction = factions.value.find((entry) => entry.id === factionId)
+  if (!faction) return
   const response = await DeleteAPI<DeleteResponseDto>(
-    `campaigns/${selectedCampaignId.value}/factions/${factionId}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/factions/${factionId}`,
+      faction.revision,
+    ),
   )
   if (isApiFailure(response)) {
     console.error("Failed to delete faction:", response.error)

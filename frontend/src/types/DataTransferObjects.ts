@@ -10,7 +10,12 @@ import type {
   TagResolutionState,
 } from "./tagTypes"
 
-export type CampaignsDto = {
+export type RevisionDto = {
+  revision: number
+  updatedAt: string
+}
+
+export type CampaignsDto = RevisionDto & {
   id: number
   name: string
   playerCharacter: string
@@ -127,7 +132,7 @@ export type ResourceTagDto = {
   resolutionState: TagResolutionState
 }
 
-export type SessionListItemDto = {
+export type SessionListItemDto = RevisionDto & {
   id: number
   campaignId: number
   sessionNumber: number
@@ -139,7 +144,7 @@ export type SessionListItemDto = {
 
 export type SessionDataDto = Omit<
   SessionListItemDto,
-  "id" | "campaignId" | "tags"
+  "id" | "campaignId" | "tags" | "revision" | "updatedAt"
 > & {
   tags: string[]
 }
@@ -151,6 +156,7 @@ export type SessionRollDto = {
   rolls: number[]
   average: number
   rollLuck: number
+  revision: number
 }
   
 export type CampaignRollDto = {
@@ -170,7 +176,7 @@ export type RollMutationDto = {
   sessionStats: SessionRollDto
 }
 
-export type PersonDto = {
+export type PersonDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -192,13 +198,15 @@ export type PersonDataDto = Omit<
   | "tags"
   | "characterProfileAvailable"
   | "isActiveCharacter"
+  | "revision"
+  | "updatedAt"
 > & {
   faction: string
   location: string
   tags: string[]
 }
 
-export type CharacterDto = {
+export type CharacterDto = RevisionDto & {
   person: PersonDto
   shortBio: string
   appearance: string
@@ -246,6 +254,7 @@ export type CharacterNoteDto = {
   content: string
   createdAt: string
   updatedAt: string
+  revision: number
   createdByUserId: number | null
   visibility: ResourceVisibility
   accessOwnerUserId: number | null
@@ -263,7 +272,7 @@ export type CharacterNoteDataDto = {
   grants: CharacterNoteGrantDataDto[]
 }
 
-export type LocationDto = {
+export type LocationDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -276,13 +285,19 @@ export type LocationDto = {
 
 export type LocationDataDto = Omit<
   LocationDto,
-  "id" | "campaignId" | "parentLocation" | "people" | "tags"
+  | "id"
+  | "campaignId"
+  | "parentLocation"
+  | "people"
+  | "tags"
+  | "revision"
+  | "updatedAt"
 > & {
   parentLocation: string
   tags: string[]
 }
 
-export type FactionDto = {
+export type FactionDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -295,7 +310,13 @@ export type FactionDto = {
 
 export type FactionDataDto = Omit<
   FactionDto,
-  "id" | "campaignId" | "location" | "members" | "tags"
+  | "id"
+  | "campaignId"
+  | "location"
+  | "members"
+  | "tags"
+  | "revision"
+  | "updatedAt"
 > & {
   location: string
   tags: string[]
@@ -369,7 +390,7 @@ export type InventoryUpdateDto = {
   description?: string
 }
 
-export type InventoryDto = {
+export type InventoryDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -377,6 +398,20 @@ export type InventoryDto = {
   members: InventoryMemberDto[]
   purse: PurseDto
   items: InventoryItemDto[]
+}
+
+export type CampaignChangeDto = {
+  sequence: number
+  resourceType: string
+  resourceId: number | null
+  action: "created" | "updated" | "deleted"
+  revision: number | null
+  createdAt: string
+}
+
+export type CampaignChangesDto = {
+  cursor: number
+  changes: CampaignChangeDto[]
 }
 
 export type SearchQueryDto = {

@@ -14,6 +14,7 @@ import type {
 } from "@/types/DataTransferObjects"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useSearchStore } from "@/stores/searchStore"
+import { useConcurrencyStore } from "@/stores/concurrencyStore"
 
 export type AuthState =
   | "loading"
@@ -40,6 +41,7 @@ const isAuthenticated = computed(
 function clearUserScopedState() {
   useCampaignStore().clearUserState()
   useSearchStore().clearSearchCache()
+  useConcurrencyStore().resetConcurrencyState()
 }
 
 function applySession(session: AuthSessionDto) {
@@ -63,6 +65,9 @@ function clearSession(nextState: AuthState) {
 
 function handleApiFailure(failure: ApiFailure) {
   lastFailure.value = failure
+  if (failure.status === 409) {
+    useConcurrencyStore().recordConflict(failure)
+  }
   if (failure.status === 401 && state.value === "authenticated") {
     clearSession("expired")
     navigate("expired")

@@ -4,17 +4,23 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useAuthStore } from "@/stores/authStore"
+import { useConcurrencyStore } from "@/stores/concurrencyStore"
+import { GetAPI, isApiFailure } from "@/apihelpers"
+import { useSearchStore } from "@/stores/searchStore"
 import bannerImageDefault from "./assets/banner.png"
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const concurrency = useConcurrencyStore()
+const draftCopyStatus = ref("")
 
 const {
   selectedCampaignId,
   selectedCampaign,
   selectedCampaignImageUrl,
   selectedCampaignBannerUrl,
+  setCampaigns,
 } = useCampaignStore()
 
 const mainLinks = computed(() => [
@@ -120,14 +126,98 @@ watch(
   { flush: "post" },
 )
 
+async function pollCampaignChanges() {
+  if (
+    !auth.isAuthenticated.value
+    || selectedCampaignId.value === null
+    || isAuthPage.value
+  ) {
+    return
+  }
+  await concurrency.pollCampaignChanges(selectedCampaignId.value)
+}
+
+async function refreshCurrentView() {
+  const response = await GetAPI("campaigns")
+  if (!isApiFailure(response) && Array.isArray(response)) {
+    setCampaigns(response)
+  }
+  useSearchStore().clearSearchCache()
+  concurrency.refreshCurrentView()
+  await pollCampaignChanges()
+}
+
+async function copyVisibleDraft() {
+  const controls = document.querySelectorAll(
+    "#app-content input:not([type='password']):not([type='file']), "
+    + "#app-content textarea, #app-content select",
+  )
+  const draft = Array.from(controls)
+    .map((control) => {
+      const label = (
+        control.getAttribute("aria-label")
+        || control.getAttribute("name")
+        || control.id
+        || control.closest("label")?.textContent?.trim()
+        || "Field"
+      )
+      const value = control.type === "checkbox"
+        ? (control.checked ? "yes" : "no")
+        : control.value
+      return `${label}: ${value}`
+    })
+    .filter((line) => line.split(": ", 2)[1]?.trim())
+    .join("\n\n")
+  if (!draft) {
+    draftCopyStatus.value = "No open form values found."
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(draft)
+    draftCopyStatus.value = "Draft copied."
+  } catch {
+    draftCopyStatus.value = "Copy was blocked by the browser."
+  }
+}
+
+function pollOnFocus() {
+  if (document.visibilityState === "visible") {
+    void pollCampaignChanges()
+  }
+}
+
+let changePollTimer = null
+
 onMounted(() => {
   window.addEventListener("resize", scheduleSubmenuPositionUpdate)
+  window.addEventListener("focus", pollOnFocus)
+  window.addEventListener("online", pollOnFocus)
+  document.addEventListener("visibilitychange", pollOnFocus)
+  changePollTimer = window.setInterval(
+    () => void pollCampaignChanges(),
+    15_000,
+  )
   scheduleSubmenuPositionUpdate()
+  void pollCampaignChanges()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", scheduleSubmenuPositionUpdate)
+  window.removeEventListener("focus", pollOnFocus)
+  window.removeEventListener("online", pollOnFocus)
+  document.removeEventListener("visibilitychange", pollOnFocus)
+  if (changePollTimer !== null) {
+    window.clearInterval(changePollTimer)
+  }
 })
+
+watch(
+  () => [selectedCampaignId.value, auth.isAuthenticated.value],
+  () => {
+    concurrency.dismissNotice()
+    void pollCampaignChanges()
+  },
+)
 
 const searchPhrase = ref("")
 
@@ -297,9 +387,62 @@ async function logout() {
       </div>
     </header>
 
+    <aside
+      v-if="concurrency.hasNotice.value"
+      class="concurrency-notice"
+      aria-live="polite"
+    >
+      <div>
+        <strong>
+          {{ concurrency.conflict.value
+            ? "Your changes were not saved."
+            : concurrency.accessChanged.value
+              ? "Your campaign access changed."
+              : "This campaign changed in another client." }}
+        </strong>
+        <p v-if="concurrency.conflict.value">
+          Copy any draft text you want to keep, then refresh this view and
+          reapply it to the current version.
+        </p>
+        <p v-else-if="concurrency.accessChanged.value">
+          Refresh to update your campaign list and current permissions. Any
+          open form values remain untouched until you choose to refresh.
+        </p>
+        <p v-else>
+          {{ concurrency.remoteChanges.value.length }} server
+          {{ concurrency.remoteChanges.value.length === 1 ? "change is" : "changes are" }}
+          ready. Refresh this view when you are ready; open form values are
+          left untouched until then.
+        </p>
+      </div>
+      <div class="concurrency-notice-actions">
+        <button
+          v-if="concurrency.conflict.value"
+          type="button"
+          class="secondary"
+          @click="copyVisibleDraft"
+        >
+          Copy draft
+        </button>
+        <button type="button" @click="refreshCurrentView">
+          Refresh view
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          @click="concurrency.dismissNotice"
+        >
+          Keep working
+        </button>
+      </div>
+      <span v-if="draftCopyStatus" class="sr-only" aria-live="polite">
+        {{ draftCopyStatus }}
+      </span>
+    </aside>
+
     <div id="main">
       <main id="app-content">
-        <RouterView />
+        <RouterView :key="concurrency.viewRevision.value" />
       </main>
     </div>
   </div>

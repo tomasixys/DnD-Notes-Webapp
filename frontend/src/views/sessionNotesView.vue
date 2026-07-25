@@ -17,6 +17,7 @@ import type {
   SessionListItemDto,
 } from "@/types/DataTransferObjects"
 import { ViewModes } from "@/types/viewTypes"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const {
   selectedCampaignId,
@@ -112,7 +113,10 @@ async function updateSession() {
   if (!selectedCampaignId.value || !selectedSession.value || !sessionForm.title.trim()) return
   const sessionId = selectedSession.value.id
   const response = await PutAPI<SessionListItemDto>(
-    `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
+      selectedSession.value.revision,
+    ),
     sessionPayload(selectedSession.value.sessionNumber),
   )
   if (isApiFailure(response)) {
@@ -131,7 +135,10 @@ async function deleteSession() {
   if (!selectedCampaignId.value || !selectedSession.value) return
   const campaignId = selectedCampaignId.value
   const response = await DeleteAPI<DeleteResponseDto>(
-    `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
+    withExpectedRevision(
+      `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
+      selectedSession.value.revision,
+    ),
   )
   if (isApiFailure(response)) {
     requestError.value = "The session could not be deleted."

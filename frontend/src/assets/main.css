@@ -917,3 +917,42 @@ select {
 .form-success {
   color: #9ed6ac;
 }
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Multi-client changes stay non-destructive until the user chooses to reload. */
+.concurrency-notice {
+  align-items: center;
+  background: #fff4cf;
+  border-bottom: 1px solid #c7952f;
+  color: #3e2d0f;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 0.8rem max(1rem, calc((100vw - 1200px) / 2));
+}
+
+.concurrency-notice p {
+  margin: 0.2rem 0 0;
+}
+
+.concurrency-notice-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.6rem;
+}
+
+@media (max-width: 700px) {
+  .concurrency-notice {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}

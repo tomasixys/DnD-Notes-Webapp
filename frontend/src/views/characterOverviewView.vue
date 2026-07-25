@@ -24,6 +24,7 @@ import type {
   PersonDataDto,
   PersonDto,
 } from "@/types/DataTransferObjects"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const router = useRouter()
 const {
@@ -163,14 +164,19 @@ function buildPersonData(): PersonDataDto {
   }
 }
 
-async function uploadPortrait(personId: number): Promise<CharacterDto | null> {
+async function uploadPortrait(
+  currentCharacter: CharacterDto,
+): Promise<CharacterDto | null> {
   if (!portraitFile.value || !selectedCampaignId.value) {
     return null
   }
   const data = new FormData()
   data.append("image", portraitFile.value)
   const response = await PutFormDataAPI<CharacterDto>(
-    `campaigns/${selectedCampaignId.value}/characters/${personId}/image`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${currentCharacter.person.id}/image`,
+      currentCharacter.revision,
+    ),
     data,
   )
   if (isApiFailure(response)) {
@@ -205,7 +211,7 @@ async function createCharacter() {
   }
 
   let savedCharacter = response
-  const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
+  const uploadedCharacter = await uploadPortrait(savedCharacter)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
   setCampaignActiveCharacter(
@@ -228,7 +234,13 @@ async function updateCharacter() {
     appearance: form.appearance.trim(),
   }
   const response = await PutAPI<CharacterDto>(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+      character.value.revision,
+      {
+        expected_person_revision: character.value.person.revision,
+      },
+    ),
     payload,
   )
   if (isApiFailure(response)) {
@@ -237,7 +249,7 @@ async function updateCharacter() {
   }
 
   let savedCharacter = response
-  const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
+  const uploadedCharacter = await uploadPortrait(savedCharacter)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
   mode.value = "details"
@@ -262,7 +274,10 @@ async function activateCharacter() {
 async function removePortrait() {
   if (!selectedCampaignId.value || !character.value) return
   const response = await DeleteAPI<CharacterDto>(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/image`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/image`,
+      character.value.revision,
+    ),
   )
   if (!isApiFailure(response)) setCharacter(response)
 }
@@ -271,7 +286,10 @@ async function deleteProfile() {
   showDeletePopup.value = false
   if (!selectedCampaignId.value || !character.value) return
   const response = await DeleteAPI<CharacterDeleteResponseDto>(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+      character.value.revision,
+    ),
   )
   if (isApiFailure(response)) return
   setCharacter(response.activeCharacter)

@@ -22,6 +22,7 @@ import {
   upsertById,
 } from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
@@ -169,7 +170,10 @@ async function updateLocation() {
   }
   const locationId = selectedEntry.value.id
   const response = await PutAPI<LocationDto>(
-    `campaigns/${selectedCampaignId.value}/locations/${locationId}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/locations/${locationId}`,
+      selectedEntry.value.revision,
+    ),
     location,
   )
   if (isApiFailure(response)) {
@@ -190,7 +194,10 @@ async function deleteLocation() {
   if (!selectedCampaignId.value || !selectedEntry.value) return
 
   const response = await DeleteAPI<DeleteResponseDto>(
-    `campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`,
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`,
+      selectedEntry.value.revision,
+    ),
   )
   if (isApiFailure(response)) {
     console.error("Failed to delete location:", response.error)

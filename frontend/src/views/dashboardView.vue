@@ -16,6 +16,7 @@ import {
   PutFormDataAPI,
 } from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
+import { withExpectedRevision } from "@/utils/concurrency";
 import ConfirmationPopup from "../components/ConfirmationPopup.vue";
 
 const {
@@ -33,6 +34,8 @@ const {
 } = useCampaignStore()
 
 const defaultCampaigndto: CampaignsDto = {
+  revision: 1,
+  updatedAt: "",
   id: 0,
   name: "",
   playerCharacter: "",
@@ -183,6 +186,14 @@ async function updateCampaign(campaignId: number) {
   if (!newCampaign.name.trim()) return
 
   const campaign = buildCampaignFormData()
+  const currentCampaign = campaigns.value.find(
+    (entry) => entry.id === campaignId,
+  )
+  if (!currentCampaign) return
+  campaign.append(
+    "expected_revision",
+    String(currentCampaign.revision),
+  )
 
   const response = await PutFormDataAPI<CampaignsDto>(
     `campaigns/${campaignId}`,
@@ -200,8 +211,13 @@ async function updateCampaign(campaignId: number) {
 }
 
 async function deleteCampaign(campaignId: number) {
+  const campaign = campaigns.value.find((entry) => entry.id === campaignId)
+  if (!campaign) return
   const response = await DeleteAPI<DeleteResponseDto>(
-    `campaigns/${campaignId}`,
+    withExpectedRevision(
+      `campaigns/${campaignId}`,
+      campaign.revision,
+    ),
   )
 
   if (isApiFailure(response)) {

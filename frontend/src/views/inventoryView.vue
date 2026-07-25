@@ -30,6 +30,7 @@ import {
   type ItemRarity,
 } from "@/types/inventoryTypes"
 import { ViewModes } from "@/types/viewTypes"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 type PurseAction = "deposit" | "withdraw"
 const { canWriteSharedResources } = useCampaignAuthorization()
@@ -270,7 +271,10 @@ async function createItem() {
   formError.value = ""
   const existingIds = new Set(items.value.map((item) => item.id))
   const response = await PostAPI<InventoryDto>(
-    inventoryEndpoint("/items"),
+    withExpectedRevision(
+      inventoryEndpoint("/items"),
+      inventory.value?.revision ?? 1,
+    ),
     itemPayload(),
   )
   if (isApiFailure(response)) {
@@ -292,7 +296,10 @@ async function updateItem() {
   const itemId = selectedEntry.value.id
   const payload: InventoryItemUpdateDto = itemPayload()
   const response = await PatchAPI<InventoryDto>(
-    inventoryEndpoint(`/items/${itemId}`),
+    withExpectedRevision(
+      inventoryEndpoint(`/items/${itemId}`),
+      inventory.value?.revision ?? 1,
+    ),
     payload,
   )
   if (isApiFailure(response)) {
@@ -310,7 +317,10 @@ async function deleteItem() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
 
   const response = await DeleteAPI<InventoryDto>(
-    inventoryEndpoint(`/items/${selectedEntry.value.id}`),
+    withExpectedRevision(
+      inventoryEndpoint(`/items/${selectedEntry.value.id}`),
+      inventory.value?.revision ?? 1,
+    ),
   )
   showDeleteConfirmation.value = false
   if (isApiFailure(response)) {
@@ -363,7 +373,10 @@ async function updatePurse(action: PurseAction) {
 
   const payload: PurseUpdateDto = { balances }
   const response = await PatchAPI<InventoryDto>(
-    inventoryEndpoint("/purse"),
+    withExpectedRevision(
+      inventoryEndpoint("/purse"),
+      inventory.value.revision,
+    ),
     payload,
   )
   if (isApiFailure(response)) {

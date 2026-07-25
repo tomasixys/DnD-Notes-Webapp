@@ -21,6 +21,16 @@ export type ApiFailure = {
   kind: ApiFailureKind
   error: string
   message: string
+  conflict?: RevisionConflict
+}
+
+export type RevisionConflict = {
+  code: "revision_conflict"
+  resourceType: string
+  resourceId: number | number[] | null
+  expectedRevision: number
+  currentRevision: number | null
+  message: string
 }
 
 type ApiSecurityConfiguration = {
@@ -72,6 +82,14 @@ function formatErrorDetail(detail: unknown, response: Response): string {
       .filter(Boolean)
       .join("; ")
   }
+  if (
+    typeof detail === "object"
+    && detail !== null
+    && "message" in detail
+    && typeof detail.message === "string"
+  ) {
+    return detail.message
+  }
   return (
     response.statusText
     || `Request failed with HTTP status ${response.status}`
@@ -86,13 +104,31 @@ async function responseFailure(response: Response): Promise<ApiFailure> {
     // Some server/proxy failures do not include JSON.
   }
   const message = formatErrorDetail(body?.detail, response)
+  const normalizedDetail = keysToCamelCase(body?.detail)
+  const conflict = isRevisionConflict(normalizedDetail)
+    ? normalizedDetail
+    : undefined
   return {
     success: false,
     status: response.status,
     kind: failureKind(response.status),
     error: message,
     message,
+    conflict,
   }
+}
+
+function isRevisionConflict(value: unknown): value is RevisionConflict {
+  return (
+    typeof value === "object"
+    && value !== null
+    && "code" in value
+    && value.code === "revision_conflict"
+    && "resourceType" in value
+    && "expectedRevision" in value
+    && "currentRevision" in value
+    && "message" in value
+  )
 }
 
 function requestHeaders(
@@ -100,6 +136,10 @@ function requestHeaders(
   headers?: HeadersInit,
 ): Headers {
   const result = new Headers(headers)
+  const clientInstanceId = getClientInstanceId()
+  if (clientInstanceId) {
+    result.set("X-Client-Instance", clientInstanceId)
+  }
   if (unsafeMethods.has(method.toUpperCase())) {
     const csrfToken = securityConfiguration.csrfToken()
     if (csrfToken) {
@@ -107,6 +147,29 @@ function requestHeaders(
     }
   }
   return result
+}
+
+const CLIENT_INSTANCE_KEY = "dnd-notes-client-instance"
+let clientInstanceId: string | null = null
+
+function getClientInstanceId(): string | null {
+  if (clientInstanceId) return clientInstanceId
+  try {
+    const stored = sessionStorage.getItem(CLIENT_INSTANCE_KEY)
+    if (stored) {
+      clientInstanceId = stored
+      return clientInstanceId
+    }
+    clientInstanceId = (
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    )
+    sessionStorage.setItem(CLIENT_INSTANCE_KEY, clientInstanceId)
+    return clientInstanceId
+  } catch {
+    return null
+  }
 }
 
 async function performFetch(
