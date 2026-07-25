@@ -10,15 +10,17 @@ from .v1 import migrate_to_v1
 from .v2 import migrate_to_v2
 from .v3 import migrate_to_v3
 from .v4 import migrate_to_v4
+from .v5 import migrate_to_v5
 
 
-CURRENT_DATABASE_VERSION = 4
+CURRENT_DATABASE_VERSION = 5
 
 MIGRATIONS = {
     1: migrate_to_v1,
     2: migrate_to_v2,
     3: migrate_to_v3,
     4: migrate_to_v4,
+    5: migrate_to_v5,
 }
 
 

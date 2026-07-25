@@ -18,7 +18,6 @@ class CampaignBackupExportRead(SQLModel):
 
 class CampaignBackupCampaign(SQLModel):
     name: str
-    player_character: str = ""
     description: str = ""
     image_archive_path: str = ""
     banner_archive_path: str = ""

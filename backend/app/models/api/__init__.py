@@ -1,5 +1,5 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
-from .campaign import CampaignRead
+from .campaign import ActiveCharacterRef, CampaignRead
 from .mutation import DeleteResponse
 from .tag import ResourceTagRead
 from .session_note import SessionNoteData, SessionNoteRead
@@ -64,6 +64,7 @@ __all__ = [
     "ResourceType",
     "TagResolutionState",
     "RelationshipType",
+    "ActiveCharacterRef",
     "CampaignRead",
     "DeleteResponse",
     "ResourceTagRead",

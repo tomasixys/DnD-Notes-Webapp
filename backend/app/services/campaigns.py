@@ -7,7 +7,13 @@ from app.file_storage import (
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
-from app.models.api import CampaignRead, DeleteResponse
+from app.models.api import (
+    ActiveCharacterRef,
+    CampaignRead,
+    DeleteResponse,
+    FactionData,
+    PersonData,
+)
 from app.models.database import (
     Campaign,
     CharacterProfile,
@@ -15,7 +21,10 @@ from app.models.database import (
     SessionNote,
 )
 from app.services.campaign_context import CampaignContext
+from app.services.characters import CharacterService
+from app.services.factions import FactionService
 from app.services.inventory import InventoryService
+from app.services.people import PersonService
 
 
 class CampaignService:
@@ -26,6 +35,7 @@ class CampaignService:
     def to_read(
         campaign: Campaign,
         session_count: int = 0,
+        active_character: ActiveCharacterRef | None = None,
     ) -> CampaignRead:
         image_url = (
             build_upload_url(campaign.image_path)
@@ -40,14 +50,11 @@ class CampaignService:
         return CampaignRead(
             id=campaign.id,
             name=campaign.name,
-            player_character=campaign.player_character,
             description=campaign.description,
             session_count=session_count,
             image_url=image_url,
             banner_image_url=banner_image_url,
-            active_character_person_id=(
-                campaign.active_character_person_id
-            ),
+            active_character=active_character,
         )
 
     def get(self, campaign_id: int) -> Campaign:
@@ -65,32 +72,53 @@ class CampaignService:
 
     def list_reads(self) -> list[CampaignRead]:
         results = self.db.exec(
-            select(Campaign, func.count(SessionNote.id))
+            select(Campaign, func.count(SessionNote.id), Person.id, Person.name)
             .join(
                 SessionNote,
                 SessionNote.campaign_id == Campaign.id,
                 isouter=True,
             )
-            .group_by(Campaign.id)
+            .join(
+                Person,
+                Person.id == Campaign.active_character_person_id,
+                isouter=True,
+            )
+            .group_by(Campaign.id, Person.id, Person.name)
             .order_by(Campaign.id)
         ).all()
         return [
-            self.to_read(campaign, session_count)
-            for campaign, session_count in results
+            self.to_read(
+                campaign,
+                session_count,
+                active_character=(
+                    ActiveCharacterRef(id=person_id, name=person_name)
+                    if person_id is not None and person_name is not None
+                    else None
+                ),
+            )
+            for campaign, session_count, person_id, person_name in results
         ]
 
     def get_read(self, campaign_id: int) -> CampaignRead:
         campaign = self.get(campaign_id)
+        active_character = None
+        if campaign.active_character_person_id is not None:
+            person = self.db.get(Person, campaign.active_character_person_id)
+            if person is not None:
+                active_character = ActiveCharacterRef(
+                    id=person.id,
+                    name=person.name,
+                )
         return self.to_read(
             campaign,
             self.count_sessions(campaign_id),
+            active_character=active_character,
         )
 
     def stage_create(
         self,
         *,
         name: str,
-        player_character: str = "",
         description: str = "",
         image_path: str = "",
         banner_image_path: str = "",
@@ -98,7 +126,6 @@ class CampaignService:
         """Create a campaign aggregate in the caller-owned transaction."""
         campaign = Campaign(
             name=name,
-            player_character=player_character,
             description=description,
             image_path=image_path,
             banner_image_path=banner_image_path,
@@ -113,8 +140,9 @@ class CampaignService:
         self,
         *,
         name: str,
-        player_character: str = "",
         description: str = "",
+        character_name: str = "",
+        faction_name: str = "",
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
     ) -> CampaignRead:
@@ -122,7 +150,6 @@ class CampaignService:
         try:
             campaign = self.stage_create(
                 name=name,
-                player_character=player_character,
                 description=description,
             )
             if image is not None and image.filename:
@@ -138,10 +165,28 @@ class CampaignService:
                 )
                 saved_paths.append(campaign.banner_image_path)
 
+            context = CampaignContext(self.db, campaign)
+            created_faction_name = ""
+            if faction_name and faction_name.strip():
+                created_faction_name = faction_name.strip()
+                FactionService(context).stage_create(
+                    FactionData(name=created_faction_name)
+                )
+
+            if character_name and character_name.strip():
+                person = PersonService(context).stage_create(
+                    PersonData(
+                        name=character_name.strip(),
+                        faction=created_faction_name,
+                    )
+                )
+                CharacterService(context).stage_create_profile(person.id)
+                campaign.active_character_person_id = person.id
+
             self.db.add(campaign)
             self.db.commit()
             self.db.refresh(campaign)
-            return self.to_read(campaign)
+            return self.get_read(campaign.id)
         except Exception:
             self.db.rollback()
             for path in saved_paths:
@@ -153,8 +198,8 @@ class CampaignService:
         campaign_id: int,
         *,
         name: str,
-        player_character: str = "",
         description: str = "",
+        active_character_person_id: int | None = None,
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
     ) -> CampaignRead:
@@ -171,8 +216,16 @@ class CampaignService:
 
         try:
             campaign.name = name
-            campaign.player_character = player_character
             campaign.description = description
+
+            if active_character_person_id is not None and active_character_person_id > 0:
+                context = CampaignContext(self.db, campaign)
+                person = PersonService(context).get(active_character_person_id)
+                if self.db.get(CharacterProfile, person.id) is None:
+                    CharacterService(context).stage_create_profile(person.id)
+                campaign.active_character_person_id = person.id
+            elif active_character_person_id == 0:
+                campaign.active_character_person_id = None
 
             if image is not None and image.filename:
                 campaign.image_path = save_image_from_uploadfile(
@@ -207,10 +260,7 @@ class CampaignService:
         for path in old_paths - retained_paths:
             delete_uploaded_file(path)
 
-        return self.to_read(
-            campaign,
-            self.count_sessions(campaign_id),
-        )
+        return self.get_read(campaign_id)
 
     def delete(self, campaign_id: int) -> DeleteResponse:
         campaign = self.get(campaign_id)

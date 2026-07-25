@@ -30,16 +30,18 @@ def get_campaign(
 @router.post("")
 def create_campaign(
     name: str = Form(...),
-    player_character: str = Form(""),
     description: str = Form(""),
+    character_name: str = Form(""),
+    faction_name: str = Form(""),
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
 ) -> CampaignRead:
     return CampaignService(db).create(
         name=name,
-        player_character=player_character,
         description=description,
+        character_name=character_name,
+        faction_name=faction_name,
         image=image,
         banner=banner,
     )
@@ -49,8 +51,8 @@ def create_campaign(
 def update_campaign(
     campaign_id: int,
     name: str = Form(...),
-    player_character: str = Form(""),
     description: str = Form(""),
+    active_character_person_id: int | None = Form(None),
     image: UploadFile | None = File(None),
     banner: UploadFile | None = File(None),
     db: Session = Depends(get_session),
@@ -58,8 +60,8 @@ def update_campaign(
     return CampaignService(db).update(
         campaign_id,
         name=name,
-        player_character=player_character,
         description=description,
+        active_character_person_id=active_character_person_id,
         image=image,
         banner=banner,
     )

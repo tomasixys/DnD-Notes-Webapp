@@ -120,7 +120,6 @@ class CampaignBackupService:
                     schema_version=CAMPAIGN_BACKUP_SCHEMA_VERSION,
                     campaign=CampaignBackupCampaign(
                         name=campaign.name,
-                        player_character=campaign.player_character,
                         description=campaign.description,
                         image_archive_path=image_archive_path,
                         banner_archive_path=banner_archive_path,
@@ -223,7 +222,6 @@ class CampaignBackupService:
         try:
             campaign = self.campaigns.stage_create(
                 name=backup.campaign.name,
-                player_character=backup.campaign.player_character,
                 description=backup.campaign.description,
             )
             context = CampaignContext(self.db, campaign)

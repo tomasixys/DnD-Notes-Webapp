@@ -159,3 +159,5 @@ dist/
 # developer specific code env
 pyrefly.toml
 pyrightconfig.json
+DnD-Notes-Webapp.code-workspace
+start-dev.cmd
