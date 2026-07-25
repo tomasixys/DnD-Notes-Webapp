@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from app.authorization.enums import CampaignCapability
 from app.models.api import ResourceTagRead
 from app.models.enums import RelationshipType, ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.tags import (
     REFERENCE_MODELS,
     get_resource_relationship,

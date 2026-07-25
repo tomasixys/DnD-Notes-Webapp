@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.models.api import FactionData, PersonData, SearchQueryDto
 from app.models.database import Campaign
 from app.models.enums import ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 from app.services.factions import FactionService
 from app.services.people import PersonService

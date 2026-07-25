@@ -18,7 +18,7 @@ from app.models.database import (
     CharacterProfile,
 )
 from app.models.enums import ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.tags import TagService
 
 

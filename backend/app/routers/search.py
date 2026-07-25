@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.authorization.dependencies import get_shared_read_context
 from app.models.api import SearchQueryDto, SearchResponseDto
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.search import SearchService
 
 

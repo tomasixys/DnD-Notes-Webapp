@@ -25,7 +25,7 @@ from app.routers.locations import (
 )
 from app.routers.people import create_person, get_people_for_campaign, update_person
 from app.routers.search import search_campaign
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 
 

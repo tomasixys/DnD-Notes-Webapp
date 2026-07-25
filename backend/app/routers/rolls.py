@@ -10,7 +10,7 @@ from app.models.api.rolls import (
     RollCreate,
     RollMutationResponse,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.rolls import RollService
 
 

@@ -60,7 +60,7 @@ from app.routers.campaign_backups import (
     export_campaign_backup,
     import_campaign_backup,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context, create_user
 from app.services.people import PersonService
 

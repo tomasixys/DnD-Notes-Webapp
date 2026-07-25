@@ -14,7 +14,7 @@ from app.models.api import (
     CharacterUpdate,
     DeleteResponse,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,

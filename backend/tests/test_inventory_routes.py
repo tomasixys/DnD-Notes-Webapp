@@ -36,7 +36,7 @@ from app.routers.inventory import (
     update_inventory_item,
     update_purse,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import resolve_context
 
 

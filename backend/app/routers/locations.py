@@ -5,7 +5,7 @@ from app.authorization.dependencies import (
     get_shared_write_context,
 )
 from app.models.api import DeleteResponse, LocationData, LocationRead
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.locations import LocationService
 
 

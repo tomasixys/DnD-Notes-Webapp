@@ -4,12 +4,10 @@ from fastapi import HTTPException
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.dependencies.campaigns import (
-    get_campaign_context,
-)
 from app.auth.models import User
+from app.authorization.context import CampaignContext
+from app.authorization.dependencies import get_campaign_context
 from app.models.database import Campaign
-from app.services.campaign_context import CampaignContext
 from tests.authorization_helpers import campaign_context, create_user
 
 

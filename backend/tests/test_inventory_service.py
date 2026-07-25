@@ -13,7 +13,7 @@ from app.models.api import (
     PurseUpdate,
 )
 from app.models.database import Campaign, Inventory, InventoryItem
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 from app.services.inventory import InventoryService
 

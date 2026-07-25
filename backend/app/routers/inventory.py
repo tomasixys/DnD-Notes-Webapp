@@ -11,7 +11,7 @@ from app.models.api import (
     InventoryUpdate,
     PurseUpdate,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.inventory import InventoryService
 
 

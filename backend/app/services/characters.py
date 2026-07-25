@@ -18,7 +18,7 @@ from app.models.database import (
     Person,
 )
 from app.authorization.enums import CampaignCapability, CampaignRole
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,

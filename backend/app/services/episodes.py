@@ -9,7 +9,7 @@ from app.models.api import (
 )
 from app.models.database import Episode
 from app.models.enums import ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.rolls import RollService
 from app.services.tags import TagService
 

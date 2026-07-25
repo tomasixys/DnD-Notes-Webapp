@@ -16,7 +16,7 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 from app.services.characters import CharacterService
 

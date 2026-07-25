@@ -6,7 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.models.api import PersonData
 from app.models.database import Campaign, Person
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 from app.services.people import PersonService
 

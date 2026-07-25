@@ -13,7 +13,7 @@ from app.models.database import (
     TagAssignment,
 )
 from app.models.enums import ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from tests.authorization_helpers import campaign_context
 from app.services.episodes import EpisodeService
 from app.services.rolls import RollService

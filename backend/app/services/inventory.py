@@ -34,7 +34,7 @@ from app.models.enums import (
     CurrencyDenomination,
     InventoryAccessRole,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 
 
 COPPER_PER_GOLD = Decimal("100")

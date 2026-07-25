@@ -19,7 +19,7 @@ from app.models.database import (
     Person,
 )
 from app.models.enums import RelationshipType, ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.tags import TagService
 
 
