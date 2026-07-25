@@ -313,7 +313,8 @@ Progress:
   database.
 - [x] Add the installation table through an idempotent development migration.
 - [x] Embed and validate the deployment profile in distinctly named build
-  artifacts, and copy the validated config beside the executable.
+  artifacts, include the Windows/Linux host platform in artifact names, and
+  copy the validated config beside the executable.
 - [x] Add database URL, environment-secret reference, engine, pool health, and
   connection recycling settings.
 - [x] Add PostgreSQL driver/engine construction.

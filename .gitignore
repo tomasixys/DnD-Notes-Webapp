@@ -152,6 +152,7 @@ __pycache__/
 
 # app compiler dirs
 .build-venv/
+.build-venv-*/
 build/
 dist/
 *.spec

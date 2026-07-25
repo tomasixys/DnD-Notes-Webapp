@@ -16,8 +16,9 @@ configuration.
 - Node.js matching the `engines` field in `frontend/package.json`
 - npm
 
-PyInstaller builds are operating-system specific. Build a Windows executable on
-Windows.
+PyInstaller builds are operating-system specific. Build the Windows artifact
+on Windows and the Linux artifact on Linux. The build detects the host by
+default and keeps platform artifacts and build environments separate.
 
 ## Build
 
@@ -36,14 +37,21 @@ The build script:
 5. installs the backend and packaging dependencies; and
 6. packages the backend and compiled frontend with PyInstaller.
 
-The default output is an `onedir` bundle:
+On Windows, the default output is an `onedir` bundle:
 
 ```text
-dist/DnDNotes-local/DnDNotes-local.exe
-dist/DnDNotes-local/DnDNotes-local.toml
+dist/DnDNotes-local-windows/DnDNotes-local-windows.exe
+dist/DnDNotes-local-windows/DnDNotes-local-windows.toml
 ```
 
-The entire `dist/DnDNotes-local` directory must be distributed together.
+On Linux:
+
+```text
+dist/DnDNotes-local-linux/DnDNotes-local-linux
+dist/DnDNotes-local-linux/DnDNotes-local-linux.toml
+```
+
+The entire platform-specific directory must be distributed together.
 
 For a single executable:
 
@@ -51,17 +59,49 @@ For a single executable:
 python build.py --onefile
 ```
 
-Output:
+Windows output:
 
 ```text
-dist/DnDNotes-local.exe
-dist/DnDNotes-local.toml
+dist/DnDNotes-local-windows.exe
+dist/DnDNotes-local-windows.toml
+```
+
+Linux output:
+
+```text
+dist/DnDNotes-local-linux
+dist/DnDNotes-local-linux.toml
 ```
 
 The one-file version starts more slowly because PyInstaller extracts bundled
 files on launch.
 
 ## Build options
+
+### Target operating system
+
+The default `--target auto` selects the operating system running the build:
+
+```powershell
+# Windows
+python build.py --target windows
+```
+
+```bash
+# Linux
+python build.py --target linux
+```
+
+An explicit target is a safety check, not a cross-compiler. Asking for
+`--target linux` on Windows or `--target windows` on Linux fails before
+installing or building anything. To produce both artifacts, run the same source
+revision once on each operating system. Their `-windows` and `-linux` names
+prevent one artifact from overwriting the other when collected into the same
+`dist` directory.
+
+Dependencies are stored in `.build-venv-windows` or `.build-venv-linux`, so a
+workspace used from both operating systems does not reuse an incompatible
+virtual environment.
 
 The default artifact embeds the `local` security profile and validates
 `config/local.example.toml`. An explicit local configuration may be supplied:
@@ -76,15 +116,17 @@ A hosted build requires an explicit hosted configuration:
 python build.py --profile hosted --config .\config\my-hosted.toml
 ```
 
-This produces a distinctly named `DnDNotes-hosted` artifact with an embedded
-hosted profile. Profile mismatch is a startup error. Hosted startup remains
-disabled until authentication and authorization are implemented.
+This produces a distinctly named `DnDNotes-hosted-windows` or
+`DnDNotes-hosted-linux` artifact with an embedded hosted profile. Profile
+mismatch is a startup error. Hosted startup remains disabled until
+authentication and authorization are implemented.
 
 The packaged backend includes the portable Alembic migration environment.
 Normal startup creates or upgrades the selected SQLite/PostgreSQL database;
 legacy desktop SQLite databases are backed up and adopted into that history.
 
-Reuse existing `frontend/node_modules` and `.build-venv` dependencies:
+Reuse existing `frontend/node_modules` and the current platform's
+`.build-venv-*` dependencies:
 
 ```powershell
 python build.py --skip-install

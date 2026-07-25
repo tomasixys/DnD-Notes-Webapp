@@ -3,13 +3,34 @@ import os
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 BACKEND_DIR = PROJECT_ROOT / "backend"
-BUILD_VENV_DIR = PROJECT_ROOT / ".build-venv"
 BUILD_METADATA_DIR = PROJECT_ROOT / "build" / "metadata"
+
+
+@dataclass(frozen=True)
+class BuildTarget:
+    name: str
+    executable_suffix: str
+    venv_python_parts: tuple[str, ...]
+
+
+BUILD_TARGETS = {
+    "win32": BuildTarget(
+        name="windows",
+        executable_suffix=".exe",
+        venv_python_parts=("Scripts", "python.exe"),
+    ),
+    "linux": BuildTarget(
+        name="linux",
+        executable_suffix="",
+        venv_python_parts=("bin", "python"),
+    ),
+}
 
 
 def run(command: list[str], *, cwd: Path = PROJECT_ROOT) -> None:
@@ -28,10 +49,37 @@ def find_npm() -> str:
     )
 
 
-def build_python_path() -> Path:
-    if sys.platform == "win32":
-        return BUILD_VENV_DIR / "Scripts" / "python.exe"
-    return BUILD_VENV_DIR / "bin" / "python"
+def resolve_build_target(
+    requested: str = "auto",
+    *,
+    platform_name: str | None = None,
+) -> BuildTarget:
+    host_platform = platform_name or sys.platform
+    target = BUILD_TARGETS.get(host_platform)
+    if target is None:
+        raise RuntimeError(
+            "DnD Notes builds are supported only on Windows and Linux. "
+            f"Current Python platform: {host_platform!r}."
+        )
+    if requested != "auto" and requested != target.name:
+        raise RuntimeError(
+            f"Cannot build the {requested} target on {target.name}. "
+            "PyInstaller does not cross-compile; run this build on the "
+            f"{requested} operating system."
+        )
+    return target
+
+
+def build_venv_dir(target: BuildTarget) -> Path:
+    return PROJECT_ROOT / f".build-venv-{target.name}"
+
+
+def build_python_path(target: BuildTarget) -> Path:
+    return build_venv_dir(target).joinpath(*target.venv_python_parts)
+
+
+def artifact_name(profile: str, target: BuildTarget) -> str:
+    return f"DnDNotes-{profile}-{target.name}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,7 +89,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-install",
         action="store_true",
-        help="Reuse existing node_modules and .build-venv dependencies.",
+        help=(
+            "Reuse existing node_modules and the platform-specific "
+            ".build-venv-* dependencies."
+        ),
     )
     parser.add_argument(
         "--skip-type-check",
@@ -58,6 +109,15 @@ def parse_args() -> argparse.Namespace:
         choices=("local", "hosted"),
         default="local",
         help="Embed the local or hosted security profile. Default: local.",
+    )
+    parser.add_argument(
+        "--target",
+        choices=("auto", "windows", "linux"),
+        default="auto",
+        help=(
+            "Build for the current host OS. An explicit target verifies the "
+            "host but does not enable cross-compilation. Default: auto."
+        ),
     )
     parser.add_argument(
         "--config",
@@ -87,8 +147,10 @@ def resolve_build_config(args: argparse.Namespace) -> Path:
 
 def main() -> None:
     args = parse_args()
+    target = resolve_build_target(args.target)
     config_path = resolve_build_config(args)
     npm = find_npm()
+    print(f"Building DnD Notes for {target.name}.")
 
     if not args.skip_install:
         run([npm, "ci"], cwd=FRONTEND_DIR)
@@ -102,9 +164,10 @@ def main() -> None:
     if not frontend_index.is_file():
         raise RuntimeError(f"Frontend build did not create {frontend_index}")
 
-    python = build_python_path()
+    venv_dir = build_venv_dir(target)
+    python = build_python_path(target)
     if not python.exists():
-        run([sys.executable, "-m", "venv", str(BUILD_VENV_DIR)])
+        run([sys.executable, "-m", "venv", str(venv_dir)])
 
     if not args.skip_install:
         run([str(python), "-m", "pip", "install", "--upgrade", "pip"])
@@ -131,8 +194,9 @@ def main() -> None:
         cwd=BACKEND_DIR,
     )
 
-    BUILD_METADATA_DIR.mkdir(parents=True, exist_ok=True)
-    embedded_profile_path = BUILD_METADATA_DIR / "_embedded_profile.txt"
+    target_metadata_dir = BUILD_METADATA_DIR / target.name
+    target_metadata_dir.mkdir(parents=True, exist_ok=True)
+    embedded_profile_path = target_metadata_dir / "_embedded_profile.txt"
     embedded_profile_path.write_text(
         f"{args.profile}\n",
         encoding="utf-8",
@@ -148,7 +212,7 @@ def main() -> None:
         f"{portable_migrations}"
         f"{os.pathsep}app/migrations/portable"
     )
-    artifact_name = f"DnDNotes-{args.profile}"
+    output_name = artifact_name(args.profile, target)
 
     command = [
         str(python),
@@ -158,11 +222,11 @@ def main() -> None:
         "--clean",
         mode,
         "--name",
-        artifact_name,
+        output_name,
         "--distpath",
         str(PROJECT_ROOT / "dist"),
         "--workpath",
-        str(PROJECT_ROOT / "build" / "pyinstaller"),
+        str(PROJECT_ROOT / "build" / "pyinstaller" / target.name),
         "--specpath",
         str(PROJECT_ROOT / "build"),
         "--paths",
@@ -192,19 +256,18 @@ def main() -> None:
     command.append(str(BACKEND_DIR / "run.py"))
     run(command)
 
-    executable_suffix = ".exe" if sys.platform == "win32" else ""
     if args.onefile:
         output = (
             PROJECT_ROOT
             / "dist"
-            / f"{artifact_name}{executable_suffix}"
+            / f"{output_name}{target.executable_suffix}"
         )
     else:
         output = (
             PROJECT_ROOT
             / "dist"
-            / artifact_name
-            / f"{artifact_name}{executable_suffix}"
+            / output_name
+            / f"{output_name}{target.executable_suffix}"
         )
 
     packaged_config = output.with_suffix(".toml")

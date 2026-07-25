@@ -25,8 +25,9 @@ python build.py --profile hosted --config .\config\my-hosted.toml
 ```
 
 The build validates the configuration before packaging and gives the artifact
-a mode-specific name. It also copies the configuration beside the executable
-using the executable name, such as `DnDNotes-local.toml`.
+a mode- and platform-specific name. It also copies the configuration beside
+the executable using the executable name, such as
+`DnDNotes-local-windows.toml` or `DnDNotes-local-linux.toml`.
 
 ## Configuration discovery
 
@@ -35,7 +36,7 @@ The launcher selects configuration in this order:
 1. `--config PATH`;
 2. the path named by `DND_NOTES_CONFIG`;
 3. a TOML file matching the frozen executable name, such as
-   `DnDNotes-local.toml`;
+   `DnDNotes-local-linux.toml`;
 4. `dnd-notes.toml` beside a frozen executable;
 5. `dnd-notes.toml` in the current working directory; or
 6. safe local defaults when no file exists.

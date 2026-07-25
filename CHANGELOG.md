@@ -16,6 +16,8 @@ and this changelog follows the structure described by
   administrator credentials remain application-managed rather than config.
 - Added embedded local/hosted build profiles, build-time config validation,
   mode-specific artifact names, and packaged executable-specific config files.
+- Added explicit Windows/Linux build-target detection, platform-specific build
+  environments and artifact names, and clear rejection of cross-compilation.
 - Added typed SQLite/PostgreSQL database URL and pool settings with
   environment-referenced hosted credentials.
 - Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy

@@ -30,7 +30,7 @@ authorization are complete.
 
 - FastAPI, SQLModel, and SQLite
 - Vue, Vue Router, TypeScript, and Vite
-- PyInstaller for distributable application builds
+- PyInstaller for host-native Windows and Linux application builds
 
 The backend API is available under `/api`. Uploaded campaign assets are served
 under `/api/uploads`.
