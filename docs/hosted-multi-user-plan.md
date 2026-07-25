@@ -1,6 +1,6 @@
 # Hosted multi-user development plan
 
-Status: Milestones 1-6 implemented; PostgreSQL CI verification pending
+Status: Milestones 1-7 implemented; PostgreSQL CI verification pending
 
 Updated: 2026-07-25
 
@@ -446,9 +446,9 @@ Exit criteria:
 
 ### Milestone 3 — Campaign tenancy and authorization
 
-**Status:** completed on 2026-07-25. Resource-specific private visibility
-remains intentionally scheduled for Milestone 7; its schema and query migration
-matrix is documented in
+**Status:** completed on 2026-07-25. The resource-specific private visibility
+architecture prepared here is now implemented for character notes and
+backstory in Milestone 7; the expansion matrix is documented in
 [`resource-visibility-migration.md`](resource-visibility-migration.md).
 
 **Purpose:** make membership, rather than possession of an ID, the boundary for
@@ -610,6 +610,14 @@ Exit criteria:
 
 ### Milestone 7 — Explicit private visibility
 
+**Status:** completed on 2026-07-25 for character notes and backstory.
+Both resource types now use centralized campaign-plus-resource policy,
+normalized user grants, filtered search/tag/reference paths, portable
+visibility metadata, and access-filtered owner exports. Existing and legacy
+imported entries remain campaign-visible. Private/restricted imports are
+normalized to importer-owned private entries, while explicitly elevated
+maintenance exports remain separate from ordinary owner downloads.
+
 **Purpose:** add privacy intentionally instead of relying on the old
 single-user meaning of “private character.”
 
@@ -625,30 +633,32 @@ Recommended first scope:
 
 Deliverables:
 
-- Add explicit visibility and owner fields with deletion/transfer semantics.
-- Represent per-user access with normalized grant rows such as
+- [x] Add explicit visibility and owner fields with deletion/transfer
+  semantics.
+- [x] Represent per-user access with normalized grant rows such as
   `(resource/access-policy, user, permission)`. Do not store arrays or
   comma-separated user IDs in a resource column: they are difficult to
   constrain, index, revoke, cascade, and query safely.
-- Keep creator metadata separate from authorization. `created_by_user_id`
+- [x] Keep creator metadata separate from authorization. `created_by_user_id`
   records provenance; visibility, ownership, and grant rows decide access.
-- Centralize resource policy evaluation so `campaign`, `private`, and
+- [x] Centralize resource policy evaluation so `campaign`, `private`, and
   `restricted` rules are applied consistently by services.
-- Apply visibility filters to direct reads, lists, search, tags, relationships,
-  counts, exports, and any aggregate response.
-- Change user-facing campaign export to include only records readable by the
+- [x] Apply visibility filters to direct reads, lists, search, tags,
+  relationships, counts, exports, and any aggregate response.
+- [x] Change user-facing campaign export to include only records readable by the
   requester. Omit or safely rewrite tags, relationships, references, and assets
   that point to excluded records.
-- Keep infrastructure disaster-recovery backups separate from downloadable
+- [x] Keep infrastructure disaster-recovery backups separate from downloadable
   campaign exports. Disaster-recovery backups may contain all encrypted server
   data and are available only through operational admin procedures.
-- On import, do not restore source-server user IDs. Campaign-wide records remain
-  campaign-wide; requester-owned private records map to the importing owner;
+- [x] On import, do not restore source-server user IDs. Campaign-wide records
+  remain campaign-wide; requester-owned private records map to the importing
+  owner;
   ambiguous restricted grants must be rejected or normalized by an explicitly
   versioned backup rule.
-- Prevent metadata leaks through search snippets, unresolved tags, counts,
+- [x] Prevent metadata leaks through search snippets, unresolved tags, counts,
   error messages, and asset URLs.
-- Add visibility controls and clear labeling in the frontend.
+- [x] Add visibility controls and clear labeling in the frontend.
 
 Exit criteria:
 

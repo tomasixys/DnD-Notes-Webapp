@@ -71,6 +71,11 @@ and this changelog follows the structure described by
   explicit ownership transfer.
 - Added action-specific security audit records for campaign invitations,
   membership role/removal changes, ownership transfer, and campaign deletion.
+- Added campaign, restricted, and private visibility for character notes and
+  backstory, with distinct creator/access-owner metadata and normalized
+  read/write grants for campaign users.
+- Added centralized resource policy enforcement across direct note access,
+  lists, search, tag references, result counts, and frontend controls.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while
@@ -88,6 +93,11 @@ and this changelog follows the structure described by
 
 ### Changed
 
+- Changed downloadable campaign exports to exclude private or restricted
+  character entries the requesting owner cannot read; imported private data is
+  re-owned by the importer without restoring source-server user identifiers.
+- Kept offline maintenance exports explicitly elevated and complete rather than
+  applying the ordinary user-download privacy filter.
 - Isolated identity models, password handling, login, browser sessions,
   authentication dependencies, and account administration in a dedicated
   backend authentication domain.

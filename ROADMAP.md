@@ -92,9 +92,9 @@ storage; a third-party identity provider is not required.
 - [x] Server-ready configuration, database, and migrations
 - [x] Identity and secure sessions
 - [x] Campaign tenancy and authorization
-- [ ] Authenticated frontend shell
-- [ ] Protected assets and backups
-- [ ] Campaign invitations and member management
-- [ ] Shared and private visibility controls
+- [x] Authenticated frontend shell
+- [x] Protected assets and backups
+- [x] Campaign invitations and member management
+- [x] Shared and private visibility controls for character notes and backstory
 - [ ] Concurrent editing and multi-client synchronization
 - [ ] Production hosting, operations, and staged rollout
