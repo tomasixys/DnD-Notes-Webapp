@@ -21,6 +21,7 @@ class CampaignContext:
     user: User
     membership: CampaignMembership | None
     elevated: bool = False
+    client_instance_id: str | None = None
 
     def __post_init__(self) -> None:
         if (

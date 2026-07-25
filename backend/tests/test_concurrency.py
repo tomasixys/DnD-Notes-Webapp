@@ -247,6 +247,33 @@ class CampaignChangeCursorTests(unittest.TestCase):
                 viewer_changes.cursor,
             )
 
+    def test_change_poll_skips_saves_from_same_client_instance(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Multiple tabs")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            owner.client_instance_id = "tab-a"
+            changes = CampaignChangeService(owner)
+            baseline = changes.list_changes(None).cursor
+
+            PersonService(owner).create(PersonData(name="Jaheira"))
+
+            same_tab = changes.list_changes(baseline)
+            self.assertEqual([], same_tab.changes)
+            self.assertEqual(baseline + 1, same_tab.cursor)
+
+            owner.client_instance_id = "tab-b"
+            other_tab = changes.list_changes(baseline)
+            self.assertEqual(
+                [("person", "created")],
+                [
+                    (change.resource_type, change.action)
+                    for change in other_tab.changes
+                ],
+            )
+            self.assertEqual(baseline + 1, other_tab.cursor)
+
 
 if __name__ == "__main__":
     unittest.main()

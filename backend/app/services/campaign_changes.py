@@ -85,6 +85,7 @@ class CampaignChangeService:
                     resource_id=resource_id,
                     action=action,
                     revision=revision,
+                    source_client_id=self.context.client_instance_id,
                 )
             )
         self.db.flush()
@@ -112,6 +113,15 @@ class CampaignChangeService:
             .limit(limit)
         ).all()
         cursor = changes[-1].sequence if changes else after
+        visible_changes = [
+            change
+            for change in changes
+            if (
+                self.context.client_instance_id is None
+                or change.source_client_id
+                != self.context.client_instance_id
+            )
+        ]
         return CampaignChangesRead(
             cursor=cursor,
             changes=[
@@ -123,6 +133,6 @@ class CampaignChangeService:
                     revision=change.revision,
                     created_at=change.created_at,
                 )
-                for change in changes
+                for change in visible_changes
             ],
         )

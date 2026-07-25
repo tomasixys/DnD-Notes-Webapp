@@ -25,4 +25,5 @@ class CampaignChange(SQLModel, table=True):
     resource_id: int | None = Field(default=None, index=True)
     action: str
     revision: int | None = None
+    source_client_id: str | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utc_now, index=True)

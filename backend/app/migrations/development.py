@@ -179,3 +179,22 @@ def migrate_development_schema(connection) -> None:
                 "change_cursor INTEGER NOT NULL DEFAULT 0"
             )
         )
+
+    change_columns = (
+        {
+            column["name"]
+            for column in inspector.get_columns("campaign_change")
+        }
+        if "campaign_change" in table_names
+        else set()
+    )
+    if (
+        "campaign_change" in table_names
+        and "source_client_id" not in change_columns
+    ):
+        connection.execute(
+            text(
+                "ALTER TABLE campaign_change ADD COLUMN "
+                "source_client_id VARCHAR"
+            )
+        )

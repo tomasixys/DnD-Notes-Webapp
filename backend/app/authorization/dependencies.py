@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlmodel import Session
 
 from app.auth.dependencies import require_current_user
@@ -14,8 +14,15 @@ def get_campaign_context(
     campaign_id: int,
     user: User = Depends(require_current_user),
     db: Session = Depends(get_session),
+    request: Request = None,
 ) -> CampaignContext:
     context = CampaignContext.resolve(db, campaign_id, user)
+    client_instance_id = (
+        request.headers.get("X-Client-Instance", "").strip()
+        if request is not None
+        else ""
+    )
+    context.client_instance_id = client_instance_id[:64] or None
     context.require(CampaignCapability.CAMPAIGN_READ)
     return context
 
