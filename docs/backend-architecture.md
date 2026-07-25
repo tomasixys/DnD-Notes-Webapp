@@ -207,7 +207,10 @@ checks. Authentication request dependencies and routes remain inside the same
 domain package; resource services do not import password or login mechanics.
 The authentication router returns the session token only in a host-only,
 secure, HTTP-only cookie and returns the session-bound CSRF token in the
-response body. It remains unmounted while hosted startup is disabled.
+response body. Hosted mode mounts these routes and protects every other API
+path, including uploaded files, with session authentication and CSRF checks
+for unsafe methods. Local mode seeds one non-login internal user instead of
+exposing a hosted authentication bypass.
 Pre-installation databases containing campaigns can be claimed only by local
 mode; moving desktop data into hosted mode remains an explicit import process.
 

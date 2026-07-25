@@ -7,8 +7,10 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.auth.administration import (
+    IdentityBootstrapService,
     IdentityAdminError,
     IdentityAdminService,
+    LOCAL_USER_USERNAME,
 )
 from app.auth.enums import SystemRole, UserStatus
 from app.auth.models import (
@@ -162,6 +164,25 @@ class CredentialServiceTests(IdentityDatabaseTestCase):
             db.refresh(session)
 
             self.assertIsNotNone(session.revoked_at)
+
+
+class IdentityBootstrapServiceTests(IdentityDatabaseTestCase):
+    def test_local_identity_is_stable_and_cannot_log_in(self):
+        with Session(self.engine) as db:
+            service = IdentityBootstrapService(
+                db,
+                clock=lambda: NOW,
+            )
+
+            first = service.ensure_local_user()
+            second = service.ensure_local_user()
+
+            self.assertEqual(first.id, second.id)
+            self.assertEqual(LOCAL_USER_USERNAME, first.username)
+            self.assertEqual(UserStatus.ACTIVE, first.status)
+            self.assertEqual(SystemRole.USER, first.system_role)
+            self.assertFalse(first.can_login)
+            self.assertIsNone(db.get(PasswordCredential, first.id))
 
 
 class IdentityAdminServiceTests(IdentityDatabaseTestCase):

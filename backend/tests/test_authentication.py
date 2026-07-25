@@ -8,9 +8,11 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 from starlette.requests import Request
 
+from app import database as database_module
 from app.auth.dependencies import AuthContext, require_csrf_context
 from app.auth.enums import SystemRole, UserStatus
 from app.auth.login import AuthenticationService
+from app.auth.middleware import authorize_hosted_api_request
 from app.auth.models import AuthSession, PasswordCredential, User
 from app.auth.passwords import CredentialService
 from app.auth.router import INVALID_CREDENTIALS, login
@@ -62,6 +64,32 @@ def request() -> Request:
             "method": "POST",
             "path": "/api/auth/login",
             "headers": [(b"user-agent", b"auth-test")],
+            "client": ("192.0.2.10", 12345),
+            "scheme": "https",
+            "server": ("notes.example.test", 443),
+        }
+    )
+
+
+def protected_request(
+    method: str,
+    *,
+    cookie: str | None = None,
+    csrf_token: str | None = None,
+) -> Request:
+    headers: list[tuple[bytes, bytes]] = []
+    if cookie is not None:
+        headers.append((b"cookie", cookie.encode("ascii")))
+    if csrf_token is not None:
+        headers.append(
+            (b"x-csrf-token", csrf_token.encode("ascii"))
+        )
+    return Request(
+        {
+            "type": "http",
+            "method": method,
+            "path": "/api/protected",
+            "headers": headers,
             "client": ("192.0.2.10", 12345),
             "scheme": "https",
             "server": ("notes.example.test", 443),
@@ -348,6 +376,57 @@ class AuthenticationRouterFoundationTests(
                     csrf_token=issued.csrf_token,
                 ),
             )
+
+
+class HostedAuthenticationMiddlewareTests(
+    AuthenticationDatabaseTestCase
+):
+    def test_data_api_requires_session_and_csrf_but_auth_api_is_public(self):
+        previous_engine = database_module._engine
+        database_module._engine = self.engine
+        try:
+            with Session(self.engine) as db:
+                user, _ = self.add_user(db)
+                generated = iter(("session-token", "csrf-token"))
+                AuthSessionService(
+                    db,
+                    clock=lambda: NOW,
+                    token_factory=lambda size: next(generated),
+                ).create(user)
+                db.commit()
+
+            settings = hosted_settings()
+            cookie = (
+                f"{settings.security.cookie_name}=session-token"
+            )
+            anonymous = authorize_hosted_api_request(
+                protected_request("GET"),
+                settings,
+            )
+            self.assertEqual(401, anonymous.status_code)
+            self.assertIsNone(
+                authorize_hosted_api_request(
+                    protected_request("GET", cookie=cookie),
+                    settings,
+                )
+            )
+            missing_csrf = authorize_hosted_api_request(
+                protected_request("POST", cookie=cookie),
+                settings,
+            )
+            self.assertEqual(403, missing_csrf.status_code)
+            self.assertIsNone(
+                authorize_hosted_api_request(
+                    protected_request(
+                        "POST",
+                        cookie=cookie,
+                        csrf_token="csrf-token",
+                    ),
+                    settings,
+                )
+            )
+        finally:
+            database_module._engine = previous_engine
 
 
 if __name__ == "__main__":

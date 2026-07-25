@@ -1,7 +1,7 @@
 # Recommended single-server Linux deployment. The application, PostgreSQL,
 # and protected file storage can all run on the same private server.
-# Hosted startup remains disabled until authentication and authorization are
-# implemented.
+# Hosted API data requires an authenticated local account. Campaign-specific
+# membership enforcement is introduced in Milestone 3.
 
 [installation]
 mode = "hosted"

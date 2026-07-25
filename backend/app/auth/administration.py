@@ -18,10 +18,68 @@ from app.auth.passwords import (
 
 
 SYSTEM_CUSTODIAN_USERNAME = "system-custodian"
+LOCAL_USER_USERNAME = "local-user"
 
 
 class IdentityAdminError(RuntimeError):
     """Raised when an offline identity administration operation is unsafe."""
+
+
+class IdentityBootstrapService:
+    """Create non-login identities required by a deployment mode."""
+
+    def __init__(
+        self,
+        db: Session,
+        *,
+        clock: Callable[[], datetime] | None = None,
+    ):
+        self.db = db
+        self.clock = clock or utc_now
+
+    def ensure_local_user(self) -> User:
+        user = self.db.exec(
+            select(User).where(
+                User.normalized_username == LOCAL_USER_USERNAME
+            )
+        ).first()
+        if user is not None:
+            if (
+                user.status is not UserStatus.ACTIVE
+                or user.system_role is not SystemRole.USER
+                or user.can_login
+            ):
+                raise IdentityAdminError(
+                    "The reserved local identity has an invalid state."
+                )
+            return user
+
+        now = self.clock()
+        user = User(
+            username=LOCAL_USER_USERNAME,
+            normalized_username=LOCAL_USER_USERNAME,
+            display_name="Local User",
+            status=UserStatus.ACTIVE,
+            system_role=SystemRole.USER,
+            can_login=False,
+            created_at=now,
+            updated_at=now,
+        )
+        self.db.add(user)
+        try:
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+            existing = self.db.exec(
+                select(User).where(
+                    User.normalized_username == LOCAL_USER_USERNAME
+                )
+            ).first()
+            if existing is None:
+                raise
+            return existing
+        self.db.refresh(user)
+        return user
 
 
 class IdentityAdminService:

@@ -193,20 +193,20 @@ class ApplicationSettingsFileTests(unittest.TestCase):
 
         self.assertIn("unknown", str(error.exception))
 
-    def test_hosted_application_cannot_start_before_auth_is_implemented(self):
+    def test_hosted_application_mounts_authentication_routes(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_config(directory, HOSTED_CONFIG)
             settings = load_application_settings(path)
 
         from app.application import create_app
 
-        with self.assertRaises(ConfigurationError) as error:
-            create_app(
-                settings,
-                build_profile=DeploymentMode.HOSTED,
-            )
-
-        self.assertIn("authentication", str(error.exception).lower())
+        application = create_app(
+            settings,
+            build_profile=DeploymentMode.HOSTED,
+        )
+        paths = set(application.openapi()["paths"])
+        self.assertIn("/api/auth/login", paths)
+        self.assertIn("/api/auth/session", paths)
 
     def test_runtime_settings_reject_config_from_another_build_profile(self):
         with tempfile.TemporaryDirectory() as directory:

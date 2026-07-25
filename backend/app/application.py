@@ -11,9 +11,11 @@ from app.app_paths import (
     get_campaign_images_dir,
     get_uploads_dir,
 )
+from app.auth.administration import IdentityBootstrapService
+from app.auth.middleware import install_authentication_middleware
+from app.auth import router as auth_router
 from app.config import (
     ApplicationSettings,
-    ConfigurationError,
     DeploymentMode,
     load_runtime_settings,
     validate_build_profile,
@@ -52,12 +54,6 @@ def create_app(
         if settings is not None
         else load_runtime_settings()
     )
-    if settings.installation.mode is DeploymentMode.HOSTED:
-        raise ConfigurationError(
-            "Hosted mode startup is disabled until authentication and "
-            "authorization are implemented."
-        )
-
     configure_app_data_dir(settings.storage.path)
 
     @asynccontextmanager
@@ -69,6 +65,11 @@ def create_app(
             try:
                 with Session(engine) as db:
                     InstallationService(db).ensure(settings)
+                    if (
+                        settings.installation.mode
+                        is DeploymentMode.LOCAL
+                    ):
+                        IdentityBootstrapService(db).ensure_local_user()
                 yield
             finally:
                 engine.dispose()
@@ -78,6 +79,7 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.settings = settings
+    install_authentication_middleware(application, settings)
 
     allowed_origins = ["http://localhost:5173"]
     if (
@@ -103,6 +105,9 @@ def create_app(
         staticfiles.StaticFiles(directory=get_uploads_dir()),
         name="uploads",
     )
+
+    if settings.installation.mode is DeploymentMode.HOSTED:
+        application.include_router(auth_router.router)
 
     application.include_router(campaigns.router)
     application.include_router(campaign_backups.router)

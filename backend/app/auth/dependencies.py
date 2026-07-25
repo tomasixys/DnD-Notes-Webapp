@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, Request
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.auth.models import AuthSession, User
+from app.auth.administration import LOCAL_USER_USERNAME
 from app.auth.sessions import AuthSessionService
 from app.config import ApplicationSettings, DeploymentMode
 from app.database import get_session
@@ -29,6 +30,10 @@ def get_auth_settings(request: Request) -> ApplicationSettings:
     return settings
 
 
+def get_application_settings(request: Request) -> ApplicationSettings:
+    return request.app.state.settings
+
+
 def session_service(
     db: Session,
     settings: ApplicationSettings,
@@ -46,6 +51,38 @@ def session_service(
 
 def client_ip(request: Request) -> str | None:
     return request.client.host if request.client is not None else None
+
+
+def get_current_user(
+    request: Request,
+    settings: ApplicationSettings = Depends(get_application_settings),
+    db: Session = Depends(get_session),
+) -> User | None:
+    if settings.installation.mode is DeploymentMode.LOCAL:
+        return db.exec(
+            select(User).where(
+                User.normalized_username == LOCAL_USER_USERNAME
+            )
+        ).first()
+
+    service = session_service(db, settings)
+    resolved = service.resolve(
+        request.cookies.get(settings.security.cookie_name),
+        client_ip=client_ip(request),
+    )
+    db.commit()
+    return resolved[1] if resolved is not None else None
+
+
+def require_current_user(
+    user: User | None = Depends(get_current_user),
+) -> User:
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail=AUTHENTICATION_REQUIRED,
+        )
+    return user
 
 
 def require_auth_context(
