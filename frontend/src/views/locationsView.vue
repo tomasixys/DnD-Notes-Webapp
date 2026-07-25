@@ -9,6 +9,7 @@ import type {
   LocationDto,
 } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import {
   compareByName,
   removeById,
@@ -19,6 +20,7 @@ import ResourceTag from "@/components/ResourceTag.vue"
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const locations = ref<LocationDto[]>([])
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const {
   entryIdFromUrl,
@@ -192,7 +194,11 @@ async function deleteLocation() {
         <p>Track cities, districts, buildings, rooms, wilderness sites, and other campaign places.</p>
       </div>
 
-      <button type="button" @click="showAddLocationForm">
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddLocationForm"
+      >
         Add location
       </button>
     </header>
@@ -239,7 +245,12 @@ async function deleteLocation() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+        <template
+          v-if="
+            canWriteSharedResources
+            && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ viewMode === ViewModes.Create ? "New location" : "Edit location" }}
@@ -326,7 +337,7 @@ async function deleteLocation() {
               <h3>{{ selectedEntry.name }}</h3>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteSharedResources" class="resource-detail-actions">
               <button
                 type="button"
                 class="secondary"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, computed, ref, onBeforeMount } from "vue"
 import type {
+  CampaignCapability,
   CampaignsDto,
   DeleteResponseDto,
   ExportResponse,
@@ -33,6 +34,9 @@ const defaultCampaigndto: CampaignsDto = {
   imageUrl: "",
   bannerImageUrl: "",
   activeCharacterPersonId: null,
+  assignedCharacterPersonId: null,
+  membershipRole: "owner",
+  capabilities: [],
 }
 
 const viewMode = ref<ViewModes>(ViewModes.Current)
@@ -43,6 +47,13 @@ const newCampaignImageFile = ref<File | null>(null)
 const newCampaignBannerFile = ref<File | null>(null)
 
 const showDeleteCampaignPopup = ref(false)
+
+function campaignCan(
+  campaign: CampaignsDto,
+  capability: CampaignCapability,
+): boolean {
+  return campaign.capabilities.includes(capability)
+}
 
 function clearNewCampaignForm() {
   Object.assign(newCampaign, defaultCampaigndto)
@@ -293,6 +304,10 @@ const campaignBannerPreviewUrl = computed(() => {
               <strong>Sessions:</strong>
               {{ selectedCampaign.sessionCount }}
             </p>
+            <p class="session-count">
+              <strong>Access:</strong>
+              {{ selectedCampaign.membershipRole }}
+            </p>
           </div>
         </div>
 
@@ -322,7 +337,17 @@ const campaignBannerPreviewUrl = computed(() => {
       </template>
     </article>
 
-    <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
+    <article
+      v-else-if="
+        viewMode === ViewModes.Create
+        || (
+          viewMode === ViewModes.Edit
+          && selectedCampaign
+          && campaignCan(selectedCampaign, 'campaign.update')
+        )
+      "
+      class="dashboard-card"
+    >
       <h3>{{ viewMode === ViewModes.Create ? "Start new campaign" : "Edit campaign" }}</h3>
 
       <form class="campaign-form" @submit.prevent="submitCampaign">
@@ -405,13 +430,14 @@ const campaignBannerPreviewUrl = computed(() => {
               {{ campaign.description || "No description." }}
             </p>
             <small>
-              {{ campaign.sessionCount }} sessions
+              {{ campaign.sessionCount }} sessions · {{ campaign.membershipRole }}
             </small>
 
           </div>
 
           <div class="campaign-list-actions">
             <button
+              v-if="campaignCan(campaign, 'campaign.update')"
               type="button"
               @click="switchCampaign(campaign.id)"
             >
@@ -419,6 +445,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.export')"
               type="button"
               class="secondary"
               @click="showEditCampaignForm(campaign.id)"
@@ -427,6 +454,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.delete')"
               type="button"
               class="secondary"
               @click="exportCampaign(campaign.id)"
@@ -474,10 +502,14 @@ const campaignBannerPreviewUrl = computed(() => {
     </article>
 
     <ConfirmationPopup
-      v-if="showDeleteCampaignPopup && selectedCampaign"
-      title="Delete session?"
+      v-if="
+        showDeleteCampaignPopup
+        && selectedCampaign
+        && campaignCan(selectedCampaign, 'campaign.delete')
+      "
+      title="Delete campaign?"
       :message="`Delete campaign ${selectedCampaign.name} and all associated entries? This cannot be undone.`"
-      confirm-text="Delete session"
+      confirm-text="Delete campaign"
       @cancel="showDeleteCampaignPopup = false"
       @confirm="deleteCampaign(selectedCampaign.id); showDeleteCampaignPopup = false"
     />

@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from "vue"
 import { DeleteAPI, PostAPI, PutAPI } from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useSessionContext } from "@/composables/useSessionContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   DeleteResponseDto,
@@ -28,6 +29,7 @@ const {
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const requestError = ref("")
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const sessionForm = reactive({
   date: new Date().toISOString().slice(0, 10),
@@ -144,7 +146,12 @@ watch(selectionRevision, () => {
 
 <template>
   <article class="resource-detail-panel">
-    <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+    <template
+      v-if="
+        canWriteSharedResources
+        && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+      "
+    >
       <header class="resource-detail-header">
         <p class="resource-detail-kicker">
           {{ viewMode === ViewModes.Create ? "New session" : "Edit session notes" }}
@@ -203,7 +210,7 @@ watch(selectionRevision, () => {
           <h3>{{ selectedSession.title }}</h3>
         </div>
 
-        <div class="resource-detail-actions">
+        <div v-if="canWriteSharedResources" class="resource-detail-actions">
           <button type="button" @click="showAddSessionForm">Add session</button>
           <button type="button" class="secondary" @click="showEditSessionForm">Edit</button>
           <button type="button" class="danger" @click="deleteSession">Delete</button>
@@ -228,7 +235,13 @@ watch(selectionRevision, () => {
       <p class="resource-detail-kicker">No sessions yet</p>
       <h3>Add the first session</h3>
       <p class="empty-text">Create a session before adding notes or rolls.</p>
-      <button type="button" @click="showAddSessionForm">Add session</button>
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddSessionForm"
+      >
+        Add session
+      </button>
     </div>
   </article>
 </template>

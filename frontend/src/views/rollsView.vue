@@ -3,6 +3,7 @@ import { ref, watch } from "vue"
 
 import { DeleteAPI, GetAPI, PostAPI } from "@/apihelpers"
 import { useSessionContext } from "@/composables/useSessionContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CampaignRollDto,
@@ -13,6 +14,7 @@ import type {
 
 const { selectedCampaignId } = useCampaignStore()
 const { selectedSession } = useSessionContext()
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const rollInput = ref<number | null>(null)
 const sessionRolls = ref<SessionRollDto | null>(null)
@@ -128,7 +130,11 @@ watch(
         </div>
       </dl>
 
-      <form class="roll-input-form" @submit.prevent="addRoll">
+      <form
+        v-if="canWriteSharedResources"
+        class="roll-input-form"
+        @submit.prevent="addRoll"
+      >
         <label>
           Add d20 roll
           <input

@@ -5,6 +5,7 @@ import { RouterLink, useRoute, useRouter } from "vue-router"
 import { DeleteAPI, GetAPI, PostAPI, PutAPI } from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useCharacterContext } from "@/composables/useCharacterContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CharacterNoteDataDto,
@@ -29,6 +30,9 @@ const { character, loading } = useCharacterContext()
 const entries = ref<CharacterNoteDto[]>([])
 const mode = ref<"details" | "create" | "edit">("details")
 const requestError = ref("")
+const { canWriteCharacter } = useCampaignAuthorization(
+  () => character.value?.person.id,
+)
 
 const form = reactive({
   title: "",
@@ -225,7 +229,11 @@ watch(noteIdFromRoute, () => {
         <h2>{{ sectionTitle }}</h2>
         <p>{{ sectionDescription }}</p>
       </div>
-      <button v-if="character" type="button" @click="showCreateForm">
+      <button
+        v-if="character && canWriteCharacter"
+        type="button"
+        @click="showCreateForm"
+      >
         Add {{ singularTitle }}
       </button>
     </header>
@@ -272,7 +280,12 @@ watch(noteIdFromRoute, () => {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="mode === 'create' || mode === 'edit'">
+        <template
+          v-if="
+            canWriteCharacter
+            && (mode === 'create' || mode === 'edit')
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ mode === "create" ? `New ${singularTitle}` : `Edit ${singularTitle}` }}
@@ -312,7 +325,7 @@ watch(noteIdFromRoute, () => {
               </p>
               <h3>{{ selectedEntry.title }}</h3>
             </div>
-            <div class="resource-detail-actions">
+            <div v-if="canWriteCharacter" class="resource-detail-actions">
               <button type="button" class="secondary" @click="showEditForm">Edit</button>
               <button type="button" class="danger" @click="deleteEntry">Delete</button>
             </div>

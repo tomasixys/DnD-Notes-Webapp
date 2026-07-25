@@ -5,6 +5,7 @@ import { DeleteAPI, GetAPI, PatchAPI, PostAPI } from "@/apihelpers"
 import ConfirmationPopup from "@/components/ConfirmationPopup.vue"
 import Popup from "@/components/Popup.vue"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   InventoryDto,
@@ -25,6 +26,7 @@ import {
 import { ViewModes } from "@/types/viewTypes"
 
 type PurseAction = "deposit" | "withdraw"
+const { canWriteSharedResources } = useCampaignAuthorization()
 type InventorySort =
   | "rarity_desc"
   | "name_asc"
@@ -386,7 +388,11 @@ onBeforeMount(fetchInventory)
             <p>Owned by {{ ownerNames }}</p>
           </div>
 
-          <button type="button" @click="openPurseManager">
+          <button
+            v-if="canWriteSharedResources"
+            type="button"
+            @click="openPurseManager"
+          >
             Manage purse
           </button>
         </div>
@@ -426,7 +432,13 @@ onBeforeMount(fetchInventory)
         <aside class="resource-list-panel inventory-list-panel">
           <div class="resource-list-header">
             <h3>Items</h3>
-            <button type="button" @click="showAddItemForm">Add item</button>
+            <button
+              v-if="canWriteSharedResources"
+              type="button"
+              @click="showAddItemForm"
+            >
+              Add item
+            </button>
           </div>
 
           <div class="inventory-filters">
@@ -502,7 +514,12 @@ onBeforeMount(fetchInventory)
         </aside>
 
         <article class="resource-detail-panel inventory-detail-panel">
-          <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+          <template
+            v-if="
+              canWriteSharedResources
+              && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+            "
+          >
             <header class="resource-detail-header">
               <p class="resource-detail-kicker">
                 {{ viewMode === ViewModes.Create ? "New item" : "Edit item" }}
@@ -601,7 +618,7 @@ onBeforeMount(fetchInventory)
                 <h3>{{ selectedEntry.name }}</h3>
               </div>
 
-              <div class="resource-detail-actions">
+              <div v-if="canWriteSharedResources" class="resource-detail-actions">
                 <button type="button" class="secondary" @click="showEditItemForm">Edit</button>
                 <button type="button" class="danger" @click="showDeleteConfirmation = true">Delete</button>
               </div>
@@ -630,14 +647,24 @@ onBeforeMount(fetchInventory)
               <p class="empty-text">
                 {{ items.length === 0 ? "Add an item to begin cataloguing the party's equipment and valuables." : "Choose an item from the list to see its details." }}
               </p>
-              <button v-if="items.length === 0" type="button" @click="showAddItemForm">Add first item</button>
+              <button
+                v-if="items.length === 0 && canWriteSharedResources"
+                type="button"
+                @click="showAddItemForm"
+              >
+                Add first item
+              </button>
             </div>
           </template>
         </article>
       </div>
     </template>
 
-    <Popup v-if="showPurseManager" title="Adjust purse" @close="showPurseManager = false">
+    <Popup
+      v-if="showPurseManager && canWriteSharedResources"
+      title="Adjust purse"
+      @close="showPurseManager = false"
+    >
       <form class="purse-form" @submit.prevent="updatePurse('deposit')">
         <div class="purse-inputs">
           <label v-for="denomination in displayedCurrencyDenominations" :key="denomination">
@@ -665,7 +692,11 @@ onBeforeMount(fetchInventory)
     </Popup>
 
     <ConfirmationPopup
-      v-if="showDeleteConfirmation && selectedEntry"
+      v-if="
+        showDeleteConfirmation
+        && selectedEntry
+        && canWriteSharedResources
+      "
       title="Remove item?"
       :message="`Remove ${selectedEntry.name} from the inventory?`"
       confirm-text="Remove"

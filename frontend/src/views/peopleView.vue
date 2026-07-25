@@ -10,6 +10,7 @@ import type {
   PersonDto,
 } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import {
   compareByName,
   removeById,
@@ -19,6 +20,10 @@ import ResourceTag from "@/components/ResourceTag.vue"
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const people = ref<PersonDto[]>([])
+const {
+  canWriteSharedResources,
+  canWriteCharacterFor,
+} = useCampaignAuthorization()
 
 const {
   entryIdFromUrl,
@@ -209,7 +214,11 @@ async function deletePerson() {
         <p>Track player characters, NPCs, contacts, enemies, and other people of interest.</p>
       </div>
 
-      <button type="button" @click="showAddPersonForm">
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddPersonForm"
+      >
         Add person
       </button>
     </header>
@@ -264,7 +273,12 @@ async function deletePerson() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+        <template
+          v-if="
+            canWriteSharedResources
+            && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ viewMode === ViewModes.Create ? "New person" : "Edit person" }}
@@ -374,6 +388,11 @@ async function deletePerson() {
               </RouterLink>
 
               <button
+                v-if="
+                  selectedEntry.characterProfileAvailable
+                    ? canWriteCharacterFor(selectedEntry.id)
+                    : canWriteSharedResources
+                "
                 type="button"
                 class="secondary"
                 @click="showEditPersonForm"
@@ -382,6 +401,11 @@ async function deletePerson() {
               </button>
 
               <button
+                v-if="
+                  selectedEntry.characterProfileAvailable
+                    ? canWriteCharacterFor(selectedEntry.id)
+                    : canWriteSharedResources
+                "
                 type="button"
                 class="danger"
                 @click="deletePerson()"

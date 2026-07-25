@@ -221,6 +221,9 @@ export const campaignsExample: dto.CampaignsDto[] = [
     sessionCount: 0,
     imageUrl: "/src/assets/banner.png",
     bannerImageUrl: "/src/assets/banner.png",
-    activeCharacterPersonId: null,
+  activeCharacterPersonId: null,
+  assignedCharacterPersonId: null,
+  membershipRole: "owner",
+  capabilities: [],
   },
 ]

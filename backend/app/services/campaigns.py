@@ -54,6 +54,9 @@ class CampaignService:
             active_character_person_id=(
                 membership.active_character_person_id
             ),
+            assigned_character_person_id=(
+                membership.assigned_character_person_id
+            ),
             membership_role=membership.role,
             capabilities=sorted(
                 ROLE_CAPABILITIES[membership.role],

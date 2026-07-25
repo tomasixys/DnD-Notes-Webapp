@@ -13,6 +13,7 @@ import {
 import ConfirmationPopup from "@/components/ConfirmationPopup.vue"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useCharacterContext } from "@/composables/useCharacterContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CharacterCreateDto,
@@ -42,6 +43,8 @@ const portraitFile = ref<File | null>(null)
 const portraitPreviewUrl = ref("")
 const formError = ref("")
 const showDeletePopup = ref(false)
+const { canCreateCharacter, canWriteCharacter } =
+  useCampaignAuthorization(() => character.value?.person.id)
 
 const form = reactive({
   name: "",
@@ -295,7 +298,7 @@ onBeforeUnmount(resetPortraitPreview)
       </div>
 
       <button
-        v-if="mode === 'details' && character"
+        v-if="mode === 'details' && character && canCreateCharacter"
         type="button"
         @click="showCreateForm"
       >
@@ -308,7 +311,10 @@ onBeforeUnmount(resetPortraitPreview)
     </article>
 
     <article
-      v-else-if="mode === 'create' || mode === 'edit'"
+      v-else-if="
+        (mode === 'create' && canCreateCharacter)
+        || (mode === 'edit' && canWriteCharacter)
+      "
       class="resource-detail-panel character-editor"
     >
       <header class="resource-detail-header">
@@ -441,7 +447,7 @@ onBeforeUnmount(resetPortraitPreview)
               <p class="character-role">{{ character.person.role || "Adventurer" }}</p>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteCharacter" class="resource-detail-actions">
               <button type="button" class="secondary" @click="showEditForm">Edit</button>
               <button
                 v-if="!character.isActive"
@@ -510,12 +516,18 @@ onBeforeUnmount(resetPortraitPreview)
         <p class="empty-text">
           The character profile will also appear in People and can be retained when a new character becomes active.
         </p>
-        <button type="button" @click="showCreateForm">Create character</button>
+        <button
+          v-if="canCreateCharacter"
+          type="button"
+          @click="showCreateForm"
+        >
+          Create character
+        </button>
       </template>
     </article>
 
     <ConfirmationPopup
-      v-if="showDeletePopup && character"
+      v-if="showDeletePopup && character && canWriteCharacter"
       title="Delete character profile?"
       :message="`Delete ${character.person.name}'s private profile, notes, and backstory? The People entry will remain.`"
       confirm-text="Delete profile"

@@ -167,6 +167,15 @@ class CampaignAuthorizationTests(unittest.TestCase):
                 campaign.id,
                 member,
             )
+            campaign_read = CampaignService(db, member).get_read(campaign.id)
+            self.assertEqual(
+                first.person.id,
+                campaign_read.assigned_character_person_id,
+            )
+            self.assertEqual(
+                CampaignRole.MEMBER,
+                campaign_read.membership_role,
+            )
             member_characters = CharacterService(member_context)
 
             updated = member_characters.update(

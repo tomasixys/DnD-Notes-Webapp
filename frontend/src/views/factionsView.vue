@@ -9,6 +9,7 @@ import type {
   FactionDto,
 } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import {
   compareByName,
   removeById,
@@ -19,6 +20,7 @@ import ResourceTag from "@/components/ResourceTag.vue"
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const factions = ref<FactionDto[]>([])
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const {
   entryIdFromUrl,
@@ -208,7 +210,11 @@ async function deleteFaction(factionId: number) {
         <p>Track organizations, noble houses, churches, guilds, cults, gangs, and other power groups.</p>
       </div>
 
-      <button type="button" @click="showAddFactionForm">
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddFactionForm"
+      >
         Add faction
       </button>
     </header>
@@ -255,7 +261,12 @@ async function deleteFaction(factionId: number) {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+        <template
+          v-if="
+            canWriteSharedResources
+            && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ viewMode === ViewModes.Create ? "New faction" : "Edit faction" }}
@@ -342,7 +353,7 @@ async function deleteFaction(factionId: number) {
               <h3>{{ selectedEntry.name }}</h3>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteSharedResources" class="resource-detail-actions">
               <button
                 type="button"
                 class="secondary"
