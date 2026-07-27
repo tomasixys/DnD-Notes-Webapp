@@ -57,7 +57,6 @@ class CampaignServiceTests(unittest.TestCase):
             campaigns = CampaignService(db)
             created = campaigns.create(
                 name="Test",
-                player_character="Nalia",
             )
             self.assertIsInstance(created, CampaignRead)
             campaign_id = created.id
@@ -65,7 +64,6 @@ class CampaignServiceTests(unittest.TestCase):
             updated = campaigns.update(
                 campaign_id,
                 name="Updated",
-                player_character="Nalia",
                 description="A changed campaign",
             )
 
@@ -88,7 +86,6 @@ class CampaignServiceTests(unittest.TestCase):
             with Session(self.engine) as db:
                 created = CampaignService(db).create(
                     name="Test",
-                    player_character="Nalia",
                     description="An expedition",
                 )
                 campaign_id = created.id
@@ -112,7 +109,6 @@ class CampaignServiceTests(unittest.TestCase):
                 self.assertIsInstance(imported, CampaignRead)
                 self.assertEqual("campaign.backup", exported.filename)
                 self.assertEqual("Test", imported.name)
-                self.assertEqual("Nalia", imported.player_character)
                 self.assertNotEqual(campaign_id, imported.id)
                 self.assertEqual(
                     2,
@@ -150,6 +146,65 @@ class CampaignServiceTests(unittest.TestCase):
                 error.exception.detail,
             )
             self.assertEqual([], db.exec(select(Campaign)).all())
+
+    def test_active_character_ref_populated_in_campaign_reads(self):
+        from app.models.api import CharacterCreate, PersonData
+        from app.services.campaign_context import CampaignContext
+        from app.services.characters import CharacterService
+
+        with Session(self.engine) as db:
+            campaign_read = CampaignService(db).create(name="Active Test")
+            self.assertIsNone(campaign_read.active_character)
+
+            context = CampaignContext.resolve(db, campaign_read.id)
+            character_read = CharacterService(context).create(
+                CharacterCreate(person=PersonData(name="Elrond"))
+            )
+
+            context.campaign.active_character_person_id = character_read.person.id
+            db.add(context.campaign)
+            db.commit()
+
+            read_single = CampaignService(db).get_read(campaign_read.id)
+            self.assertIsNotNone(read_single.active_character)
+            self.assertEqual(character_read.person.id, read_single.active_character.id)
+            self.assertEqual("Elrond", read_single.active_character.name)
+
+            reads_list = CampaignService(db).list_reads()
+            self.assertEqual(1, len(reads_list))
+            self.assertIsNotNone(reads_list[0].active_character)
+            self.assertEqual("Elrond", reads_list[0].active_character.name)
+
+    def test_create_campaign_with_initial_character_and_faction(self):
+        with Session(self.engine) as db:
+            campaign = CampaignService(db).create(
+                name="Deep World",
+                character_name="Gloin",
+                faction_name="Iron Daggers",
+            )
+            self.assertIsNotNone(campaign.active_character)
+            self.assertEqual("Gloin", campaign.active_character.name)
+
+    def test_update_campaign_creates_character_profile_if_missing(self):
+        from app.models.api import PersonData
+        from app.services.campaign_context import CampaignContext
+        from app.services.people import PersonService
+
+        with Session(self.engine) as db:
+            campaign = CampaignService(db).create(name="Update Test")
+            context = CampaignContext.resolve(db, campaign.id)
+            person = PersonService(context).create(PersonData(name="Standalone Person"))
+
+            # Update campaign setting active_character_person_id to a person without character profile
+            updated = CampaignService(db).update(
+                campaign.id,
+                name="Update Test",
+                active_character_person_id=person.id,
+            )
+
+            self.assertIsNotNone(updated.active_character)
+            self.assertEqual(person.id, updated.active_character.id)
+            self.assertEqual("Standalone Person", updated.active_character.name)
 
 
 if __name__ == "__main__":

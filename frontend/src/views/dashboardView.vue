@@ -1,58 +1,49 @@
 <script setup lang="ts">
-import { reactive, computed, ref, onBeforeMount } from "vue"
+import { ref, onBeforeMount } from "vue"
 import type {
   CampaignsDto,
   DeleteResponseDto,
   ExportResponse,
-} from "@/types/DataTransferObjects";
-import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
-import { useCampaignStore } from "@/stores/campaignStore";
-import ConfirmationPopup from "../components/ConfirmationPopup.vue";
+} from "@/types/DataTransferObjects"
+import { ViewModes } from "@/types/viewTypes"
+import { GetAPI, DeleteAPI, DownloadAPI, PostFormDataAPI } from "@/apihelpers"
+import { useCampaignStore } from "@/stores/campaignStore"
+import ConfirmationPopup from "../components/ConfirmationPopup.vue"
+import CampaignForm from "../components/CampaignForm.vue"
+import PencilIcon from "@/assets/icons/PencilIcon.vue"
 
 const {
   campaigns,
-    selectedCampaignId,
-    selectedCampaign,
-    selectedCampaignImageUrl,
-    selectedCampaignBannerUrl,
-    hasSelectedCampaign,
-    setCampaigns,
-    upsertCampaign,
-    removeCampaign,
-    selectCampaign,
-    clearSelectedCampaign,
+  selectedCampaignId,
+  selectedCampaign,
+  selectedCampaignImageUrl,
+  setCampaigns,
+  upsertCampaign,
+  removeCampaign,
+  selectCampaign,
 } = useCampaignStore()
 
-const defaultCampaigndto: CampaignsDto = {
-  id: 0,
-  name: "",
-  playerCharacter: "",
-  description: "",
-  sessionCount: 0,
-  imageUrl: "",
-  bannerImageUrl: "",
-  activeCharacterPersonId: null,
-}
-
 const viewMode = ref<ViewModes>(ViewModes.Current)
-const newCampaign = reactive<CampaignsDto>({ ...defaultCampaigndto })
 const editingCampaignId = ref<number | null>(null)
-
-const newCampaignImageFile = ref<File | null>(null)
-const newCampaignBannerFile = ref<File | null>(null)
-
 const showDeleteCampaignPopup = ref(false)
 
-function clearNewCampaignForm() {
-  Object.assign(newCampaign, defaultCampaigndto)
-  newCampaignImageFile.value = null
-  newCampaignBannerFile.value = null
+async function fetchCampaigns() {
+  const response = await GetAPI("campaigns")
+
+  if (response.success === false) {
+    console.error("Failed to fetch campaigns:", response.error)
+    return
+  }
+  console.log("Fetched campaigns:", response)
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch campaigns: Response is not an array")
+    return
+  }
+  setCampaigns(response)
 }
 
-
 onBeforeMount(async () => {
-  await fetchCampaigns();
+  await fetchCampaigns()
 })
 
 function showCurrentCampaign() {
@@ -64,22 +55,13 @@ function showCampaignList() {
 }
 
 function showNewCampaignForm() {
-  clearNewCampaignForm()
   editingCampaignId.value = null
   viewMode.value = ViewModes.Create
 }
 
 function showEditCampaignForm(campaignId: number) {
   selectCampaign(campaignId)
-
   editingCampaignId.value = campaignId
-
-  newCampaign.name = selectedCampaign.value?.name ?? ""
-  newCampaign.playerCharacter = selectedCampaign.value?.playerCharacter ?? ""
-  newCampaign.description = selectedCampaign.value?.description ?? ""
-  newCampaignImageFile.value = null
-  newCampaignBannerFile.value = null
-
   viewMode.value = ViewModes.Edit
 }
 
@@ -88,91 +70,17 @@ function switchCampaign(campaignId: number) {
   viewMode.value = ViewModes.Current
 }
 
-
-
-async function submitCampaign() {
-  if (viewMode.value === ViewModes.Create) {
-    await createCampaign()
-    return
-  } else if (viewMode.value === ViewModes.Edit) {
-    if (editingCampaignId.value === null) {
-      console.error("Cannot update campaign: no campaign is being edited")
-      return
-    }
-    await updateCampaign(editingCampaignId.value)
+function onSelectCampaignChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const id = Number(target.value)
+  if (id > 0) {
+    switchCampaign(id)
   }
 }
 
-function buildCampaignFormData(): FormData {
-  const formData = new FormData()
-  formData.append("name", newCampaign.name.trim())
-  formData.append("player_character", newCampaign.playerCharacter.trim())
-  formData.append("description", newCampaign.description.trim())
-
-  if (newCampaignImageFile.value) {
-    formData.append("image", newCampaignImageFile.value)
-  }
-
-  if (newCampaignBannerFile.value) {
-    formData.append("banner", newCampaignBannerFile.value)
-  }
-
-  return formData
-}
-
-async function fetchCampaigns() {
-    const response = await GetAPI("campaigns")
-
-    if (response.success === false) {
-        console.error("Failed to fetch campaigns:", response.error)
-        return
-    }
-    console.log("Fetched campaigns:", response)
-    if (!Array.isArray(response)) {
-        console.error("Failed to fetch campaigns: Response is not an array")
-        return
-    }
-    setCampaigns(response)
-}
-
-async function createCampaign() {
-
-  if (!newCampaign.name.trim()) return
-
-  let campaign = buildCampaignFormData()
-
-  const response = await PostFormDataAPI("campaigns", campaign)
-  if (response.success === false) {
-    console.error("Failed to create campaign:", response.error)
-    return
-  }
-  const created = response as CampaignsDto;
-  if (created.id === 0) {
-    console.error("Failed to create campaign: Invalid campaign ID returned")
-    return
-  }
-
-  upsertCampaign(created)
-  switchCampaign(created.id)
-
-  clearNewCampaignForm()
-}
-
-async function updateCampaign(campaignId: number) {
-  if (!newCampaign.name.trim()) return
-
-  const campaign = buildCampaignFormData()
-
-  const response = await PutFormDataAPI(`campaigns/${campaignId}`, campaign)
-  if (response.success === false) {
-    console.error("Failed to update campaign:", response.error)
-    return
-  }
-  const updatedCampaign = response as CampaignsDto;
-  upsertCampaign(updatedCampaign)
-  switchCampaign(updatedCampaign.id)
-
-  clearNewCampaignForm()
+function onCampaignSubmitted(savedCampaign: CampaignsDto) {
+  upsertCampaign(savedCampaign)
+  switchCampaign(savedCampaign.id)
 }
 
 async function deleteCampaign(campaignId: number) {
@@ -226,49 +134,31 @@ async function importCampaign() {
   }
   input.click()
 }
-
-function onCampaignImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  newCampaignImageFile.value = input.files?.[0] ?? null
-}
-
-function onCampaignBannerSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  newCampaignBannerFile.value = input.files?.[0] ?? null
-}
-
-const campaignImagePreviewUrl = computed(() => {
-  if (newCampaignImageFile.value) {
-    return URL.createObjectURL(newCampaignImageFile.value)
-  }
-
-  return selectedCampaignImageUrl.value ?? ""
-})
-
-const campaignBannerPreviewUrl = computed(() => {
-  if (newCampaignBannerFile.value) {
-    return URL.createObjectURL(newCampaignBannerFile.value)
-  }
-
-  return selectedCampaignBannerUrl.value ?? ""
-})
-
 </script>
 
 <template>
   <section class="dashboard-view">
     <header class="view-header">
-      <h2>Campaign Dashboard</h2>
       <p>
         {{ selectedCampaign
-          ? "Manage your campaign or switch to a different."
+          ? "Manage your active campaign or switch to a different one."
           : "Choose a campaign or start a new one."
         }}
       </p>
     </header>
 
-    <article v-if="viewMode === ViewModes.Current" class="dashboard-card">
+    <article v-if="viewMode === ViewModes.Current" class="dashboard-card relative-card">
       <template v-if="selectedCampaign">
+        <button
+          type="button"
+          class="edit-icon-btn"
+          aria-label="Edit campaign"
+          title="Edit campaign"
+          @click="showEditCampaignForm(selectedCampaign.id)"
+        >
+          <PencilIcon />
+        </button>
+
         <div class="campaign-summary">
           <img
             v-if="selectedCampaignImageUrl"
@@ -281,8 +171,8 @@ const campaignBannerPreviewUrl = computed(() => {
             <h3>{{ selectedCampaign.name }}</h3>
 
             <p class="player-character">
-              <strong>Player characters:</strong>
-              {{ selectedCampaign.playerCharacter || "None registered yet" }}
+              <strong>Active character:</strong>
+              {{ selectedCampaign.activeCharacter ? selectedCampaign.activeCharacter.name : "None registered yet" }}
             </p>
 
             <p>
@@ -322,71 +212,14 @@ const campaignBannerPreviewUrl = computed(() => {
       </template>
     </article>
 
-    <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
-      <h3>{{ viewMode === ViewModes.Create ? "Start new campaign" : "Edit campaign" }}</h3>
-
-      <form class="campaign-form" @submit.prevent="submitCampaign">
-        <label>
-          Campaign name
-          <input
-            v-model="newCampaign.name"
-            type="text"
-            placeholder="Streets of Gernanti"
-            required
-          />
-        </label>
-
-        <label>
-          Player character
-          <input
-            v-model="newCampaign.playerCharacter"
-            type="text"
-            placeholder="Nalia"
-          />
-        </label>
-
-        <label>
-          Campaign description
-          <textarea
-            v-model="newCampaign.description"
-            rows="4"
-            placeholder="A short description of the campaign..."
-          />
-        </label>
-
-        <label>
-          Campaign image URL
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            @change="onCampaignImageSelected"
-          />
-        </label>
-        <label>
-          Campaign banner URL
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            @change="onCampaignBannerSelected"
-          />
-        </label>
-
-        <div class="dashboard-actions">
-
-          <button type="submit">
-           {{ viewMode === ViewModes.Create ?  "Create campaign" : "Update campaign" }}
-          </button>
-
-          <button
-            type="button"
-            class="secondary"
-            @click="showCurrentCampaign"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </article>
+    <CampaignForm
+      v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit"
+      :mode="viewMode"
+      :campaign-id="editingCampaignId"
+      :initial-campaign="selectedCampaign"
+      @submitted="onCampaignSubmitted"
+      @cancel="showCurrentCampaign"
+    />
 
     <article v-else-if="viewMode === ViewModes.Selection" class="dashboard-card">
       <h3>Campaign list</h3>
@@ -400,7 +233,7 @@ const campaignBannerPreviewUrl = computed(() => {
           <div>
             <h4>{{ campaign.name }}
             </h4>
-            <small>{{ campaign.playerCharacter }} </small>
+            <small v-if="campaign.activeCharacter">{{ campaign.activeCharacter.name }}</small>
             <p>
               {{ campaign.description || "No description." }}
             </p>
@@ -496,6 +329,10 @@ const campaignBannerPreviewUrl = computed(() => {
   border: 1px solid var(--color-border);
   border-radius: 1rem;
   background: rgba(255, 255, 255, 0.035);
+}
+
+.relative-card {
+  position: relative;
 }
 
 .dashboard-card h3 {

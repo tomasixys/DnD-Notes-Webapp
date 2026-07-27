@@ -215,12 +215,14 @@ export const campaignsExample: dto.CampaignsDto[] = [
   {
     id: 1,
     name: "Streets of Gernanti",
-    playerCharacter: "Nalyathina Calemdor",
     description:
     "A street-level Pathfinder 2e campaign set in the magical free city of Gernanti, where ambition, corruption, arcane politics, and survival all collide.",
     sessionCount: 0,
     imageUrl: "/src/assets/banner.png",
     bannerImageUrl: "/src/assets/banner.png",
-    activeCharacterPersonId: null,
+    activeCharacter: {
+      id: 1,
+      name: "Nalyathina Calemdor",
+    },
   },
 ]

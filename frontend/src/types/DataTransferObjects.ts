@@ -10,15 +10,19 @@ import type {
   TagResolutionState,
 } from "./tagTypes"
 
+export type ActiveCharacterRefDto = {
+  id: number
+  name: string
+}
+
 export type CampaignsDto = {
   id: number
   name: string
-  playerCharacter: string
   description: string
   sessionCount: number
   imageUrl: string
   bannerImageUrl: string
-  activeCharacterPersonId: number | null
+  activeCharacter: ActiveCharacterRefDto | null
 }
 
 export type DeleteResponseDto = {
