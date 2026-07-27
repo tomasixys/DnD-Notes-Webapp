@@ -161,3 +161,8 @@ dist/
 # developer specific code env
 pyrefly.toml
 pyrightconfig.json
+
+# Private-server deployment state
+deploy/hosted/data/
+deploy/hosted/backups/
+deploy/hosted/*.crt

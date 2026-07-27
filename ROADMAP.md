@@ -98,3 +98,5 @@ storage; a third-party identity provider is not required.
 - [x] Shared and private visibility controls for character notes and backstory
 - [x] Concurrent editing and multi-client synchronization
 - [ ] Production hosting, operations, and staged rollout
+  - [x] Reproducible HTTPS/PostgreSQL/filesystem stack and operator controls
+  - [ ] Hosted-alpha deployment and documented restore-drill sign-off

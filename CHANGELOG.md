@@ -97,6 +97,18 @@ and this changelog follows the structure described by
 - Added a conflict and remote-change banner that preserves open forms, can copy
   visible draft fields, refreshes the current view on demand, and checks for
   changes on a timer, focus, visibility restoration, and reconnect.
+- Added a reproducible private-server stack with a hosted application image,
+  PostgreSQL, protected bind-mounted files, and Caddy-managed LAN HTTPS.
+- Added unauthenticated liveness/readiness endpoints, internal Prometheus
+  metrics, JSON request logs, correlation IDs, and container health checks.
+- Added an audited hosted administration console for account status, password
+  resets, session revocation, account deletion, and orphaned-campaign recovery.
+- Added configurable per-client limits for searches, file uploads, campaign
+  imports, and backup exports, plus the existing authentication and invitation
+  throttles.
+- Added coordinated database/filesystem backups, a disposable restore drill,
+  an offline global-session-revocation command, hosted image validation, and
+  dependency and secret scanning in CI.
 
 ### Changed
 

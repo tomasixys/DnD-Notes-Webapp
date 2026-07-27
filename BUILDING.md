@@ -118,8 +118,10 @@ python build.py --profile hosted --config .\config\my-hosted.toml
 
 This produces a distinctly named `DnDNotes-hosted-windows` or
 `DnDNotes-hosted-linux` artifact with an embedded hosted profile. Profile
-mismatch is a startup error. Hosted startup remains disabled until
-authentication and authorization are implemented.
+mismatch is a startup error. Hosted artifacts enforce application-managed
+authentication, PostgreSQL, secure cookies, and campaign authorization. For
+the recommended Linux server deployment, use the containerized
+[hosted stack](deploy/hosted/README.md) instead of a PyInstaller artifact.
 
 The packaged backend includes the portable Alembic migration environment.
 Normal startup creates or upgrades the selected SQLite/PostgreSQL database;
@@ -170,8 +172,9 @@ The launcher also accepts `--host` and `--port`:
 ```
 
 The typed TOML launcher also accepts `--config`. Local mode rejects
-non-loopback bind addresses; external binding remains available only to a
-future hosted profile with authentication enabled.
+non-loopback bind addresses. A hosted-profile build may bind externally only
+with the hosted PostgreSQL, HTTPS-origin, secure-cookie, and runtime-secret
+requirements satisfied.
 
 ```powershell
 ..\.venv\Scripts\python.exe run.py `

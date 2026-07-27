@@ -51,3 +51,51 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+
+  hosted-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: >-
+          docker compose
+          --env-file deploy/hosted/.env.example
+          --file deploy/hosted/compose.yaml
+          config --quiet
+      - name: Validate operator scripts
+        run: sh -n deploy/hosted/backup.sh deploy/hosted/restore-drill.sh
+      - name: Build hosted application image
+        run: >-
+          docker compose
+          --env-file deploy/hosted/.env.example
+          --file deploy/hosted/compose.yaml
+          build app
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: python -m pip install pip-audit
+      - run: python -m pip_audit -r backend/requirements.txt
+      - run: npm ci
+        working-directory: frontend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2

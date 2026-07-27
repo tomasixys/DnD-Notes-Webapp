@@ -93,6 +93,11 @@ duration, and client address. Responses return the same ID in
 `/health/ready`. Metrics are available only on the internal application
 network at `/metrics`; Caddy returns `404` for that path.
 
+System administrators have an **Administration** link in the application for
+account suspension/reactivation, password-reset links, per-user or global
+session revocation, account deletion, and orphaned-campaign recovery. Every
+elevated action requires a reason and creates a security event.
+
 Stop the server before offline identity recovery:
 
 ```bash
@@ -102,6 +107,18 @@ docker compose run --rm app \
   --config /etc/dnd-notes/hosted.toml \
   reset-password \
   --username keeper
+docker compose start app
+```
+
+If an authenticated administrator session is unavailable during an incident,
+revoke every session offline:
+
+```bash
+docker compose stop app
+docker compose run --rm app \
+  python maintenance.py \
+  --config /etc/dnd-notes/hosted.toml \
+  revoke-all-sessions
 docker compose start app
 ```
 
@@ -138,3 +155,7 @@ the service to the public internet, use a real domain whose DNS points to the
 server and replace `tls internal` with Caddy's normal publicly trusted
 certificate flow. Review firewall, router, operating-system update, backup,
 monitoring, and incident-response guidance before forwarding port 443.
+
+The operational checklist, monitoring suggestions, secret-rotation sequence,
+and incident playbooks are in
+[Hosted operations](../../docs/hosted-operations.md).

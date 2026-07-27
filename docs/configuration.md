@@ -206,6 +206,24 @@ are counted by keyed source digest within
 Raw source addresses and raw tokens are not stored. Campaign invitation tokens
 are likewise digest-only, replaceable, revocable, expiring, and single-use.
 
+### Hosted request limits
+
+Hosted mode applies per-client fixed-window limits to expensive endpoints:
+
+```toml
+[request_limits]
+enabled = true
+search_per_minute = 60
+upload_per_minute = 20
+import_per_minute = 5
+export_per_minute = 10
+```
+
+Rejected requests return `429 Too Many Requests` and `Retry-After`. Limits are
+held in the single application process used by the supported hosted stack.
+Keep them enabled for network deployments; changing them does not change the
+persisted installation mode.
+
 ### Server
 
 ```toml

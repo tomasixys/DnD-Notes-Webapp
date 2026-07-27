@@ -22,16 +22,16 @@ PostgreSQL and an explicitly configured protected filesystem directory.
 - Link directly to individual resources through their URLs.
 - Invite existing server accounts into campaigns and manage member roles.
 
-DnD Notes supports the established local single-user mode and has an
-in-development authenticated server mode for private hosting. Server mode
+DnD Notes supports the established local single-user mode and an authenticated
+server mode for private hosting. Server mode
 keeps application-managed user accounts, PostgreSQL data, and protected files
 under the operator's control. Campaign membership and resource authorization
 are enforced across the API and reflected in the authenticated frontend.
 Campaign images, portraits, and backup downloads are protected by those same
 membership boundaries. Controlled campaign invitations, one-time account
 activation, role changes, removal, leaving, and ownership transfer are
-available without requiring an email provider. Explicit private-resource
-visibility is the next development milestone.
+available without requiring an email provider. Character notes and backstory
+support campaign-wide, restricted, and private visibility.
 
 ## Technology
 
@@ -112,12 +112,17 @@ cd backend
 See [BUILDING.md](BUILDING.md) for distributable builds, single-file builds,
 source launches with a compiled frontend, and data-location details.
 
+For an authenticated LAN server with PostgreSQL, protected local file storage,
+and HTTPS, use the [hosted deployment stack](deploy/hosted/README.md). You do
+not need to build a desktop executable for that deployment.
+
 ## Documentation
 
 - [Roadmap](ROADMAP.md)
 - [Hosted multi-user development plan](docs/hosted-multi-user-plan.md)
 - [Application configuration](docs/configuration.md)
 - [Offline maintenance and recovery](docs/maintenance.md)
+- [Hosted operations and incident response](docs/hosted-operations.md)
 - [Changelog](CHANGELOG.md)
 - [Backend architecture](docs/backend-architecture.md)
 - [Completed backend refactoring record](docs/archive/backend-refactoring-2026-07.md)

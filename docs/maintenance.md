@@ -81,5 +81,16 @@ state, and revokes every existing session for that user. Neither identity
 command accepts a password argument, preventing the password from appearing in
 shell history or process listings.
 
+During a suspected server-wide session compromise, revoke all login sessions:
+
+```bash
+../.venv/bin/python maintenance.py \
+  --config ../config/hosted.example.toml \
+  revoke-all-sessions
+```
+
+The command records an elevated security event. It is hosted-only and should
+be run with the normal server stopped.
+
 All maintenance commands acquire the same exclusive installation lock as the
 normal server. Stop the server before running them.
