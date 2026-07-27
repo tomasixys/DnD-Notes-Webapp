@@ -236,55 +236,60 @@ onMounted(loadUsers)
               <td>{{ user.status }}</td>
               <td>{{ user.campaignMemberships }}</td>
               <td>{{ user.activeSessions }}</td>
-              <td class="row-actions">
-                <button
-                  v-if="
-                    user.status === 'active'
-                    && user.systemRole !== 'custodian'
-                    && user.id !== auth.user.value?.id
-                  "
-                  type="button"
-                  class="secondary"
-                  @click="setUserStatus(user, 'suspended')"
-                >
-                  Suspend
-                </button>
-                <button
-                  v-if="user.status === 'suspended'"
-                  type="button"
-                  class="secondary"
-                  @click="setUserStatus(user, 'active')"
-                >
-                  Reactivate
-                </button>
-                <button
-                  v-if="user.systemRole !== 'custodian'"
-                  type="button"
-                  class="secondary"
-                  @click="revokeUserSessions(user)"
-                >
-                  Revoke sessions
-                </button>
-                <button
-                  v-if="user.status !== 'deleted' && user.systemRole !== 'custodian'"
-                  type="button"
-                  class="secondary"
-                  @click="issuePasswordReset(user)"
-                >
-                  Reset link
-                </button>
-                <button
-                  v-if="
-                    user.id !== auth.user.value?.id
-                    && user.status !== 'deleted'
-                    && user.systemRole !== 'custodian'
-                  "
-                  type="button"
-                  class="danger"
-                  @click="deleteUser(user)"
-                >
-                  Delete
-                </button>
+              <td>
+                <div class="row-actions">
+                  <button
+                    v-if="
+                      user.status === 'active'
+                      && user.systemRole !== 'custodian'
+                      && user.id !== auth.user.value?.id
+                    "
+                    type="button"
+                    class="secondary"
+                    @click="setUserStatus(user, 'suspended')"
+                  >
+                    Suspend
+                  </button>
+                  <button
+                    v-if="user.status === 'suspended'"
+                    type="button"
+                    class="secondary"
+                    @click="setUserStatus(user, 'active')"
+                  >
+                    Reactivate
+                  </button>
+                  <button
+                    v-if="user.systemRole !== 'custodian'"
+                    type="button"
+                    class="secondary"
+                    @click="revokeUserSessions(user)"
+                  >
+                    Revoke sessions
+                  </button>
+                  <button
+                    v-if="
+                      user.status !== 'deleted'
+                      && user.systemRole !== 'custodian'
+                    "
+                    type="button"
+                    class="secondary"
+                    @click="issuePasswordReset(user)"
+                  >
+                    Reset link
+                  </button>
+                  <button
+                    v-if="
+                      user.id !== auth.user.value?.id
+                      && user.status !== 'deleted'
+                      && user.systemRole !== 'custodian'
+                    "
+                    type="button"
+                    class="danger"
+                    @click="deleteUser(user)"
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>

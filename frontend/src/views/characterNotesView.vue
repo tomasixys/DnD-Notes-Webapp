@@ -339,7 +339,8 @@ watch(noteIdFromRoute, () => {
               <span class="resource-list-kicker">{{ singularTitle }}</span>
               <span class="resource-list-title">{{ entry.title }}</span>
               <span class="resource-list-meta">
-                {{ entry.visibility }} Â· Updated {{ formatUpdatedAt(entry.updatedAt) }}
+                {{ entry.visibility }} &middot; Updated
+                {{ formatUpdatedAt(entry.updatedAt) }}
               </span>
             </button>
           </li>
@@ -431,7 +432,7 @@ watch(noteIdFromRoute, () => {
           <header class="resource-detail-header with-actions">
             <div class="resource-detail-title">
               <p class="resource-detail-kicker">
-                {{ selectedEntry.visibility }} Â·
+                {{ selectedEntry.visibility }} &middot;
                 Updated {{ formatUpdatedAt(selectedEntry.updatedAt) }}
               </p>
               <h3>{{ selectedEntry.title }}</h3>
