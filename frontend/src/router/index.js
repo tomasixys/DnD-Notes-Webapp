@@ -62,6 +62,17 @@ const router = createRouter({
       meta: { requiresAuth: true, authPage: true },
     },
     {
+      path: '/admin',
+      name: 'SystemAdministration',
+      component: () => import('../views/adminView.vue'),
+      meta: {
+        requiresAuth: true,
+        hostedOnly: true,
+        systemAdmin: true,
+        authPage: true,
+      },
+    },
+    {
       path: '/invitations',
       name: 'CampaignInvitations',
       component: () => import('../views/campaignInvitationView.vue'),
@@ -229,6 +240,10 @@ router.beforeEach(async (to) => {
 
   if (to.meta.hostedOnly && !auth.authenticationRequired.value) {
     return { name: "Dashboard" }
+  }
+
+  if (to.meta.systemAdmin && auth.user.value?.systemRole !== "admin") {
+    return { name: "AccessDenied" }
   }
 
   if (

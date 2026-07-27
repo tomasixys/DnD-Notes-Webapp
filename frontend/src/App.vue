@@ -350,6 +350,15 @@ async function logout() {
 
           <div class="account-nav">
             <RouterLink
+              v-if="
+                auth.authenticationRequired.value
+                && auth.user.value?.systemRole === 'admin'
+              "
+              to="/admin"
+            >
+              Administration
+            </RouterLink>
+            <RouterLink
               v-if="auth.authenticationRequired.value"
               to="/invitations"
             >

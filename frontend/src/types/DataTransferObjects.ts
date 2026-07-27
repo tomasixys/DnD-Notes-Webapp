@@ -52,6 +52,17 @@ export type AuthUserDto = {
   systemRole: "user" | "admin" | "custodian"
 }
 
+export type AdminUserDto = AuthUserDto & {
+  activeSessions: number
+  campaignMemberships: number
+}
+
+export type AdminCampaignDto = {
+  id: number
+  name: string
+  orphaned: boolean
+}
+
 export type AuthSessionDto = {
   user: AuthUserDto
   csrfToken: string
@@ -64,8 +75,8 @@ export type AccountMutationDto = {
 }
 
 export type SessionMutationDto = {
-    message: string
-    revokedSessions: number
+  message: string
+  revokedSessions: number
 }
 
 export type IssuedAccountTokenDto = {
