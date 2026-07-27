@@ -33,6 +33,7 @@ from app.file_storage import (
     cleanup_expired_backup_archives,
 )
 from app.instance_lock import InstanceLock
+from app.observability import install_observability
 from app.routers import (
     assets,
     campaign_backups,
@@ -42,6 +43,7 @@ from app.routers import (
     changes,
     episodes,
     factions,
+    health,
     inventory,
     invitations,
     locations,
@@ -111,6 +113,7 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.settings = settings
+    install_observability(application)
     install_authentication_middleware(application, settings)
 
     allowed_origins = ["http://localhost:5173"]
@@ -133,6 +136,7 @@ def create_app(
         allowed_hosts=settings.server.trusted_hosts,
     )
 
+    application.include_router(health.router)
     application.include_router(auth_router.session_router)
     if settings.installation.mode is DeploymentMode.HOSTED:
         application.include_router(auth_router.router)
