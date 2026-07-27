@@ -1,0 +1,140 @@
+# Hosted LAN deployment
+
+This stack runs DnD Notes as three containers on one private server:
+
+- the application image, with the hosted security profile embedded;
+- PostgreSQL for application and identity data; and
+- Caddy for one HTTPS origin using a private local certificate authority.
+
+Campaign images and other protected files remain in `./data` on the server.
+PostgreSQL and Caddy state use named Docker volumes. Neither PostgreSQL nor the
+application's plain HTTP port is published to the LAN.
+
+## Requirements
+
+- Linux or Docker Desktop with Docker Compose v2;
+- TCP ports 80 and 443 available on the server, or alternative ports in
+  `.env`;
+- a LAN DNS or hosts-file entry mapping `dnd-notes.home.arpa` to the server;
+  and
+- clients configured to trust Caddy's local root certificate.
+
+The hostname is deliberately shared by `hosted.toml` and `Caddyfile`. To use a
+different hostname, replace it in both files before the first launch.
+
+## First launch
+
+From this directory:
+
+```bash
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Put one generated value in `DND_NOTES_POSTGRES_PASSWORD` and the other in
+`DND_NOTES_SESSION_SECRET`. Do not reuse the example values or commit `.env`.
+Hexadecimal database passwords are required by this Compose template because
+the password is embedded in a PostgreSQL URL.
+
+Build the saved source and initialize the administrator:
+
+```bash
+docker compose build
+docker compose up -d database
+docker compose run --rm storage-init
+docker compose run --rm app \
+  python maintenance.py \
+  --config /etc/dnd-notes/hosted.toml \
+  create-admin \
+  --username keeper
+docker compose up -d
+docker compose ps
+```
+
+The administrator command prompts twice without echoing the password. It
+creates no default password and refuses to replace an existing administrator.
+
+Add this entry to each test client's hosts file, replacing the address:
+
+```text
+192.168.1.50 dnd-notes.home.arpa
+```
+
+Open `https://dnd-notes.home.arpa`. Before browsers accept the site, export
+Caddy's root certificate:
+
+```bash
+docker compose cp \
+  proxy:/data/caddy/pki/authorities/local/root.crt \
+  ./dnd-notes-local-root.crt
+```
+
+Install that certificate as a trusted root only on devices that should trust
+this private server. Protect the exported certificate from substitution while
+copying it; compare its SHA-256 fingerprint over a separate trusted channel.
+The private CA key remains in the `caddy-data` volume and must never be copied
+to client devices.
+
+## Routine operation
+
+```bash
+docker compose up -d
+docker compose ps
+docker compose logs --tail 100 app proxy database
+docker compose pull
+docker compose build --pull
+docker compose up -d
+```
+
+Application request logs contain JSON with a request ID, method, path, status,
+duration, and client address. Responses return the same ID in
+`X-Request-ID`. Liveness and readiness are available at `/health/live` and
+`/health/ready`. Metrics are available only on the internal application
+network at `/metrics`; Caddy returns `404` for that path.
+
+Stop the server before offline identity recovery:
+
+```bash
+docker compose stop app
+docker compose run --rm app \
+  python maintenance.py \
+  --config /etc/dnd-notes/hosted.toml \
+  reset-password \
+  --username keeper
+docker compose start app
+```
+
+## Backup and restore drill
+
+Create a coordinated PostgreSQL and protected-file backup:
+
+```bash
+chmod +x backup.sh restore-drill.sh
+./backup.sh
+```
+
+The application is stopped briefly so the database dump and protected files
+represent one consistent point. Each backup includes SHA-256 checksums.
+
+Demonstrate restoration without touching the live database:
+
+```bash
+./restore-drill.sh ./backups/YYYYMMDDTHHMMSSZ
+```
+
+The drill verifies checksums, extracts the file archive, restores PostgreSQL
+into a disposable database, queries required tables, and removes the
+disposable database afterward.
+
+Backups contain private campaign and account data. Copy them to encrypted
+operator-controlled storage, restrict access, define a retention period, and
+test a restore after application or PostgreSQL upgrades.
+
+## Moving beyond a private LAN
+
+Caddy's internal CA is appropriate for controlled LAN testing. Before exposing
+the service to the public internet, use a real domain whose DNS points to the
+server and replace `tls internal` with Caddy's normal publicly trusted
+certificate flow. Review firewall, router, operating-system update, backup,
+monitoring, and incident-response guidance before forwarding port 443.
