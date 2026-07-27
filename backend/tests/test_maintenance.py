@@ -20,6 +20,7 @@ from maintenance import (
     export_campaign,
     inspect_installation,
     prompt_new_password,
+    revoke_all_sessions,
 )
 
 
@@ -103,6 +104,13 @@ class MaintenanceCommandTests(unittest.TestCase):
             side_effect=["matching password", "matching password"],
         ):
             self.assertEqual("matching password", prompt_new_password())
+
+    def test_global_session_revocation_rejects_local_mode(self):
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "available only for hosted installations",
+        ):
+            revoke_all_sessions(self.settings)
 
 
 if __name__ == "__main__":

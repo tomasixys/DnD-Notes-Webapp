@@ -2,6 +2,7 @@ import argparse
 import getpass
 import json
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import func
@@ -17,6 +18,9 @@ from app.auth.administration import (
     IdentityAdminService,
 )
 from app.auth.passwords import CredentialError
+from app.auth.enums import SecurityEventType
+from app.auth.events import SecurityEventService
+from app.auth.models import AuthSession
 from app.config import (
     ApplicationSettings,
     ConfigurationError,
@@ -60,6 +64,10 @@ def parse_args() -> argparse.Namespace:
         help="Reset one hosted local account password and revoke sessions.",
     )
     reset_password.add_argument("--username", required=True)
+    commands.add_parser(
+        "revoke-all-sessions",
+        help="Revoke every hosted login session during an incident.",
+    )
     return parser.parse_args()
 
 
@@ -183,6 +191,36 @@ def reset_local_password(
         engine.dispose()
 
 
+def revoke_all_sessions(settings: ApplicationSettings) -> int:
+    if settings.installation.mode is not DeploymentMode.HOSTED:
+        raise IdentityAdminError(
+            "revoke-all-sessions is available only for hosted installations."
+        )
+    engine = create_db_and_tables(settings)
+    try:
+        with Session(engine) as db:
+            InstallationService(db).ensure(settings)
+            sessions = db.exec(
+                select(AuthSession).where(AuthSession.revoked_at.is_(None))
+            ).all()
+            now = datetime.now(timezone.utc)
+            for auth_session in sessions:
+                auth_session.revoked_at = now
+                db.add(auth_session)
+            SecurityEventService(db).record(
+                SecurityEventType.MEMBERSHIP_CHANGED,
+                reason=(
+                    "scope=system action=all_sessions_revoked_offline; "
+                    "operating-system maintenance"
+                ),
+                used_elevation=True,
+            )
+            db.commit()
+            return len(sessions)
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
     args = parse_args()
     settings = load_runtime_settings(args.config)
@@ -216,6 +254,10 @@ def main() -> None:
             print(
                 f"Reset password and revoked sessions for: {username}"
             )
+            return
+        if args.command == "revoke-all-sessions":
+            revoked = revoke_all_sessions(settings)
+            print(f"Revoked active sessions: {revoked}")
             return
 
         exported_path = export_campaign(

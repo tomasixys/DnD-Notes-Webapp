@@ -139,7 +139,7 @@ def install_request_limits(
         category, limit = classification
         allowed, retry_after = limiter.consume(
             category,
-            client_ip(request),
+            client_ip(request) or "unknown",
             limit,
         )
         if not allowed:
