@@ -10,6 +10,7 @@ import { GetAPI, DeleteAPI, DownloadAPI, PostFormDataAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
 import ConfirmationPopup from "../components/ConfirmationPopup.vue"
 import CampaignForm from "../components/CampaignForm.vue"
+import PencilIcon from "@/assets/icons/PencilIcon.vue"
 
 const {
   campaigns,
@@ -155,9 +156,7 @@ async function importCampaign() {
           title="Edit campaign"
           @click="showEditCampaignForm(selectedCampaign.id)"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-          </svg>
+          <PencilIcon />
         </button>
 
         <div class="campaign-summary">
@@ -325,33 +324,6 @@ async function importCampaign() {
   gap: 1.5rem;
 }
 
-.header-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.header-title-row h2 {
-  margin: 0;
-}
-
-.campaign-select-dropdown {
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  font-size: 0.95rem;
-  cursor: pointer;
-  min-width: 14rem;
-}
-
-.campaign-select-dropdown:hover {
-  border-color: var(--color-accent, #646cff);
-}
-
 .dashboard-card {
   padding: 1.5rem;
   border: 1px solid var(--color-border);
@@ -361,30 +333,6 @@ async function importCampaign() {
 
 .relative-card {
   position: relative;
-}
-
-.edit-icon-btn {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
-}
-
-.edit-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: var(--color-accent, #646cff);
-  transform: scale(1.05);
 }
 
 .dashboard-card h3 {
