@@ -22,7 +22,7 @@ from app.auth.sessions import AuthSessionService, token_digest
 from app.config import ApplicationSettings
 
 
-NOW = datetime(2026, 7, 25, 18, 0, tzinfo=timezone.utc)
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
 PASSWORD = "correct horse battery staple"
 
 
