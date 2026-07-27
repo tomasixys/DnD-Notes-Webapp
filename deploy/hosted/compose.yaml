@@ -27,6 +27,7 @@ services:
       context: ../..
       dockerfile: deploy/hosted/Dockerfile
     user: "0:0"
+    network_mode: none
     command:
       [
         "sh",

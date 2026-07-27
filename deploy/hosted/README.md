@@ -42,7 +42,6 @@ Build the saved source and initialize the administrator:
 ```bash
 docker compose build
 docker compose up -d database
-docker compose run --rm storage-init
 docker compose run --rm app \
   python maintenance.py \
   --config /etc/dnd-notes/hosted.toml \
@@ -55,6 +54,22 @@ docker compose ps
 The administrator command prompts twice without echoing the password. It
 creates no default password and refuses to replace an existing administrator.
 
+Git Bash on Windows automatically rewrites Unix-looking command arguments into
+Windows paths. Disable that conversion when passing container paths:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose run --rm app \
+  python maintenance.py \
+  --config /etc/dnd-notes/hosted.toml \
+  create-admin \
+  --username keeper
+```
+
+PowerShell and a native Linux shell do not need `MSYS_NO_PATHCONV`. The
+application's dependency startup runs the one-shot storage initializer before
+the maintenance container, so it does not need a separate `docker compose run`
+command.
+
 Add this entry to each test client's hosts file, replacing the address:
 
 ```text
@@ -65,7 +80,7 @@ Open `https://dnd-notes.home.arpa`. Before browsers accept the site, export
 Caddy's root certificate:
 
 ```bash
-docker compose cp \
+MSYS_NO_PATHCONV=1 docker compose cp \
   proxy:/data/caddy/pki/authorities/local/root.crt \
   ./dnd-notes-local-root.crt
 ```
@@ -102,7 +117,7 @@ Stop the server before offline identity recovery:
 
 ```bash
 docker compose stop app
-docker compose run --rm app \
+MSYS_NO_PATHCONV=1 docker compose run --rm app \
   python maintenance.py \
   --config /etc/dnd-notes/hosted.toml \
   reset-password \
@@ -115,7 +130,7 @@ revoke every session offline:
 
 ```bash
 docker compose stop app
-docker compose run --rm app \
+MSYS_NO_PATHCONV=1 docker compose run --rm app \
   python maintenance.py \
   --config /etc/dnd-notes/hosted.toml \
   revoke-all-sessions
