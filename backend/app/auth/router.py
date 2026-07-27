@@ -8,6 +8,10 @@ from app.auth.accounts import (
     AccountLifecycleService,
     IssuedAccountToken,
 )
+from app.auth.admin_operations import (
+    IdentityAdminOperationsError,
+    IdentityAdminOperationsService,
+)
 from app.auth.dependencies import (
     AUTHENTICATION_REQUIRED,
     AuthContext,
@@ -26,6 +30,9 @@ from app.auth.login import AuthenticationService
 from app.auth.schemas import (
     AccountMutationRead,
     AccountTokenRequest,
+    AdminSessionRevocationRequest,
+    AdminUserRead,
+    AdminUserStatusUpdate,
     AuthSessionRead,
     AuthUserRead,
     InviteUserRequest,
@@ -62,6 +69,17 @@ def require_admin_context(
     return context
 
 
+def require_admin_read_context(
+    context: AuthContext = Depends(require_auth_context),
+) -> AuthContext:
+    if (
+        context.user.status is not UserStatus.ACTIVE
+        or context.user.system_role is not SystemRole.ADMIN
+    ):
+        raise HTTPException(status_code=403, detail=ADMIN_REQUIRED)
+    return context
+
+
 def account_service(db: Session) -> AccountLifecycleService:
     return AccountLifecycleService(db)
 
@@ -73,6 +91,87 @@ def issued_token_read(
         user=AuthUserRead.from_user(issued.user),
         token=issued.token,
         expires_at=issued.expires_at,
+    )
+
+
+@router.get("/admin/users")
+def list_users(
+    context: AuthContext = Depends(require_admin_read_context),
+    db: Session = Depends(get_session),
+) -> list[AdminUserRead]:
+    service = IdentityAdminOperationsService(db, context.user)
+    return [
+        AdminUserRead.from_user(
+            user,
+            active_sessions=active_sessions,
+            campaign_memberships=campaign_memberships,
+        )
+        for user, active_sessions, campaign_memberships
+        in service.list_users()
+    ]
+
+
+@router.put("/admin/users/{user_id}/status")
+def update_user_status(
+    user_id: int,
+    payload: AdminUserStatusUpdate,
+    context: AuthContext = Depends(require_admin_context),
+    db: Session = Depends(get_session),
+) -> AccountMutationRead:
+    try:
+        user, revoked = IdentityAdminOperationsService(
+            db, context.user
+        ).set_status(user_id, payload.status, payload.reason)
+    except IdentityAdminOperationsError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return AccountMutationRead(
+        user=AuthUserRead.from_user(user),
+        message=(
+            f"Account status changed; {revoked} active session(s) revoked."
+        ),
+    )
+
+
+@router.post("/admin/users/{user_id}/revoke-sessions")
+def revoke_user_sessions(
+    user_id: int,
+    payload: AdminSessionRevocationRequest,
+    context: AuthContext = Depends(require_admin_context),
+    db: Session = Depends(get_session),
+) -> SessionMutationRead:
+    try:
+        revoked = IdentityAdminOperationsService(
+            db, context.user
+        ).revoke_user_sessions(user_id, payload.reason)
+    except IdentityAdminOperationsError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return SessionMutationRead(
+        message="User sessions revoked.",
+        revoked_sessions=revoked,
+    )
+
+
+@router.post("/admin/sessions/revoke-all")
+def revoke_all_sessions(
+    payload: AdminSessionRevocationRequest,
+    response: Response,
+    settings: ApplicationSettings = Depends(get_auth_settings),
+    context: AuthContext = Depends(require_admin_context),
+    db: Session = Depends(get_session),
+) -> SessionMutationRead:
+    try:
+        revoked = IdentityAdminOperationsService(
+            db, context.user
+        ).revoke_all_sessions(payload.reason)
+    except IdentityAdminOperationsError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    response.delete_cookie(key=settings.security.cookie_name, path="/")
+    return SessionMutationRead(
+        message="All application sessions revoked.",
+        revoked_sessions=revoked,
     )
 
 

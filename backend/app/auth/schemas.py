@@ -44,6 +44,34 @@ class SessionMutationRead(SQLModel):
     revoked_sessions: int
 
 
+class AdminUserRead(AuthUserRead):
+    active_sessions: int
+    campaign_memberships: int
+
+    @classmethod
+    def from_user(
+        cls,
+        user: "User",
+        *,
+        active_sessions: int,
+        campaign_memberships: int,
+    ) -> "AdminUserRead":
+        return cls(
+            **AuthUserRead.from_user(user).model_dump(),
+            active_sessions=active_sessions,
+            campaign_memberships=campaign_memberships,
+        )
+
+
+class AdminUserStatusUpdate(SQLModel):
+    status: UserStatus
+    reason: str
+
+
+class AdminSessionRevocationRequest(SQLModel):
+    reason: str
+
+
 class InviteUserRequest(SQLModel):
     username: str
     display_name: str = ""

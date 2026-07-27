@@ -33,6 +33,20 @@ def _to_read(context) -> AdminCampaignRead:
     )
 
 
+@router.get("")
+def list_orphaned_campaigns(
+    reason: str = Query(min_length=1),
+    user: User = Depends(require_current_user),
+    db: Session = Depends(get_session),
+) -> list[AdminCampaignRead]:
+    return [
+        _to_read(context)
+        for context in CampaignAuthorizationAdminService(
+            db, user
+        ).list_orphaned(reason)
+    ]
+
+
 @router.get("/{campaign_id}")
 def inspect_campaign(
     campaign_id: int,

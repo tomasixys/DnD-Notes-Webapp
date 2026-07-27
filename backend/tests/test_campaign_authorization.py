@@ -257,6 +257,9 @@ class CampaignAuthorizationTests(unittest.TestCase):
             db.commit()
             service = CampaignAuthorizationAdminService(db, admin)
 
+            orphaned = service.list_orphaned("Review recovery queue")
+            self.assertEqual([campaign.id], [item.campaign_id for item in orphaned])
+
             elevated = service.inspect(
                 campaign.id,
                 "Investigate owner loss",

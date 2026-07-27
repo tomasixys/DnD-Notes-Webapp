@@ -7,6 +7,7 @@ from app.auth.models import User
 from app.authorization.context import CampaignContext
 from app.authorization.enums import CampaignRole
 from app.authorization.models import CampaignMembership
+from app.models.database import Campaign
 
 
 class CampaignAuthorizationAdminService:
@@ -28,6 +29,23 @@ class CampaignAuthorizationAdminService:
             self.actor,
             reason=reason,
         )
+
+    def list_orphaned(self, reason: str) -> list[CampaignContext]:
+        self._require_admin(reason)
+        campaigns = self.db.exec(
+            select(Campaign)
+            .where(Campaign.orphaned.is_(True))
+            .order_by(Campaign.name, Campaign.id)
+        ).all()
+        return [
+            CampaignContext.resolve_elevated(
+                self.db,
+                campaign.id,
+                self.actor,
+                reason=reason,
+            )
+            for campaign in campaigns
+        ]
 
     def recover(
         self,
@@ -83,3 +101,18 @@ class CampaignAuthorizationAdminService:
         )
         self.db.commit()
         return context
+
+    def _require_admin(self, reason: str) -> None:
+        if (
+            self.actor.status is not UserStatus.ACTIVE
+            or self.actor.system_role is not SystemRole.ADMIN
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="System administrator privileges are required",
+            )
+        if not reason.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="An administrative reason is required",
+            )
