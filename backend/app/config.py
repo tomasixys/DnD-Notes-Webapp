@@ -408,6 +408,14 @@ class SecuritySettings(StrictSettingsModel):
         return self
 
 
+class RequestLimitSettings(StrictSettingsModel):
+    enabled: bool = True
+    search_per_minute: int = Field(default=60, ge=1, le=10000)
+    upload_per_minute: int = Field(default=20, ge=1, le=10000)
+    import_per_minute: int = Field(default=5, ge=1, le=10000)
+    export_per_minute: int = Field(default=10, ge=1, le=10000)
+
+
 class ApplicationSettings(StrictSettingsModel):
     installation: InstallationSettings = Field(
         default_factory=InstallationSettings
@@ -416,6 +424,9 @@ class ApplicationSettings(StrictSettingsModel):
     server: ServerSettings = Field(default_factory=ServerSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
+    request_limits: RequestLimitSettings = Field(
+        default_factory=RequestLimitSettings
+    )
 
     @model_validator(mode="after")
     def validate_deployment_mode(self) -> "ApplicationSettings":

@@ -34,6 +34,7 @@ from app.file_storage import (
 )
 from app.instance_lock import InstanceLock
 from app.observability import install_observability
+from app.request_limits import install_request_limits
 from app.routers import (
     assets,
     campaign_backups,
@@ -115,6 +116,7 @@ def create_app(
     application.state.settings = settings
     install_observability(application)
     install_authentication_middleware(application, settings)
+    install_request_limits(application, settings)
 
     allowed_origins = ["http://localhost:5173"]
     if (
