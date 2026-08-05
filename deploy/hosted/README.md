@@ -93,14 +93,66 @@ to client devices.
 
 ## Routine operation
 
+### Start after Docker Desktop is stopped
+
+On Windows, start Docker Desktop before starting the application containers:
+
 ```bash
+docker desktop start
+docker desktop status
+docker info
 docker compose up -d
 docker compose ps
+```
+
+Wait for Docker Desktop to report that its engine is running before using
+Compose. `docker info` must include a `Server` section. If the
+`docker desktop` command is unavailable, open **Docker Desktop** from the
+Windows Start menu and wait for it to finish starting.
+
+`docker compose stop` stops the DnD Notes containers but leaves Docker Desktop
+running. If Docker Desktop itself has been quit or Windows has restarted, use
+the complete sequence above.
+
+### Refresh after source changes
+
+The application source and compiled frontend are copied into the image, so
+backend, frontend, dependency, or Dockerfile changes require an image rebuild:
+
+```bash
+docker compose up -d --build
+docker compose ps
 docker compose logs --tail 100 app proxy database
+```
+
+Startup applies pending database migrations automatically and preserves the
+PostgreSQL volume, protected files in `./data`, and Caddy certificate state.
+After the application is healthy, refresh `https://dnd-notes.home.arpa` with
+`Ctrl+F5` so the browser discards cached frontend assets.
+
+For configuration-only changes:
+
+```bash
+# hosted.toml
+docker compose restart app
+
+# Caddyfile
+docker compose restart proxy
+
+# .env values
+docker compose up -d --force-recreate
+```
+
+To deliberately update base images and rebuild from them:
+
+```bash
 docker compose pull
 docker compose build --pull
 docker compose up -d
 ```
+
+Do not use `docker compose down --volumes` or `docker volume prune`; those can
+delete PostgreSQL data and Caddy certificate state.
 
 Application request logs contain JSON with a request ID, method, path, status,
 duration, and client address. Responses return the same ID in
