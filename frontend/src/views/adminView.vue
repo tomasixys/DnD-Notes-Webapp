@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
-import { RouterLink, useRouter } from "vue-router"
+import { useRouter } from "vue-router"
 import {
   DeleteAPI,
   GetAPI,
@@ -182,7 +182,7 @@ onMounted(loadUsers)
 </script>
 
 <template>
-  <main class="admin-page">
+  <section class="admin-page">
     <header class="admin-header">
       <div>
         <p class="eyebrow">Hosted server</p>
@@ -192,7 +192,6 @@ onMounted(loadUsers)
           security audit log.
         </p>
       </div>
-      <RouterLink to="/dashboard">Return to campaigns</RouterLink>
     </header>
 
     <label class="reason-field">
@@ -343,7 +342,7 @@ onMounted(loadUsers)
         </button>
       </article>
     </section>
-  </main>
+  </section>
 </template>
 
 <style scoped>
@@ -352,7 +351,6 @@ onMounted(loadUsers)
   gap: 1.5rem;
   margin: 0 auto;
   max-width: 78rem;
-  padding: clamp(1rem, 4vw, 3rem);
 }
 
 .admin-header,
@@ -384,7 +382,7 @@ onMounted(loadUsers)
 }
 
 .admin-section {
-  background: var(--color-bg-soft);
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid var(--color-border);
   border-radius: 0.8rem;
   display: grid;

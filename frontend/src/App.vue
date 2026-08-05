@@ -14,6 +14,25 @@ const router = useRouter()
 const auth = useAuthStore()
 const concurrency = useConcurrencyStore()
 const draftCopyStatus = ref("")
+const accountMenuOpen = ref(false)
+const accountMenuElement = ref(null)
+const accountMenuButtonElement = ref(null)
+
+const accountName = computed(() => (
+  auth.user.value?.displayName?.trim()
+  || auth.user.value?.username?.trim()
+  || "User"
+))
+const accountInitial = computed(() => (
+  Array.from(accountName.value)[0]?.toLocaleUpperCase() ?? "?"
+))
+const canViewInvitations = computed(() => (
+  auth.authenticationRequired.value
+))
+const canAdministerServer = computed(() => (
+  auth.authenticationRequired.value
+  && auth.user.value?.systemRole === "admin"
+))
 
 const {
   selectedCampaignId,
@@ -70,6 +89,7 @@ const submenuLinks = computed(() => {
 
 const hasSubmenu = computed(() => submenuLinks.value.length > 0)
 const isAuthPage = computed(() => route.meta.authPage === true)
+const isAccountPage = computed(() => route.meta.accountPage === true)
 
 const activeMainLinkIndex = computed(() => {
   const routeRoot = `/${route.path.split("/").filter(Boolean)[0] ?? ""}`
@@ -131,6 +151,7 @@ async function pollCampaignChanges() {
     !auth.isAuthenticated.value
     || selectedCampaignId.value === null
     || isAuthPage.value
+    || isAccountPage.value
   ) {
     return
   }
@@ -186,6 +207,37 @@ function pollOnFocus() {
   }
 }
 
+function closeAccountMenu({ restoreFocus = false } = {}) {
+  if (!accountMenuOpen.value) {
+    return
+  }
+
+  accountMenuOpen.value = false
+  if (restoreFocus) {
+    void nextTick(() => accountMenuButtonElement.value?.focus())
+  }
+}
+
+function toggleAccountMenu() {
+  accountMenuOpen.value = !accountMenuOpen.value
+}
+
+function closeAccountMenuOnOutsideClick(event) {
+  if (
+    accountMenuOpen.value
+    && event.target instanceof Node
+    && !accountMenuElement.value?.contains(event.target)
+  ) {
+    closeAccountMenu()
+  }
+}
+
+function closeAccountMenuOnEscape(event) {
+  if (event.key === "Escape" && accountMenuOpen.value) {
+    closeAccountMenu({ restoreFocus: true })
+  }
+}
+
 let changePollTimer = null
 
 onMounted(() => {
@@ -193,6 +245,8 @@ onMounted(() => {
   window.addEventListener("focus", pollOnFocus)
   window.addEventListener("online", pollOnFocus)
   document.addEventListener("visibilitychange", pollOnFocus)
+  document.addEventListener("pointerdown", closeAccountMenuOnOutsideClick)
+  document.addEventListener("keydown", closeAccountMenuOnEscape)
   changePollTimer = window.setInterval(
     () => void pollCampaignChanges(),
     15_000,
@@ -206,6 +260,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("focus", pollOnFocus)
   window.removeEventListener("online", pollOnFocus)
   document.removeEventListener("visibilitychange", pollOnFocus)
+  document.removeEventListener("pointerdown", closeAccountMenuOnOutsideClick)
+  document.removeEventListener("keydown", closeAccountMenuOnEscape)
   if (changePollTimer !== null) {
     window.clearInterval(changePollTimer)
   }
@@ -217,6 +273,11 @@ watch(
     concurrency.dismissNotice()
     void pollCampaignChanges()
   },
+)
+
+watch(
+  () => route.fullPath,
+  () => closeAccountMenu(),
 )
 
 const searchPhrase = ref("")
@@ -231,7 +292,11 @@ const canSearch = computed(() => {
 watch(
   () => [route.name, route.query.q],
   ([routeName, queryValue]) => {
-    if (route.meta.authPage === true || !auth.isAuthenticated.value) {
+    if (
+      route.meta.authPage === true
+      || route.meta.accountPage === true
+      || !auth.isAuthenticated.value
+    ) {
       return
     }
 
@@ -281,6 +346,7 @@ async function submitSearch() {
 }
 
 async function logout() {
+  closeAccountMenu()
   await auth.logout()
   await router.replace({ name: "Login" })
 }
@@ -348,33 +414,66 @@ async function logout() {
             aria-hidden="true"
           />
 
-          <div class="account-nav">
-            <RouterLink
-              v-if="
-                auth.authenticationRequired.value
-                && auth.user.value?.systemRole === 'admin'
-              "
-              to="/admin"
-            >
-              Administration
-            </RouterLink>
-            <RouterLink
-              v-if="auth.authenticationRequired.value"
-              to="/invitations"
-            >
-              Invitations
-            </RouterLink>
-            <RouterLink to="/profile">
-              {{ auth.user.value?.displayName || auth.user.value?.username }}
-            </RouterLink>
+          <div ref="accountMenuElement" class="account-menu">
             <button
-              v-if="auth.authenticationRequired.value"
+              ref="accountMenuButtonElement"
               type="button"
-              class="secondary"
-              @click="logout"
+              class="account-avatar"
+              :class="{ 'account-avatar-active': isAccountPage }"
+              aria-haspopup="menu"
+              :aria-expanded="accountMenuOpen"
+              aria-controls="account-menu-popover"
+              :aria-label="`Open account menu for ${accountName}`"
+              :title="accountName"
+              @click="toggleAccountMenu"
             >
-              Sign out
+              <span aria-hidden="true">{{ accountInitial }}</span>
             </button>
+
+            <div
+              v-if="accountMenuOpen"
+              id="account-menu-popover"
+              class="account-menu-popover"
+              role="menu"
+              aria-label="Account menu"
+            >
+              <div class="account-menu-identity">
+                <strong>{{ accountName }}</strong>
+                <span>
+                  {{ auth.user.value?.username }}
+                  <template v-if="auth.user.value?.systemRole === 'admin'">
+                    &middot; administrator
+                  </template>
+                </span>
+              </div>
+
+              <RouterLink role="menuitem" to="/profile">
+                Account
+              </RouterLink>
+              <RouterLink
+                v-if="canViewInvitations"
+                role="menuitem"
+                to="/invitations"
+              >
+                Invitations
+              </RouterLink>
+              <RouterLink
+                v-if="canAdministerServer"
+                role="menuitem"
+                to="/admin"
+              >
+                Administration
+              </RouterLink>
+              <button
+                v-if="auth.authenticationRequired.value"
+                type="button"
+                class="account-menu-signout"
+                role="menuitem"
+                @click="logout"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
         </nav>
       </div>
@@ -397,7 +496,7 @@ async function logout() {
     </header>
 
     <aside
-      v-if="concurrency.hasNotice.value"
+      v-if="concurrency.hasNotice.value && !isAccountPage"
       class="concurrency-notice"
       aria-live="polite"
     >

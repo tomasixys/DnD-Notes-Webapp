@@ -59,7 +59,7 @@ const router = createRouter({
       path: '/profile',
       name: 'AccountProfile',
       component: () => import('../views/accountProfileView.vue'),
-      meta: { requiresAuth: true, authPage: true },
+      meta: { requiresAuth: true, accountPage: true },
     },
     {
       path: '/admin',
@@ -69,20 +69,20 @@ const router = createRouter({
         requiresAuth: true,
         hostedOnly: true,
         systemAdmin: true,
-        authPage: true,
+        accountPage: true,
       },
     },
     {
       path: '/invitations',
       name: 'CampaignInvitations',
       component: () => import('../views/campaignInvitationView.vue'),
-      meta: { requiresAuth: true, hostedOnly: true, authPage: true },
+      meta: { requiresAuth: true, hostedOnly: true, accountPage: true },
     },
     {
       path: '/invitations/accept',
       name: 'AcceptCampaignInvitation',
       component: () => import('../views/campaignInvitationView.vue'),
-      meta: { requiresAuth: true, hostedOnly: true, authPage: true },
+      meta: { requiresAuth: true, hostedOnly: true, accountPage: true },
     },
     {
       path: '/dashboard',

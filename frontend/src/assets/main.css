@@ -76,7 +76,7 @@ button {
   align-items: stretch;
   gap: 0.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .main-nav-links {
@@ -144,21 +144,89 @@ button {
   object-fit: cover;
 }
 
-.account-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.25rem 0;
+.account-menu {
+  position: relative;
+  z-index: 10;
+  align-self: center;
+  margin-left: 0.5rem;
+}
+
+.account-avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8c6138, #50331f);
+  color: #ead9bd;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.account-avatar:hover,
+.account-avatar:focus-visible,
+.account-avatar-active,
+.account-avatar[aria-expanded="true"] {
+  border-color: var(--color-accent);
+  box-shadow:
+    0 0 0 2px rgba(201, 137, 63, 0.14),
+    0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+.account-menu-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  width: min(17rem, calc(100vw - 2rem));
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-bg-panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.account-menu-identity {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.account-menu-identity span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.account-nav a {
-  color: var(--color-accent-soft);
+.account-menu-popover a,
+.account-menu-popover button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
   text-decoration: none;
 }
 
-.account-nav button {
-  padding: 0.45rem 0.7rem;
+.account-menu-popover a:hover,
+.account-menu-popover a:focus-visible,
+.account-menu-popover button:hover,
+.account-menu-popover button:focus-visible,
+.account-menu-popover a.router-link-active {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-accent-soft);
+}
+
+.account-menu-signout {
+  border-top: 1px solid var(--color-border);
 }
 
 .auth-page {
@@ -713,6 +781,10 @@ select {
   .main-search {
     flex-basis: 100%;
     padding-right: 1rem;
+  }
+
+  .account-menu {
+    margin: 0.25rem 1rem 0.6rem auto;
   }
 
   .view-header.with-actions {

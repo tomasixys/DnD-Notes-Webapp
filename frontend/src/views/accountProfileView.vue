@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-import { RouterLink, useRouter } from "vue-router"
+import { useRouter } from "vue-router"
 import { isApiFailure, PostAPI } from "@/apihelpers"
 import { useAuthStore } from "@/stores/authStore"
 import type { IssuedAccountTokenDto } from "@/types/DataTransferObjects"
@@ -61,11 +61,8 @@ async function logout(allSessions = false) {
 </script>
 
 <template>
-  <main class="auth-page">
-    <section class="auth-card">
-      <RouterLink class="profile-return-link" to="/dashboard">
-        Return to DnD Notes
-      </RouterLink>
+  <div class="account-page">
+    <section class="auth-card account-card">
       <h1>Account</h1>
       <dl v-if="auth.user.value" class="profile-details">
         <div>
@@ -133,13 +130,18 @@ async function logout(allSessions = false) {
         </p>
       </section>
     </section>
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.profile-return-link {
-  display: inline-block;
-  margin-bottom: 1rem;
+.account-page {
+  display: grid;
+  justify-items: center;
+}
+
+.account-card {
+  width: min(100%, 50rem);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .account-admin {

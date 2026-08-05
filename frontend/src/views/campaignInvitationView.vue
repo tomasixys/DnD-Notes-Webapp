@@ -79,7 +79,7 @@ onBeforeMount(() => {
 </script>
 
 <template>
-  <main class="auth-page">
+  <div class="account-page">
     <section class="auth-card invitation-card">
       <h1>Campaign invitations</h1>
       <p>
@@ -127,16 +127,19 @@ onBeforeMount(() => {
         </p>
       </div>
 
-      <RouterLink class="profile-back-link" to="/dashboard">
-        Back to campaigns
-      </RouterLink>
     </section>
-  </main>
+  </div>
 </template>
 
 <style scoped>
+.account-page {
+  display: grid;
+  justify-items: center;
+}
+
 .invitation-card {
-  width: min(100%, 38rem);
+  width: min(100%, 42rem);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .invitation-message {
@@ -175,9 +178,4 @@ onBeforeMount(() => {
   text-transform: capitalize;
 }
 
-.profile-back-link {
-  display: inline-block;
-  margin-top: 1.5rem;
-  color: var(--color-accent-soft);
-}
 </style>
