@@ -15,7 +15,8 @@ from app.config import (
 )
 
 
-HOSTED_CONFIG = """
+HOSTED_STORAGE_PATH = Path(tempfile.gettempdir()) / "DnDNotesData"
+HOSTED_CONFIG = f"""
 [installation]
 mode = "hosted"
 
@@ -24,7 +25,7 @@ url_env = "DND_NOTES_DATABASE_URL"
 
 [storage]
 backend = "filesystem"
-path = "D:/DnDNotesData"
+path = "{HOSTED_STORAGE_PATH.as_posix()}"
 
 [security]
 session_secret_env = "DND_NOTES_SESSION_SECRET"
@@ -38,9 +39,9 @@ trusted_hosts = ["notes.example.test"]
 """
 
 HOSTED_OBJECT_CONFIG = HOSTED_CONFIG.replace(
-    """[storage]
+    f"""[storage]
 backend = "filesystem"
-path = "D:/DnDNotesData"
+path = "{HOSTED_STORAGE_PATH.as_posix()}"
 """,
     """[storage]
 backend = "object"
@@ -157,7 +158,7 @@ class ApplicationSettingsFileTests(unittest.TestCase):
             settings.server.public_origin,
         )
         self.assertEqual(
-            Path("D:/DnDNotesData"),
+            HOSTED_STORAGE_PATH,
             settings.storage.path,
         )
 
@@ -290,7 +291,7 @@ class ApplicationSettingsFileTests(unittest.TestCase):
             settings.storage.backend,
         )
         self.assertEqual(
-            Path("D:/DnDNotesData"),
+            HOSTED_STORAGE_PATH,
             settings.storage.path,
         )
 
@@ -308,7 +309,7 @@ class ApplicationSettingsFileTests(unittest.TestCase):
 
     def test_hosted_filesystem_storage_requires_an_absolute_path(self):
         invalid_config = HOSTED_FILESYSTEM_CONFIG.replace(
-            'path = "D:/DnDNotesData"',
+            f'path = "{HOSTED_STORAGE_PATH.as_posix()}"',
             'path = "relative/data"',
         )
         with tempfile.TemporaryDirectory() as directory:

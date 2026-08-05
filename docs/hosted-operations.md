@@ -35,7 +35,9 @@ Before inviting another user:
 10. Run `backup.sh`, copy the result to encrypted operator-controlled storage,
     and run `restore-drill.sh` against that exact backup.
 11. Record the tested commit, date, operator, backup location, and restore
-    result. Do not mark the hosted milestone complete without this record.
+    result using the
+    [hosted-alpha sign-off template](hosted-alpha-signoff-template.md). Do not
+    mark the hosted milestone complete without this record.
 
 ## Monitoring
 
@@ -44,6 +46,12 @@ health check calls readiness, which includes a database query. A simple host
 monitor should alert when any container is unhealthy/restarting, HTTPS is
 unreachable, disk space is low, or the newest successful backup exceeds the
 chosen maximum age.
+
+`deploy/hosted/check-health.sh` implements those local checks and confirms that
+the internal metrics endpoint is not exposed through Caddy. Run it at least
+every five minutes and connect its nonzero exit status to an external monitor,
+cron mail, or a systemd `OnFailure` unit. External availability monitoring must
+originate outside the private server.
 
 Application logs are compact JSON and include `request_id`, method, path,
 status, duration, and client address. Caddy also emits JSON access logs.

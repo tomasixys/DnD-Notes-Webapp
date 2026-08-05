@@ -160,6 +160,23 @@ duration, and client address. Responses return the same ID in
 `/health/ready`. Metrics are available only on the internal application
 network at `/metrics`; Caddy returns `404` for that path.
 
+After at least one backup exists, run the operator health check manually or
+from the host monitor:
+
+```bash
+chmod +x check-health.sh
+./check-health.sh
+```
+
+It fails when a required container is stopped or unhealthy, HTTPS health is
+unavailable, `/metrics` is exposed, the newest backup is too old, or free disk
+space is too low. The defaults require a backup no older than 26 hours and at
+least 10 percent free disk space. Override them through
+`DND_NOTES_MAX_BACKUP_AGE_HOURS`, `DND_NOTES_MIN_FREE_DISK_PERCENT`,
+`DND_NOTES_BACKUP_ROOT`, and `DND_NOTES_HEALTH_ORIGIN`. Send its nonzero exit
+status to the operator's existing alerting system; the application does not
+contain an email or paging credential.
+
 System administrators have an **Administration** link in the application for
 account suspension/reactivation, password-reset links, per-user or global
 session revocation, account deletion, and orphaned-campaign recovery. Every
@@ -199,7 +216,9 @@ chmod +x backup.sh restore-drill.sh
 ```
 
 The application is stopped briefly so the database dump and protected files
-represent one consistent point. Each backup includes SHA-256 checksums.
+represent one consistent point. Backup files are created with operator-only
+permissions. Each backup includes SHA-256 checksums plus `METADATA` recording
+the UTC creation time, source revision, and application image ID.
 
 Demonstrate restoration without touching the live database:
 
@@ -214,6 +233,31 @@ disposable database afterward.
 Backups contain private campaign and account data. Copy them to encrypted
 operator-controlled storage, restrict access, define a retention period, and
 test a restore after application or PostgreSQL upgrades.
+
+For the initial hosted deployment, use this minimum schedule unless the
+operator records a stricter one in the sign-off:
+
+- create a coordinated backup every night after expected campaign activity;
+- copy it to encrypted storage on another device or service before pruning;
+- retain 7 daily, 4 weekly, and 12 monthly recovery points; and
+- run a disposable restore drill monthly and before or after every upgrade
+  that changes PostgreSQL, migrations, or storage behavior.
+
+On a Linux server, schedule `backup.sh` with a systemd timer or cron from the
+repository's `deploy/hosted` directory. Schedule `check-health.sh` at least
+every five minutes and configure cron mail, a systemd `OnFailure` handler, or
+an external monitor to alert on failure. Use an encrypted backup tool such as
+restic or Borg for the off-host copy and retention policy; do not place raw
+`database.dump` or `files.tar.gz` files in ordinary cloud-synchronized
+folders. Test decryption as part of the restore drill.
+
+The bundled Compose database is the default. A separately operated PostgreSQL
+service is supported through the normal `DND_NOTES_DATABASE_URL` runtime
+setting when the application image is deployed with an operator-maintained
+Compose override or another container supervisor. Keep TLS, credentials,
+network access, database backups, and compatible PostgreSQL upgrades under
+that operator's control. The bundled `backup.sh` assumes the Compose
+`database` service and must be replaced or adapted when PostgreSQL is external.
 
 ## Moving beyond a private LAN
 

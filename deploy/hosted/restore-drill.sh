@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
+umask 077
 
 if [ "$#" -ne 1 ]; then
   echo "Usage: $0 BACKUP_DIRECTORY" >&2

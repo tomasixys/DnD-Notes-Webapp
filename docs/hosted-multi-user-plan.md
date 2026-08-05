@@ -1,6 +1,7 @@
 # Hosted multi-user development plan
 
-Status: Milestones 1-7 implemented; PostgreSQL CI verification pending
+Status: Milestones 1-8 implemented; Milestone 9 operational baseline
+implemented with hosted-alpha operator sign-off pending
 
 Updated: 2026-07-25
 
@@ -713,33 +714,43 @@ Implementation scope:
 
 ### Milestone 9 — Production hosting and operations
 
+**Status:** operational implementation completed on 2026-08-05. The local
+hosted staging stack passed the full PostgreSQL-enabled backend suite, HTTPS
+health checks, a coordinated backup, and a disposable restore drill. Public
+internet exposure, an encrypted off-host restore, the manual two-account
+authorization smoke test, and operator sign-off remain required gates; this
+milestone must not be marked complete merely from repository automation.
+
 **Purpose:** make the system supportable, recoverable, and safe on the public
 internet.
 
 Deliverables:
 
-- Build a reproducible application image and deploy the saved source revision.
-- Serve the frontend and API from one HTTPS origin behind a correctly
+- [x] Build a reproducible application image and deploy the saved source
+  revision. Backups record both the source revision and application image ID.
+- [x] Serve the frontend and API from one HTTPS origin behind a correctly
   configured reverse proxy.
-- Run PostgreSQL on the same private server by default, while allowing a
+- [x] Run PostgreSQL on the same private server by default, while allowing a
   separately operated PostgreSQL service. Store assets in a protected and
   backed-up server filesystem by default, with private object storage as an
-  optional alternative. Document encryption, retention, and restore
-  procedures.
-- Add liveness and readiness endpoints that reveal no sensitive state.
-- Add structured logs, request correlation IDs, error reporting, security
+  optional future adapter. Document encryption, retention, and restore
+  procedures. Current builds fail closed if the reserved object backend is
+  selected.
+- [x] Add liveness and readiness endpoints that reveal no sensitive state.
+- [x] Add structured logs, request correlation IDs, error reporting, security
   events, basic service metrics, and alerts.
-- Add an audited admin surface for orphaned-campaign recovery, ownership
+- [x] Add an audited admin surface for orphaned-campaign recovery, ownership
   transfer, account suspension/deletion, and global session revocation. Do not
   ship a default root password.
-- Add rate limits for authentication, invitations, imports, uploads, exports,
+- [x] Add rate limits for authentication, invitations, imports, uploads,
+  exports,
   and expensive searches.
-- Restrict CORS and trusted hosts to configured production origins.
-- Define database and selected asset-storage backup schedules and perform a
+- [x] Restrict CORS and trusted hosts to configured production origins.
+- [x] Define database and selected asset-storage backup schedules and perform a
   restore drill.
-- Run dependency, secret, migration, authorization, and upload-security checks
+- [x] Run dependency, secret, migration, authorization, and upload-security checks
   in CI.
-- Document incident response, password/reset compromise, session revocation,
+- [x] Document incident response, password/reset compromise, session revocation,
   data export, account deletion, and rollback.
 
 Exit criteria:

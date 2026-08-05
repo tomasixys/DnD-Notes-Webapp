@@ -99,4 +99,6 @@ storage; a third-party identity provider is not required.
 - [x] Concurrent editing and multi-client synchronization
 - [ ] Production hosting, operations, and staged rollout
   - [x] Reproducible HTTPS/PostgreSQL/filesystem stack and operator controls
-  - [ ] Hosted-alpha deployment and documented restore-drill sign-off
+  - [x] Local hosted staging suite and disposable restore drill
+  - [ ] Encrypted off-host restore and hosted-alpha operator sign-off
+  - [ ] Public-domain TLS, firewall, patching, and external monitoring sign-off

@@ -63,7 +63,11 @@ jobs:
           --file deploy/hosted/compose.yaml
           config --quiet
       - name: Validate operator scripts
-        run: sh -n deploy/hosted/backup.sh deploy/hosted/restore-drill.sh
+        run: >-
+          sh -n
+          deploy/hosted/backup.sh
+          deploy/hosted/restore-drill.sh
+          deploy/hosted/check-health.sh
       - name: Build hosted application image
         run: >-
           docker compose
