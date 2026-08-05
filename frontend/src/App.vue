@@ -53,12 +53,6 @@ const mainLinks = computed(() => [
   { label: "Factions", to: "/factions" },
   { label: "Character", to: "/character/overview" },
   { label: "Inventory", to: "/inventory" },
-  ...(
-    auth.authenticationRequired.value
-    && selectedCampaign.value?.capabilities.includes("membership.read")
-      ? [{ label: "Members", to: "/members" }]
-      : []
-  ),
 ])
 
 const currentRouteGroup = computed(() => {
@@ -70,6 +64,13 @@ const submenuLinks = computed(() => {
 
   return children
     .filter((child) => child.name && child.meta?.showInSubmenu !== false)
+    .filter((child) => (
+      !child.meta?.hostedOnly || auth.authenticationRequired.value
+    ))
+    .filter((child) => (
+      !child.meta?.capability
+      || selectedCampaign.value?.capabilities.includes(child.meta.capability)
+    ))
     .map((child) => ({
       name: child.name,
       label: child.meta?.label ?? child.name,

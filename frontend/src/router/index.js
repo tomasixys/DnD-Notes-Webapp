@@ -86,15 +86,35 @@ const router = createRouter({
     },
     {
       path: '/dashboard',
-      name: 'Dashboard',
-      component: () => import('../views/dashboardView.vue'),
+      component: () => import('../views/dashboardSectionView.vue'),
       meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: { name: 'Dashboard' },
+          meta: { showInSubmenu: false },
+        },
+        {
+          path: 'campaign',
+          name: 'Dashboard',
+          component: () => import('../views/dashboardView.vue'),
+          meta: { label: 'Campaign' },
+        },
+        {
+          path: 'members',
+          name: 'CampaignMembers',
+          component: () => import('../views/campaignMembersView.vue'),
+          meta: {
+            label: 'Members',
+            hostedOnly: true,
+            capability: 'membership.read',
+          },
+        },
+      ],
     },
     {
       path: '/members',
-      name: 'CampaignMembers',
-      component: () => import('../views/campaignMembersView.vue'),
-      meta: { requiresAuth: true, hostedOnly: true },
+      redirect: { name: 'CampaignMembers' },
     },
     {
       path: '/sessions/:id(\\d+)?',
