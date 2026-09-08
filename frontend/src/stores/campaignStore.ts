@@ -93,7 +93,12 @@ function setCampaignActiveCharacter(
 ) {
   campaigns.value = campaigns.value.map((campaign) =>
     campaign.id === campaignId
-      ? { ...campaign, activeCharacterPersonId: personId, playerCharacter }
+      ? {
+          ...campaign,
+          assignedCharacterPersonId: personId,
+          activeCharacterPersonId: personId,
+          playerCharacter,
+        }
       : campaign
   )
 }

@@ -3,11 +3,18 @@ import { after, before, beforeEach, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
-let server, store
+let server, store, campaignStore, useCampaignAuthorization
 const originalFetch = globalThis.fetch
 const key = Symbol('test-editor')
 const change = { sequence: 1, resourceType: 'person', resourceId: 10, action: 'updated', revision: 2, createdAt: '' }
 const editor = { campaignId: 1, resourceType: 'person', resourceId: 10, revision: 1 }
+const storage = new Map()
+globalThis.localStorage = {
+  getItem: key => storage.get(key) ?? null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: key => storage.delete(key),
+  clear: () => storage.clear(),
+}
 const respond = (changes = [], status = 200) => {
   globalThis.fetch = async () => new Response(JSON.stringify({ cursor: 1, changes }), {
     status, headers: { 'Content-Type': 'application/json' },
@@ -22,6 +29,10 @@ before(async () => {
     server: { middlewareMode: true, hmr: false, ws: false, watch: null },
   })
   store = (await server.ssrLoadModule('/src/stores/concurrencyStore.ts')).useConcurrencyStore()
+  campaignStore = (await server.ssrLoadModule('/src/stores/campaignStore.ts')).useCampaignStore()
+  useCampaignAuthorization = (
+    await server.ssrLoadModule('/src/composables/useCampaignAuthorization.ts')
+  ).useCampaignAuthorization
 })
 after(async () => { globalThis.fetch = originalFetch; await server?.close() })
 beforeEach(() => { store.resetConcurrencyState(); respond() })
@@ -80,4 +91,34 @@ test('session reset discards an in-flight change response', async () => {
   finish(new Response(JSON.stringify({ cursor: 1, changes: [change] })))
   assert.equal(await request, false)
   assert.equal(store.hasNotice.value, false)
+})
+
+test('deleting the assigned character restores member character creation', () => {
+  campaignStore.clearUserState()
+  campaignStore.setUserScope(99)
+  campaignStore.setCampaigns([{
+    id: 1,
+    name: 'Test campaign',
+    playerCharacter: 'Existing character',
+    description: '',
+    sessionCount: 0,
+    imageUrl: '',
+    bannerImageUrl: '',
+    activeCharacterPersonId: 10,
+    assignedCharacterPersonId: 10,
+    membershipRole: 'member',
+    capabilities: ['character.self_create', 'assigned_character.write'],
+    revision: 1,
+    updatedAt: '',
+  }])
+  campaignStore.selectCampaign(1)
+  const { canCreateCharacter } = useCampaignAuthorization()
+
+  assert.equal(canCreateCharacter.value, false)
+  campaignStore.setCampaignActiveCharacter(1, null)
+
+  assert.equal(campaignStore.selectedCampaign.value.activeCharacterPersonId, null)
+  assert.equal(campaignStore.selectedCampaign.value.assignedCharacterPersonId, null)
+  assert.equal(campaignStore.selectedCampaign.value.playerCharacter, '')
+  assert.equal(canCreateCharacter.value, true)
 })

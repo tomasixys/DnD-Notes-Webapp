@@ -984,7 +984,7 @@ by the staged rollout in Milestone 10:
    verification gates in Milestones 1 and 2 open until a passing run is reviewed.
 2. Capture each issue reported during live use with reproduction steps,
    expected and actual behavior, affected role, and relevant milestone.
-   The seven reported issues are tracked below.
+   The reported issues are tracked below.
 3. Prioritize authorization/privacy failures and data loss, then blocked core
    workflows and usability defects. Verify each fix with a relevant regression
    check and repeat the affected live smoke test after deployment.
@@ -997,7 +997,7 @@ multi-user permissions, or replace the staged rollout gates.
 
 ## Live testing fixes — 2026-09-08
 
-The operator reported seven issues after validating the initial hosted flows.
+The operator reported the following issues after validating the initial hosted flows.
 These changes are implemented in the working tree. LIVE-04 and LIVE-06 have
 now passed authenticated API smoke tests after deployment; the remaining
 browser and administrator flows still need live validation. Implementation
@@ -1013,6 +1013,7 @@ added the labeled test-campaign records described in the verification record.
 | LIVE-05 | Let a server invitee choose username, display name, and password at activation. Keep old invitation links valid and reject username collisions without consuming the invitation. | 2 / 4 |
 | LIVE-06 | Allow members as well as owners to export backups filtered by the requester's existing resource visibility. Viewers remain unable to export. | 7 |
 | LIVE-07 | Refresh browsing views quietly. Preserve open forms and show remote-change notices only for the resource currently being edited; inventory item/purse events identify the edited resource. | 8 |
+| LIVE-08 | Clear the frontend's active and assigned character state together after character or People deletion so a member can create a replacement character immediately. | 3 / 4 |
 
 Verification covers backend service regressions, synchronization store tests,
 frontend type-check/build, and isolated browser smoke tests. PostgreSQL
