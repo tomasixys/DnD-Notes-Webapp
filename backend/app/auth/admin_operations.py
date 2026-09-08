@@ -74,6 +74,31 @@ class IdentityAdminOperationsService:
         self.db.commit()
         return revoked
 
+    def set_role(
+        self, user_id: int, role: SystemRole, reason: str,
+    ) -> tuple[User, int]:
+        self._require_admin()
+        self._require_reason(reason)
+        # Serialize role changes, then recheck the acting administrator after
+        # taking the locks so concurrent demotions cannot remove every admin.
+        self.db.exec(select(User).where(
+            User.system_role == SystemRole.ADMIN,
+        ).order_by(User.id).with_for_update()).all()
+        self.db.refresh(self.actor)
+        user = self._get_manageable_user(user_id)
+        if role not in {SystemRole.USER, SystemRole.ADMIN}:
+            raise IdentityAdminOperationsError("Choose user or administrator.")
+        if user.status is not UserStatus.ACTIVE or not user.can_login:
+            raise IdentityAdminOperationsError("Only active login accounts can change role.")
+        user.system_role = role
+        user.updated_at = datetime.now(timezone.utc)
+        revoked = self._revoke_user_sessions(user.id)
+        self.db.add(user)
+        self._record(user.id, reason, f"system_role_changed:{role.value}")
+        self.db.commit()
+        self.db.refresh(user)
+        return user, revoked
+
     def revoke_all_sessions(self, reason: str) -> int:
         self._require_admin()
         self._require_reason(reason)
@@ -106,7 +131,7 @@ class IdentityAdminOperationsService:
             )
         if not allow_self and user.id == self.actor.id:
             raise IdentityAdminOperationsError(
-                "Administrators cannot suspend their own account."
+                "Administrators cannot change their own status or role."
             )
         return user
 

@@ -188,3 +188,31 @@ def accept_campaign_invitation(
     throttle.record_success(digest)
     db.commit()
     return accepted
+
+
+@router.post("/api/campaign-invitations/{invitation_id}/accept")
+def accept_pending_campaign_invitation(
+    invitation_id: int,
+    user: User = Depends(require_current_user),
+    settings: ApplicationSettings = Depends(get_auth_settings),
+    db: Session = Depends(get_session),
+) -> CampaignInvitationAcceptanceRead:
+    try:
+        return invitation_service(db, user).accept(invitation_id=invitation_id)
+    except CampaignInvitationError as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=INVALID_CAMPAIGN_INVITATION) from error
+
+
+@router.post("/api/campaign-invitations/{invitation_id}/decline")
+def decline_pending_campaign_invitation(
+    invitation_id: int,
+    user: User = Depends(require_current_user),
+    settings: ApplicationSettings = Depends(get_auth_settings),
+    db: Session = Depends(get_session),
+) -> CampaignInvitationRead:
+    try:
+        return invitation_service(db, user).decline(invitation_id)
+    except CampaignInvitationError as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=INVALID_CAMPAIGN_INVITATION) from error

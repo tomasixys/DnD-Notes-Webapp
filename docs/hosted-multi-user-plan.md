@@ -1,9 +1,10 @@
 # Hosted multi-user development plan
 
-Status: Milestones 1-8 implemented; Milestone 9 operational baseline
-implemented with hosted-alpha operator sign-off pending
+Status: Milestones 0-8 implemented; Milestone 9 operational baseline deployed
+with live operator testing underway. CI evidence and hosted-alpha operator
+sign-off remain pending where noted below.
 
-Updated: 2026-07-25
+Updated: 2026-09-08
 
 ## Goal
 
@@ -63,9 +64,10 @@ their exact behavior as short architecture decision records:
    authorization architecture. Avoid custom roles until real usage
    demonstrates a need.
 4. **Campaign administration:** owners alone change campaign settings and
-   images, manage members, delete campaigns, and import or export campaign
-   backups. Members may edit campaign-wide shared resources and manage their
-   assigned character. Viewers can only read campaign-wide shared resources.
+   images, manage members, and delete campaigns. Owners and members may export
+   access-filtered campaign backups. Members may edit campaign-wide shared
+   resources and manage their assigned character. Viewers can only read
+   campaign-wide shared resources.
 5. **Privacy:** start with campaign-wide sharing, while recording resource
    creator/owner and visibility metadata. Add private and restricted resources
    as a separate milestone with explicit grant rules.
@@ -73,10 +75,10 @@ their exact behavior as short architecture decision records:
    system-admin role with access to every campaign. A separate,
    non-interactive system-custodian identity receives campaigns that would
    otherwise become ownerless when a user is deleted.
-7. **Hosted import/export:** before resource restrictions exist, an owner or
-   system admin may export the complete campaign. After restrictions are
-   introduced, a user-facing export contains only records the requesting user
-   can read. Account, session, invitation, audit, and server-role data are
+7. **Hosted import/export:** owners and members may export campaign backups
+   containing only records the requesting user can read. An explicitly elevated
+   system-admin maintenance export remains a separate recovery operation.
+   Account, session, invitation, audit, and server-role data are
    never included. The importing user becomes owner of a newly imported
    campaign.
 
@@ -614,10 +616,10 @@ Exit criteria:
 **Status:** completed on 2026-07-25 for character notes and backstory.
 Both resource types now use centralized campaign-plus-resource policy,
 normalized user grants, filtered search/tag/reference paths, portable
-visibility metadata, and access-filtered owner exports. Existing and legacy
+visibility metadata, and access-filtered owner and member exports. Existing and legacy
 imported entries remain campaign-visible. Private/restricted imports are
 normalized to importer-owned private entries, while explicitly elevated
-maintenance exports remain separate from ordinary owner downloads.
+maintenance exports remain separate from ordinary user downloads.
 
 **Purpose:** add privacy intentionally instead of relying on the old
 single-user meaning of “private character.”
@@ -716,10 +718,14 @@ Implementation scope:
 
 **Status:** operational implementation completed on 2026-08-05. The local
 hosted staging stack passed the full PostgreSQL-enabled backend suite, HTTPS
-health checks, a coordinated backup, and a disposable restore drill. Public
-internet exposure, an encrypted off-host restore, the manual two-account
-authorization smoke test, and operator sign-off remain required gates; this
-milestone must not be marked complete merely from repository automation.
+health checks, a coordinated backup, and a disposable restore drill. Live
+operator testing is underway as of 2026-09-08, with verified public-domain TLS,
+health endpoints, and initial anonymous-access checks. The operator also
+confirmed mobile-data access without certificate warnings, administrator
+login/logout, and successful account and campaign invitations with a friend.
+Host/router exposure review, an encrypted off-host restore, the remaining
+two-account authorization smoke tests, and operator sign-off remain required
+gates. This milestone is not complete merely because the site is reachable.
 
 **Purpose:** make the system supportable, recoverable, and safe on the public
 internet.
@@ -760,7 +766,92 @@ Exit criteria:
 - Secrets can be rotated and all user sessions can be revoked.
 - The production security checklist is signed off before inviting beta users.
 
+### Live verification record
+
+Checked on 2026-09-08 against the configured public HTTPS origin using Python's
+standard-library HTTPS client with its default certificate and hostname
+validation. Requests originated on the Linux server, used public DNS, and
+carried no login credentials. No application data was changed.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Public-domain TLS and frontend delivery | Passed | `GET /` returned `200`, HTML content, and the same HTTPS origin with certificate validation enabled. |
+| Liveness | Passed | `GET /health/live` returned `200`. |
+| Database-backed readiness | Passed | `GET /health/ready` returned `200`. |
+| Metrics excluded from the public proxy | Passed | `GET /metrics` returned `404`. |
+| Anonymous campaign-list access denied | Passed | `GET /api/campaigns` returned `401`. |
+
+On the same date, the operator confirmed these additional browser checks:
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Independent off-LAN access | Operator-confirmed | Site opens on mobile data without a certificate warning. |
+| Administrator login/logout | Operator-confirmed | Operator confirmed the requested login/logout check and reported login working. |
+| Account invitation and activation | Operator-confirmed | A friend was invited successfully and became an account available for campaign invitation. |
+| Campaign invitation and joining | Operator-confirmed | The friend was invited to the campaign and the operator reported the flow working. |
+| Roles and private resources | Operator-confirmed | The operator subsequently reported successful role and private-resource checks. |
+| Session revocation | Operator-confirmed | The operator subsequently reported successful session-revocation checks. |
+
+These observations establish successful collaboration, role, privacy, and
+session-revocation smoke tests. They do not enumerate every route or establish
+activation/reset token single-use behavior. The complete operator health
+script, which also checks backups and disk capacity, has not been verified in
+this session. Earlier staging results above are historical evidence, not a fresh
+test or restore run against this live deployment. No new CI run was reviewed.
+Keep deployment identities, image IDs, and detailed operator evidence in the
+private record described by the [sign-off template](hosted-alpha-signoff-template.md).
+
+Authenticated live verification on 2026-09-08 used the dedicated non-admin
+member test account and its assigned test campaign. Credentials remain in the
+ignored operator-only specification file and are not recorded here.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Member login and campaign access | Passed | Login returned `200`; the account resolved as a member with shared-resource read/write and campaign-export capabilities. |
+| Shared-resource creation and relationships | Passed | Created clearly labeled test location, faction, person, and session records; subsequent reads resolved the faction/location relationships. |
+| Per-member player character | Passed | Created and activated the member's test character; the campaign summary returned that character in `player_character` with matching assigned and active character IDs. |
+| Optimistic revision conflict | Passed | A current location update returned `200` and revision 2; a repeat using stale revision 1 returned `409` with the expected reload-before-save response. |
+| Access-filtered member export | Passed | Member export returned `200`; the ZIP integrity check passed, schema version 4 parsed, `access_filtered` was true, and the readable test records were present. |
+| Pending-invitation inbox read | Passed | The accepted member account could read the pending-invitation endpoint; it returned an empty list as expected after invitation acceptance. |
+
+The test campaign now intentionally contains records prefixed with
+`[Codex Test]`, including an active test character. The API checks establish
+the server behavior above. Browser-only layout and synchronization-notice
+behavior still require browser verification.
+
+Remaining live rollout checks:
+
+- [x] Public-domain certificate validation and frontend response.
+- [x] Liveness and database-backed readiness through the HTTPS proxy.
+- [x] Anonymous campaign-list denial and public metrics denial.
+- [x] Verify access from an independent connection, such as mobile data
+  (operator-confirmed).
+- [x] Verify administrator login and logout in the live browser
+  (operator-confirmed).
+- [x] Complete account invitation/activation and campaign invitation/joining
+  with a second user (operator-confirmed).
+- [x] Verify roles, private resources, invitations, and session revocation with
+  live users (operator-confirmed).
+- [ ] Complete the remaining sign-off checks for activation/reset token replay,
+  anonymous protected-file access, and audited recovery.
+- [x] Verify a member's access-filtered campaign export against the live server.
+- [ ] Repeat affected live checks after deploying the fixes below.
+- [ ] Exercise stale edits and remote updates with two browser sessions.
+- [ ] Confirm only intended ports are reachable and review host firewall,
+  router administration, and automatic security updates.
+- [ ] Create a coordinated live backup and demonstrate restore/decryption from
+  an encrypted off-host copy; record retention and recovery evidence.
+- [ ] Run the full operator health script and enable external availability,
+  container health, backup-age, and disk alerts.
+- [ ] Review CI results for the release revision, secret rotation, incident
+  response, and rollback; complete the private operator sign-off.
+
 ### Milestone 10 — Closed beta and staged rollout
+
+**Status:** live operator testing and initial collaboration with one invited
+friend are underway. Formal owner-only hosted alpha, internal collaboration,
+and closed-beta approvals are not yet recorded; the successful invitation flow
+does not close the remaining operational and authorization gates.
 
 **Purpose:** expose risk gradually and use real collaboration patterns to guide
 later work.
@@ -884,19 +975,45 @@ The minimum cross-cutting suite should cover:
   complicate constraints and revocation. Use normalized visibility/owner fields
   and grant rows behind one policy service.
 
-## First implementation slice
+## Current development slice
 
-The next engineering slice should stop after design and infrastructure proof:
+The next work is live validation and defect resolution for Milestone 9, followed
+by the staged rollout in Milestone 10:
 
-1. Complete Milestone 0 decision records, role matrix, deployment-profile and
-   configuration-lifecycle rules, and admin/custodian behavior.
-2. Add the typed config file, build validation, persisted installation record,
-   and database URL configuration.
-3. Prove the existing schema and tests on PostgreSQL.
-4. Select and baseline the migration system.
-5. Prototype the authorized campaign context with test-only users and
-   memberships.
+1. Complete and record the remaining live checks above. Keep the explicit CI
+   verification gates in Milestones 1 and 2 open until a passing run is reviewed.
+2. Capture each issue reported during live use with reproduction steps,
+   expected and actual behavior, affected role, and relevant milestone.
+   The seven reported issues are tracked below.
+3. Prioritize authorization/privacy failures and data loss, then blocked core
+   workflows and usability defects. Verify each fix with a relevant regression
+   check and repeat the affected live smoke test after deployment.
+4. Complete off-host recovery, operational monitoring, and private operator
+   sign-off before approving internal collaboration or closed beta.
 
-That slice deliberately does not build the login UI. Its result is a reviewed
-trust model and a persistence foundation on which authentication can be added
-without immediately rewriting it.
+Live availability alone does not close an implementation regression, prove
+multi-user permissions, or replace the staged rollout gates.
+
+
+## Live testing fixes — 2026-09-08
+
+The operator reported seven issues after validating the initial hosted flows.
+These changes are implemented in the working tree. LIVE-04 and LIVE-06 have
+now passed authenticated API smoke tests after deployment; the remaining
+browser and administrator flows still need live validation. Implementation
+tests did not change production data. Subsequent live verification intentionally
+added the labeled test-campaign records described in the verification record.
+
+| ID | Report and resulting behavior | Milestone |
+| --- | --- | --- |
+| LIVE-01 | Align invitation/reset link copy buttons with their input, with wrapping on small screens. | 4 / 6 |
+| LIVE-02 | Add audited server-role changes for other active accounts in Administration. Require an admin and a reason, preserve self-protection, and revoke the target's sessions. | 2 / 9 |
+| LIVE-03 | Accept or decline a recipient's pending campaign invitation directly in the inbox. Preserve exact-account, expiry, revocation, and single-use checks; existing links remain usable. | 6 |
+| LIVE-04 | Show the requesting member's active/assigned character in campaign summaries. Preserve the legacy text fallback for local mode. | 3 / 4 |
+| LIVE-05 | Let a server invitee choose username, display name, and password at activation. Keep old invitation links valid and reject username collisions without consuming the invitation. | 2 / 4 |
+| LIVE-06 | Allow members as well as owners to export backups filtered by the requester's existing resource visibility. Viewers remain unable to export. | 7 |
+| LIVE-07 | Refresh browsing views quietly. Preserve open forms and show remote-change notices only for the resource currently being edited; inventory item/purse events identify the edited resource. | 8 |
+
+Verification covers backend service regressions, synchronization store tests,
+frontend type-check/build, and isolated browser smoke tests. PostgreSQL
+integration checks and post-deployment live validation remain separate gates.

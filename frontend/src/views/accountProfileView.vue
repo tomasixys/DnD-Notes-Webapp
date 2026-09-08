@@ -7,8 +7,7 @@ import type { IssuedAccountTokenDto } from "@/types/DataTransferObjects"
 
 const router = useRouter()
 const auth = useAuthStore()
-const inviteUsername = ref("")
-const inviteDisplayName = ref("")
+const inviting = ref(false)
 const activationLink = ref("")
 const accountMessage = ref("")
 const canInviteAccounts = computed(
@@ -25,13 +24,13 @@ function buildActivationLink(token: string): string {
 }
 
 async function inviteAccount() {
+  if (inviting.value) return
+  inviting.value = true
   const response = await PostAPI<IssuedAccountTokenDto>(
     "auth/admin/invitations",
-    {
-      username: inviteUsername.value.trim(),
-      displayName: inviteDisplayName.value.trim(),
-    },
+    {},
   )
+  inviting.value = false
   if (isApiFailure(response)) {
     accountMessage.value = response.message
     return
@@ -40,8 +39,6 @@ async function inviteAccount() {
   accountMessage.value = (
     "Account invitation created. Copy the activation link now."
   )
-  inviteUsername.value = ""
-  inviteDisplayName.value = ""
 }
 
 async function copyActivationLink() {
@@ -98,21 +95,13 @@ async function logout(allSessions = false) {
       <section v-if="canInviteAccounts" class="account-admin">
         <h2>Create server account invitation</h2>
         <p>
-          This creates an activation-pending local account. Send its one-time
-          activation link to the intended user separately.
+          Send a one-time invitation link to your friend. They choose their
+          username, display name, and password when they accept.
         </p>
         <form @submit.prevent="inviteAccount">
-          <label>
-            Username
-            <input v-model="inviteUsername" required autocomplete="off" />
-          </label>
-          <label>
-            Display name
-            <input v-model="inviteDisplayName" autocomplete="off" />
-          </label>
-          <button type="submit">Create account invitation</button>
+          <button type="submit" :disabled="inviting">{{ inviting ? 'Creating…' : 'Create account invitation' }}</button>
         </form>
-        <div v-if="activationLink" class="activation-link">
+        <div v-if="activationLink" class="activation-link copy-link-row">
           <label>
             One-time activation link
             <input :value="activationLink" readonly />

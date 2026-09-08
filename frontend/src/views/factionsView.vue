@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, ref, onBeforeMount } from "vue"
 import {
   DeleteAPI,
@@ -228,6 +229,13 @@ async function deleteFaction(factionId: number) {
 }
 
 
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "faction",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: selectedEntry.value?.revision,
+}] : [])
 </script>
 
 <template>

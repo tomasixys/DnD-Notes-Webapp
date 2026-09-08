@@ -4,11 +4,12 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR"
 
-ORIGIN=${DND_NOTES_HEALTH_ORIGIN:-https://dnd-notes.home.arpa}
+ORIGIN=${DND_NOTES_HEALTH_ORIGIN:-https://royalen.no}
 MAX_BACKUP_AGE_HOURS=${DND_NOTES_MAX_BACKUP_AGE_HOURS:-26}
 MIN_FREE_DISK_PERCENT=${DND_NOTES_MIN_FREE_DISK_PERCENT:-10}
 BACKUP_ROOT=${DND_NOTES_BACKUP_ROOT:-"$SCRIPT_DIR/backups"}
-CA_CERTIFICATE=${DND_NOTES_HEALTH_CA_CERTIFICATE:-"$SCRIPT_DIR/dnd-notes-local-root.crt"}
+# Public HTTPS uses the system trust store unless an explicit CA is supplied.
+CA_CERTIFICATE=${DND_NOTES_HEALTH_CA_CERTIFICATE:-}
 CURL_PLATFORM_OPTION=""
 if curl --version | head -n 1 | grep -q Schannel; then
   # Schannel otherwise rejects a private LAN CA when its certificate has no

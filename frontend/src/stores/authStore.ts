@@ -126,10 +126,11 @@ async function completeAccountToken(
   purpose: "activate" | "reset-password",
   token: string,
   password: string,
+  profile?: { username: string; displayName: string },
 ) {
   const response = await PostAPI<AccountMutationDto>(
     `auth/${purpose}`,
-    { token, password },
+    { token, password, ...profile },
     { notifyFailures: false },
   )
   if (isApiFailure(response)) {

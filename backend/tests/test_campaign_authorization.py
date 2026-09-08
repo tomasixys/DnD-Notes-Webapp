@@ -56,7 +56,8 @@ class CampaignAuthorizationTests(unittest.TestCase):
 
         self.assertIn(CampaignCapability.CAMPAIGN_EXPORT, owner)
         self.assertIn(CampaignCapability.MEMBERSHIP_MANAGE, owner)
-        self.assertNotIn(CampaignCapability.CAMPAIGN_EXPORT, member)
+        self.assertIn(CampaignCapability.CAMPAIGN_EXPORT, member)
+        self.assertNotIn(CampaignCapability.CAMPAIGN_EXPORT, viewer)
         self.assertNotIn(CampaignCapability.MEMBERSHIP_MANAGE, member)
         self.assertIn(CampaignCapability.SHARED_RESOURCE_WRITE, member)
         self.assertNotIn(CampaignCapability.SHARED_RESOURCE_WRITE, viewer)

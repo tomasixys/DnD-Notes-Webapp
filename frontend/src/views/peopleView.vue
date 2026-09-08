@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, ref, onBeforeMount } from "vue"
 import { RouterLink } from "vue-router"
 import {
@@ -225,6 +226,13 @@ async function deletePerson() {
   await replaceWithFirstEntry()
 }
 
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "person",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: selectedEntry.value?.revision,
+}] : [])
 </script>
 
 <template>

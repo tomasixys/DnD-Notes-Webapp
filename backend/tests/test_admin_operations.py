@@ -34,6 +34,44 @@ class IdentityAdminOperationsTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_role_change_is_admin_only_audited_and_revokes_sessions(self):
+        with Session(self.engine) as db:
+            admin = create_user(db, role=SystemRole.ADMIN)
+            member = create_user(db)
+            AuthSessionService(db).create(member)
+            db.commit()
+            with self.assertRaises(IdentityAdminOperationsError):
+                IdentityAdminOperationsService(db, member).set_role(member.id, SystemRole.ADMIN, "Escalate")
+            db.rollback()
+            service = IdentityAdminOperationsService(db, admin)
+            with self.assertRaises(IdentityAdminOperationsError):
+                service.set_role(member.id, SystemRole.ADMIN, " ")
+            db.rollback()
+            changed, revoked = service.set_role(member.id, SystemRole.ADMIN, "Help administer server")
+            self.assertEqual(SystemRole.ADMIN, changed.system_role)
+            self.assertEqual(1, revoked)
+            self.assertTrue(any("system_role_changed:admin" in event.reason
+                for event in db.exec(select(SecurityEvent)).all()))
+            with self.assertRaises(IdentityAdminOperationsError):
+                service.set_role(admin.id, SystemRole.USER, "Self demotion")
+            db.rollback()
+            changed, _ = service.set_role(member.id, SystemRole.USER, "End admin duties")
+            self.assertEqual(SystemRole.USER, changed.system_role)
+
+    def test_role_change_rejects_custodian_and_inactive_accounts(self):
+        with Session(self.engine) as db:
+            admin = create_user(db, role=SystemRole.ADMIN)
+            targets = [create_user(db, role=SystemRole.CUSTODIAN, can_login=False),
+                       create_user(db, status=UserStatus.PENDING),
+                       create_user(db, status=UserStatus.SUSPENDED),
+                       create_user(db, can_login=False)]
+            db.commit()
+            service = IdentityAdminOperationsService(db, admin)
+            for target in targets:
+                with self.assertRaises(IdentityAdminOperationsError):
+                    service.set_role(target.id, SystemRole.ADMIN, "Test")
+                db.rollback()
+
     def tearDown(self):
         self.engine.dispose()
 

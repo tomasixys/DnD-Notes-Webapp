@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, reactive, ref, watch } from "vue"
 
 import {
@@ -153,6 +154,13 @@ async function deleteSession() {
 watch(selectionRevision, () => {
   cancelSessionForm()
 })
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "session",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedSession.value?.id ?? null : null,
+  revision: selectedSession.value?.revision,
+}] : [])
 </script>
 
 <template>

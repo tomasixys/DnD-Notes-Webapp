@@ -4,6 +4,8 @@ Status: accepted
 
 Date: 2026-07-23
 
+Amended: 2026-09-08 — members may request the same access-filtered exports as owners.
+
 ## Context
 
 The first hosted release will share current campaign content across the
@@ -130,8 +132,8 @@ Before restricted resources exist:
 
 After restricted resources exist:
 
-- the ordinary campaign export remains owner-initiated;
-- records are filtered by the requesting owner's effective read access;
+- owners and members may request ordinary campaign exports;
+- records are filtered by the requesting user's effective read access;
 - private records belonging to another member are excluded;
 - restricted records without a read grant for the requester are excluded;
 - assets are included only when their owning resource is included;
@@ -178,7 +180,7 @@ Operational backups:
 - require audited recovery procedures for restore or content extraction.
 
 An elevated admin export of all campaign content is a recovery operation, not
-an ordinary owner export.
+an ordinary owner or member export.
 
 ## Consequences
 

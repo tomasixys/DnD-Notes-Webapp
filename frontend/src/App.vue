@@ -156,17 +156,20 @@ async function pollCampaignChanges() {
   ) {
     return
   }
-  await concurrency.pollCampaignChanges(selectedCampaignId.value)
+  const shouldRefresh = await concurrency.pollCampaignChanges(selectedCampaignId.value)
+  if (shouldRefresh) await refreshCurrentView(true)
 }
 
-async function refreshCurrentView() {
+async function refreshCurrentView(quiet = false) {
+  const campaignId = selectedCampaignId.value
+  if (quiet === true && concurrency.hasActiveEditors.value) return
   const response = await GetAPI("campaigns")
+  if (quiet === true && (concurrency.hasActiveEditors.value || selectedCampaignId.value !== campaignId)) return
   if (!isApiFailure(response) && Array.isArray(response)) {
     setCampaigns(response)
   }
   useSearchStore().clearSearchCache()
-  concurrency.refreshCurrentView()
-  await pollCampaignChanges()
+  concurrency.refreshCurrentView(campaignId)
 }
 
 async function copyVisibleDraft() {
@@ -507,7 +510,7 @@ async function logout() {
             ? "Your changes were not saved."
             : concurrency.accessChanged.value
               ? "Your campaign access changed."
-              : "This campaign changed in another client." }}
+              : "The resource you are editing changed in another client." }}
         </strong>
         <p v-if="concurrency.conflict.value">
           Copy any draft text you want to keep, then refresh this view and
@@ -518,15 +521,13 @@ async function logout() {
           open form values remain untouched until you choose to refresh.
         </p>
         <p v-else>
-          {{ concurrency.remoteChanges.value.length }} server
-          {{ concurrency.remoteChanges.value.length === 1 ? "change is" : "changes are" }}
-          ready. Refresh this view when you are ready; open form values are
-          left untouched until then.
+          Your draft is preserved. Copy it before refreshing to load the
+          updated resource, then reapply your changes.
         </p>
       </div>
       <div class="concurrency-notice-actions">
         <button
-          v-if="concurrency.conflict.value"
+          v-if="concurrency.conflict.value || concurrency.remoteChanges.value.length"
           type="button"
           class="secondary"
           @click="copyVisibleDraft"

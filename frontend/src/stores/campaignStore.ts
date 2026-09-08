@@ -89,10 +89,11 @@ function removeCampaign(campaignId: number) {
 function setCampaignActiveCharacter(
   campaignId: number,
   personId: number | null,
+  playerCharacter = "",
 ) {
   campaigns.value = campaigns.value.map((campaign) =>
     campaign.id === campaignId
-      ? { ...campaign, activeCharacterPersonId: personId }
+      ? { ...campaign, activeCharacterPersonId: personId, playerCharacter }
       : campaign
   )
 }

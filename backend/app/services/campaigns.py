@@ -31,8 +31,8 @@ class CampaignService:
         self.db = db
         self.user = user
 
-    @staticmethod
     def to_read(
+        self,
         campaign: Campaign,
         membership: CampaignMembership,
         session_count: int = 0,
@@ -52,7 +52,7 @@ class CampaignService:
             updated_at=campaign.updated_at,
             id=campaign.id,
             name=campaign.name,
-            player_character=campaign.player_character,
+            player_character=self.player_character_name(campaign, membership),
             description=campaign.description,
             session_count=session_count,
             image_url=image_url,
@@ -69,6 +69,21 @@ class CampaignService:
                 key=lambda capability: capability.value,
             ),
         )
+
+    def player_character_name(
+        self, campaign: Campaign, membership: CampaignMembership,
+    ) -> str:
+        person_id = (
+            membership.active_character_person_id
+            or membership.assigned_character_person_id
+        )
+        if person_id is not None:
+            person = self.db.exec(select(Person).where(
+                Person.id == person_id, Person.campaign_id == campaign.id,
+            )).first()
+            if person is not None:
+                return person.name
+        return campaign.player_character if not self.user.can_login else ""
 
     def get_context(self, campaign_id: int) -> CampaignContext:
         return CampaignContext.resolve(

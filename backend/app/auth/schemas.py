@@ -72,14 +72,24 @@ class AdminSessionRevocationRequest(SQLModel):
     reason: str
 
 
+class AdminUserRoleUpdate(SQLModel):
+    system_role: SystemRole
+    reason: str
+
+
 class InviteUserRequest(SQLModel):
-    username: str
+    username: str = ""
     display_name: str = ""
 
 
 class AccountTokenRequest(SQLModel):
     token: SecretStr
     password: SecretStr
+
+
+class AccountActivationRequest(AccountTokenRequest):
+    username: str | None = None
+    display_name: str = ""
 
 
 class IssuedAccountTokenRead(SQLModel):

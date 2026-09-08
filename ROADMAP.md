@@ -1,10 +1,11 @@
 # DnD Notes roadmap
 
-Updated: 2026-07-25
+Updated: 2026-09-08
 
-DnD Notes is currently a local, single-user application. The completed
-milestones below describe the current application; deferred and planned work is
-listed separately.
+DnD Notes supports local single-user use and authenticated hosted use. Live
+operator testing is underway; hosted release sign-off remains pending. The
+completed milestones below describe implemented functionality, while the
+hosted rollout checklist tracks the remaining verification and operations work.
 
 ## Completed
 
@@ -80,11 +81,11 @@ listed separately.
 - User-managed inventory owners and managers
 - Inventory location associations
 
-## Planned: hosted multi-user mode
+## Hosted multi-user mode and rollout
 
 The ordered implementation and security gates are documented in the
 [hosted multi-user development plan](docs/hosted-multi-user-plan.md).
-The target is a self-contained private-server deployment with local
+The implementation provides a self-contained private-server deployment with local
 username/password accounts, PostgreSQL, and protected server filesystem
 storage; a third-party identity provider is not required.
 
@@ -100,5 +101,20 @@ storage; a third-party identity provider is not required.
 - [ ] Production hosting, operations, and staged rollout
   - [x] Reproducible HTTPS/PostgreSQL/filesystem stack and operator controls
   - [x] Local hosted staging suite and disposable restore drill
+  - [x] Live public-domain HTTPS page and liveness/readiness checks
+  - [x] Live anonymous campaign-list denial and proxy metrics denial
+  - [x] Live off-LAN access, administrator login/logout, and account/campaign invitations
+  - [x] Live roles, private resources, invitations, and session-revocation smoke tests
+  - [ ] Remaining recovery/token checks and post-fix browser validation
   - [ ] Encrypted off-host restore and hosted-alpha operator sign-off
-  - [ ] Public-domain TLS, firewall, patching, and external monitoring sign-off
+  - [ ] Host/router exposure review
+  - [ ] Host security updates and external monitoring sign-off
+
+The [live verification record](docs/hosted-multi-user-plan.md#live-verification-record)
+records the evidence and limits of the 2026-09-08 checks. Current work is to
+complete the manual alpha checks, capture issues found during live testing,
+and close the remaining operational gates before approving collaboration or
+closed beta.
+
+The [live testing fixes](docs/hosted-multi-user-plan.md#live-testing-fixes--2026-09-08)
+track the seven reported bugs and usability changes through deployment verification.

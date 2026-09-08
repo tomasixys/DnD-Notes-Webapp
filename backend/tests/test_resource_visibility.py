@@ -54,6 +54,26 @@ class ResourceVisibilityTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_member_export_contains_own_private_notes_but_excludes_others(self):
+        with tempfile.TemporaryDirectory() as directory, Session(self.engine) as db:
+            owner, member, viewer, person_id = self._campaign_actors(db)
+            for context, title in ((owner, "Owner secret"), (member, "Member secret")):
+                CharacterNoteService(context).create(person_id, CharacterNoteData(
+                    title=title, visibility=ResourceVisibility.PRIVATE,
+                ))
+            CharacterNoteService(member).create(person_id, CharacterNoteData(title="Shared"))
+            path = Path(directory) / "member.zip"
+            with patch("app.services.campaign_backups.make_backup_archive_path", return_value=(path, "member.zip")):
+                CampaignBackupService(db, member.user).export(member)
+            with ZipFile(path) as archive:
+                manifest = json.loads(archive.read("backup.json"))
+            self.assertTrue(manifest["access_filtered"])
+            titles = {note["title"] for character in manifest["characters"] for note in character["notes"]}
+            self.assertEqual({"Member secret", "Shared"}, titles)
+            with self.assertRaises(HTTPException) as denied:
+                CampaignBackupService(db, viewer.user).export(viewer)
+            self.assertEqual(403, denied.exception.status_code)
+
     def tearDown(self):
         self.engine.dispose()
 

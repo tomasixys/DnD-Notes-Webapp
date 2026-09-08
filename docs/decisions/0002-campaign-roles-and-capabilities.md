@@ -4,6 +4,8 @@ Status: accepted
 
 Date: 2026-07-23
 
+Amended: 2026-09-08 — members may export access-filtered campaign backups.
+
 ## Context
 
 Hosted DnD Notes needs campaign authorization that is small enough to reason
@@ -27,7 +29,8 @@ never grants campaign membership.
 - **Owner:** collaborates on shared resources and administers the campaign,
   membership, character assignments, campaign assets, backups, and deletion.
 - **Member:** reads and edits campaign-wide shared resources and manages the
-  character assigned to their membership.
+  character assigned to their membership, and exports backups limited to content
+  they can read.
 - **Viewer:** reads campaign-wide shared resources but cannot mutate them.
 
 A campaign may have multiple owners. The last-human-owner and system-custodian
@@ -63,7 +66,7 @@ The centralized policy maps roles to capabilities:
 | `campaign.read` | Yes | Yes | Yes |
 | `campaign.update` | No | No | Yes |
 | `campaign.delete` | No | No | Yes |
-| `campaign.export` | No | No | Yes |
+| `campaign.export` | No | Yes, access-filtered | Yes, access-filtered |
 | `membership.read` | Yes | Yes | Yes |
 | `membership.manage` | No | No | Yes |
 | `character.assign` | No | No | Yes |
@@ -93,14 +96,14 @@ Backup import currently creates a new campaign. It is therefore a
 campaign-creation operation, not permission to mutate an existing campaign.
 Any enabled user may import and becomes owner of the new campaign. A future
 restore-over-existing operation requires `campaign.update` and
-`campaign.export`-equivalent owner authority.
+explicit owner authority; member export access does not permit overwriting a campaign.
 
 ### Campaign administration
 
 | Operation | Viewer | Member | Owner |
 | --- | :---: | :---: | :---: |
 | Read campaign summary | Yes | Yes | Yes |
-| Change name, description, or player-character summary | No | No | Yes |
+| Change campaign name or description | No | No | Yes |
 | Replace/delete campaign image or banner | No | No | Yes |
 | Read member display names and roles | Yes | Yes | Yes |
 | Read pending invitation addresses | No | No | Yes |
@@ -109,8 +112,11 @@ restore-over-existing operation requires `campaign.update` and
 | Assign/unassign a member's character | No | No | Yes |
 | Remove another member | No | No | Yes |
 | Leave campaign | Yes | Yes | Yes, subject to last-owner rule |
-| Export downloadable campaign backup | No | No | Yes |
+| Export downloadable campaign backup | No | Yes, access-filtered | Yes, access-filtered |
 | Delete campaign | No | No | Yes |
+
+Hosted player-character summaries derive from the requesting membership's active
+or assigned character, rather than shared campaign text.
 
 Owners may promote another member to owner. An owner cannot demote/remove the
 last human owner through the normal membership API.

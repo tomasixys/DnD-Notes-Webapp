@@ -242,15 +242,22 @@ class CampaignInvitationService:
 
     def accept(
         self,
-        raw_token: str,
+        raw_token: str = "",
+        *,
+        invitation_id: int | None = None,
     ) -> CampaignInvitationAcceptanceRead:
-        if not raw_token:
+        if not raw_token and invitation_id is None:
             raise CampaignInvitationError(INVALID_CAMPAIGN_INVITATION)
+        selector = (
+            CampaignInvitation.id == invitation_id
+            if invitation_id is not None
+            else CampaignInvitation.token_digest == invitation_token_digest(raw_token)
+        )
         invitation = self.db.exec(
             select(CampaignInvitation)
             .where(
-                CampaignInvitation.token_digest
-                == invitation_token_digest(raw_token)
+                selector,
+                CampaignInvitation.invited_user_id == self.actor.id,
             )
             .with_for_update()
         ).first()
@@ -320,6 +327,32 @@ class CampaignInvitationService:
                 context
             ).to_read(membership, self.actor),
         )
+
+    def decline(self, invitation_id: int) -> CampaignInvitationRead:
+        invitation = self.db.exec(select(CampaignInvitation).where(
+            CampaignInvitation.id == invitation_id,
+            CampaignInvitation.invited_user_id == self.actor.id,
+        ).with_for_update()).first()
+        if (
+            invitation is None
+            or self._status(invitation) is not CampaignInvitationStatus.PENDING
+            or self.actor.status is not UserStatus.ACTIVE
+            or not self.actor.can_login
+        ):
+            raise CampaignInvitationError(INVALID_CAMPAIGN_INVITATION)
+        campaign = self.db.get(Campaign, invitation.campaign_id)
+        if campaign is None or campaign.orphaned:
+            raise CampaignInvitationError(INVALID_CAMPAIGN_INVITATION)
+        invitation.revoked_at = self.clock()
+        self.db.add(invitation)
+        self.events.record(
+            SecurityEventType.MEMBERSHIP_CHANGED,
+            user_id=self.actor.id, actor_user_id=self.actor.id,
+            campaign_id=campaign.id, reason="action=invitation_declined",
+        )
+        self.db.commit()
+        self.db.refresh(invitation)
+        return self._to_read(invitation, self.actor, campaign)
 
     def _replace_token(
         self,

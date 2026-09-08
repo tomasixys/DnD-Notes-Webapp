@@ -13,7 +13,10 @@ const auth = useAuthStore()
 const token = ref(
   typeof route.query.token === "string" ? route.query.token : "",
 )
+const hasLinkToken = Boolean(token.value)
 const password = ref("")
+const username = ref("")
+const displayName = ref("")
 const confirmation = ref("")
 const submitting = ref(false)
 const message = ref("")
@@ -32,6 +35,9 @@ async function submit() {
     props.purpose,
     token.value,
     password.value,
+    props.purpose === "activate"
+      ? { username: username.value.trim(), displayName: displayName.value.trim() }
+      : undefined,
   )
   submitting.value = false
   if (isApiFailure(response)) {
@@ -49,13 +55,24 @@ async function submit() {
   <main class="auth-page">
     <section class="auth-card">
       <h1>{{ title }}</h1>
-      <p>Tokens are single-use and issued by a server administrator.</p>
+      <p>{{ purpose === 'activate' ? 'Choose your account details to join the server.' : 'Choose a new password for your account.' }}</p>
 
       <form @submit.prevent="submit">
-        <label>
+        <label v-if="!hasLinkToken">
           Account token
           <input v-model="token" autocomplete="one-time-code" required />
         </label>
+
+        <template v-if="purpose === 'activate'">
+          <label>
+            Username
+            <input v-model="username" autocomplete="username" minlength="3" maxlength="64" required />
+          </label>
+          <label>
+            Display name
+            <input v-model="displayName" autocomplete="nickname" maxlength="200" required />
+          </label>
+        </template>
 
         <label>
           New password

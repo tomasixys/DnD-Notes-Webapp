@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, computed, ref, onBeforeMount } from "vue"
 import type {
   CampaignCapability,
@@ -18,6 +19,9 @@ import {
 import { useCampaignStore } from "@/stores/campaignStore";
 import { withExpectedRevision } from "@/utils/concurrency";
 import ConfirmationPopup from "../components/ConfirmationPopup.vue";
+
+import { useAuthStore } from "@/stores/authStore"
+const auth = useAuthStore()
 
 const {
   campaigns,
@@ -95,6 +99,7 @@ function showEditCampaignForm(campaignId: number) {
 
   editingCampaignId.value = campaignId
 
+  newCampaign.revision = selectedCampaign.value?.revision ?? 1
   newCampaign.name = selectedCampaign.value?.name ?? ""
   newCampaign.playerCharacter = selectedCampaign.value?.playerCharacter ?? ""
   newCampaign.description = selectedCampaign.value?.description ?? ""
@@ -290,6 +295,13 @@ const campaignBannerPreviewUrl = computed(() => {
   return selectedCampaignBannerUrl.value ?? ""
 })
 
+
+useResourceEditor(() => (viewMode.value === ViewModes.Create || viewMode.value === ViewModes.Edit) ? [{
+  campaignId: editingCampaignId.value ?? selectedCampaignId.value ?? 0,
+  resourceType: "campaign",
+  resourceId: editingCampaignId.value,
+  revision: newCampaign.revision,
+}] : [])
 </script>
 
 <template>
@@ -387,7 +399,7 @@ const campaignBannerPreviewUrl = computed(() => {
           />
         </label>
 
-        <label>
+        <label v-if="!auth.authenticationRequired.value">
           Player character
           <input
             v-model="newCampaign.playerCharacter"

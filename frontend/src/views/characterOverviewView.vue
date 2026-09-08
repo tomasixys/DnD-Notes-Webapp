@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, onBeforeUnmount, reactive, ref } from "vue"
 import { useRouter } from "vue-router"
 
@@ -217,6 +218,7 @@ async function createCharacter() {
   setCampaignActiveCharacter(
     selectedCampaignId.value,
     savedCharacter.person.id,
+    savedCharacter.person.name,
   )
   mode.value = "details"
   resetPortraitPreview()
@@ -252,6 +254,9 @@ async function updateCharacter() {
   const uploadedCharacter = await uploadPortrait(savedCharacter)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
+  if (savedCharacter.isActive) {
+    setCampaignActiveCharacter(selectedCampaignId.value, savedCharacter.person.id, savedCharacter.person.name)
+  }
   mode.value = "details"
   resetPortraitPreview()
 }
@@ -267,6 +272,7 @@ async function activateCharacter() {
     setCampaignActiveCharacter(
       selectedCampaignId.value,
       response.person.id,
+      response.person.name,
     )
   }
 }
@@ -296,6 +302,7 @@ async function deleteProfile() {
   setCampaignActiveCharacter(
     selectedCampaignId.value,
     response.activeCharacter?.person.id ?? null,
+    response.activeCharacter?.person.name ?? "",
   )
   await router.replace({
     name: "CharacterOverview",
@@ -304,6 +311,11 @@ async function deleteProfile() {
 }
 
 onBeforeUnmount(resetPortraitPreview)
+
+useResourceEditor(() => selectedCampaignId.value && mode.value !== "details" ? [
+  { campaignId: selectedCampaignId.value, resourceType: "character", resourceId: mode.value === "edit" ? character.value?.person.id ?? null : null, revision: character.value?.revision },
+  { campaignId: selectedCampaignId.value, resourceType: "person", resourceId: mode.value === "edit" ? character.value?.person.id ?? null : null, revision: character.value?.person.revision },
+] : [])
 </script>
 
 <template>

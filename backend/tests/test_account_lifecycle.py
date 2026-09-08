@@ -51,6 +51,31 @@ class AccountLifecycleTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_unnamed_invitation_recipient_chooses_identity_and_cannot_replay(self):
+        with Session(self.engine) as db:
+            service = AccountLifecycleService(db, password_hasher=test_hasher(), clock=lambda: NOW)
+            issued = service.invite_user(self._admin(db), lifetime_minutes=60)
+            user_id = issued.user.id
+            activated = service.activate(issued.token, PASSWORD, username="Chosen.Player", display_name="My player")
+            self.assertEqual(user_id, activated.id)
+            self.assertEqual("Chosen.Player", activated.username)
+            self.assertEqual("chosen.player", activated.normalized_username)
+            self.assertEqual("My player", activated.display_name)
+            with self.assertRaises(AccountLifecycleError):
+                service.activate(issued.token, PASSWORD, username="Someone.Else")
+
+    def test_activation_username_collision_keeps_invitation_usable(self):
+        with Session(self.engine) as db:
+            admin = self._admin(db)
+            service = AccountLifecycleService(db, password_hasher=test_hasher(), clock=lambda: NOW)
+            issued = service.invite_user(admin, lifetime_minutes=60)
+            with self.assertRaises(AccountLifecycleError):
+                service.activate(issued.token, PASSWORD, username="KEEPER")
+            db.rollback()
+            self.assertEqual(UserStatus.PENDING, issued.user.status)
+            activated = service.activate(issued.token, PASSWORD, username="Available.Player", display_name="Player")
+            self.assertEqual(UserStatus.ACTIVE, activated.status)
+
     def tearDown(self):
         self.engine.dispose()
 

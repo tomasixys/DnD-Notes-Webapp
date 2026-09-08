@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeMount, ref } from "vue"
+import { onBeforeMount, onMounted, onBeforeUnmount, ref } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 import { GetAPI, isApiFailure, PostAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
@@ -47,13 +47,13 @@ async function loadPending() {
   pending.value = response
 }
 
-async function acceptInvitation() {
-  if (!token.value.trim()) return
+async function acceptInvitation(invitationId?: number) {
+  if (submitting.value || (!invitationId && !token.value.trim())) return
   submitting.value = true
   message.value = ""
   const response = await PostAPI<CampaignInvitationAcceptanceDto>(
-    "campaign-invitations/accept",
-    { token: token.value.trim() },
+    invitationId ? `campaign-invitations/${invitationId}/accept` : "campaign-invitations/accept",
+    invitationId ? {} : { token: token.value.trim() },
   )
   submitting.value = false
   if (isApiFailure(response)) {
@@ -72,34 +72,42 @@ async function acceptInvitation() {
   await loadPending()
 }
 
+async function declineInvitation(invitationId: number) {
+  if (submitting.value) return
+  submitting.value = true
+  const response = await PostAPI<CampaignInvitationDto>(
+    `campaign-invitations/${invitationId}/decline`, {},
+  )
+  submitting.value = false
+  if (isApiFailure(response)) {
+    message.value = response.message
+    return
+  }
+  message.value = `Invitation to ${response.campaignName} declined.`
+  await loadPending()
+}
+
 onBeforeMount(() => {
   takeInvitationToken()
   void loadPending()
 })
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  refreshTimer = setInterval(() => {
+    if (!submitting.value && document.visibilityState === "visible") void loadPending()
+  }, 15_000)
+})
+onBeforeUnmount(() => clearInterval(refreshTimer))
 </script>
 
 <template>
   <div class="account-page">
     <section class="auth-card invitation-card">
       <h1>Campaign invitations</h1>
-      <p>
-        Campaign invitation links are tied to your signed-in server account
-        and can be used only once.
-      </p>
-
-      <form @submit.prevent="acceptInvitation">
-        <label>
-          Invitation token
-          <input
-            v-model="token"
-            autocomplete="one-time-code"
-            required
-          />
-        </label>
-        <button type="submit" :disabled="submitting">
-          {{ submitting ? "Joining…" : "Join campaign" }}
-        </button>
-      </form>
+      <p>Accept or decline the campaigns you have been invited to join.</p>
+      <button v-if="token" type="button" :disabled="submitting" @click="acceptInvitation()">
+        Accept linked invitation
+      </button>
 
       <p v-if="message" class="invitation-message" role="status">
         {{ message }}
@@ -119,12 +127,13 @@ onBeforeMount(() => {
           <li v-for="invitation in pending" :key="invitation.id">
             <strong>{{ invitation.campaignName }}</strong>
             <span>{{ invitation.role }} access</span>
+            <div class="invitation-actions">
+              <button type="button" :disabled="submitting" @click="acceptInvitation(invitation.id)">Accept</button>
+              <button type="button" class="secondary" :disabled="submitting" @click="declineInvitation(invitation.id)">Decline</button>
+            </div>
           </li>
         </ul>
         <p v-else class="empty-text">No pending campaign invitations.</p>
-        <p v-if="pending.length" class="empty-text">
-          Open or paste the latest link supplied by a campaign owner.
-        </p>
       </div>
 
     </section>
@@ -166,6 +175,8 @@ onBeforeMount(() => {
 
 .pending-invitations li {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
   padding: 0.75rem;
@@ -178,4 +189,9 @@ onBeforeMount(() => {
   text-transform: capitalize;
 }
 
+.invitation-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
 </style>

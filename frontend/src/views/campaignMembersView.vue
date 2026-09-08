@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, onBeforeMount, ref, watch } from "vue"
 import { useRouter } from "vue-router"
 import {
@@ -110,7 +111,7 @@ async function createInvitation() {
   }
   issuedLink.value = invitationLink(response.token)
   inviteUsername.value = ""
-  message.value = "Invitation created. Copy the link before leaving this page."
+  message.value = "Invitation sent. They can accept it from their Invitations page."
   await loadMembers()
 }
 
@@ -126,7 +127,7 @@ async function replaceInvitation(invitationId: number) {
     return
   }
   issuedLink.value = invitationLink(response.token)
-  message.value = "The previous link is invalid. Copy the replacement link."
+  message.value = "Invitation renewed. They can accept it from their Invitations page."
   await loadMembers()
 }
 
@@ -224,7 +225,16 @@ async function transferOwnership(member: CampaignMembershipDto) {
 }
 
 watch(selectedCampaignId, loadMembers)
-onBeforeMount(loadMembers)
+onBeforeMount(async () => {
+  if (!selectedCampaign.value) await refreshCampaigns()
+  await loadMembers()
+})
+// Keep owner management forms and one-time links intact during background polling.
+useResourceEditor(() => selectedCampaignId.value && canManage.value ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "membership",
+  resourceId: null,
+}] : [])
 </script>
 
 <template>
@@ -244,7 +254,7 @@ onBeforeMount(loadMembers)
       <article v-if="canManage" class="member-panel">
         <h3>Invite an existing server account</h3>
         <p class="empty-text">
-          New server accounts must first be created by a system administrator.
+          New players first accept a server invitation and choose their username.
         </p>
         <form class="invite-form" @submit.prevent="createInvitation">
           <label>
@@ -261,7 +271,7 @@ onBeforeMount(loadMembers)
           <button type="submit">Create invitation</button>
         </form>
 
-        <div v-if="issuedLink" class="issued-link">
+        <div v-if="issuedLink" class="issued-link copy-link-row">
           <label>
             One-time invitation link
             <input :value="issuedLink" readonly @focus="selectInput" />

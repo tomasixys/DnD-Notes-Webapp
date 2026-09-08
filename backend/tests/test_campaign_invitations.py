@@ -50,6 +50,59 @@ class CampaignInvitationTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_inbox_acceptance_requires_recipient_and_is_single_use(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Inbox")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            invited, outsider = create_user(db), create_user(db)
+            issued = CampaignInvitationService(db, owner.user).issue(
+                owner, invited.username, CampaignRole.MEMBER, lifetime_minutes=60,
+            )
+            with self.assertRaises(CampaignInvitationError):
+                CampaignInvitationService(db, outsider).accept(invitation_id=issued.invitation.id)
+            db.rollback()
+            accepted = CampaignInvitationService(db, invited).accept(invitation_id=issued.invitation.id)
+            self.assertEqual(invited.id, accepted.membership.user_id)
+            with self.assertRaises(CampaignInvitationError):
+                CampaignInvitationService(db, invited).accept(invitation_id=issued.invitation.id)
+
+    def test_decline_hides_invitation_and_prevents_link_or_inbox_acceptance(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Inbox")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            invited, outsider = create_user(db), create_user(db)
+            issued = CampaignInvitationService(db, owner.user).issue(
+                owner, invited.username, CampaignRole.MEMBER, lifetime_minutes=60,
+            )
+            with self.assertRaises(CampaignInvitationError):
+                CampaignInvitationService(db, outsider).decline(issued.invitation.id)
+            db.rollback()
+            service = CampaignInvitationService(db, invited)
+            service.decline(issued.invitation.id)
+            self.assertEqual([], service.list_pending())
+            for kwargs in ({"invitation_id": issued.invitation.id}, {"raw_token": issued.token}):
+                with self.assertRaises(CampaignInvitationError):
+                    service.accept(**kwargs)
+                db.rollback()
+
+    def test_expired_inbox_invitation_cannot_be_accepted(self):
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Expired")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            invited = create_user(db)
+            issued = CampaignInvitationService(db, owner.user, clock=lambda: NOW).issue(
+                owner, invited.username, CampaignRole.MEMBER, lifetime_minutes=1,
+            )
+            service = CampaignInvitationService(db, invited, clock=lambda: NOW + timedelta(minutes=2))
+            with self.assertRaises(CampaignInvitationError):
+                service.accept(invitation_id=issued.invitation.id)
+
     def tearDown(self):
         self.engine.dispose()
 

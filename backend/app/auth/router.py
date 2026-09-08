@@ -28,11 +28,13 @@ from app.auth.enums import SecurityEventType, SystemRole, UserStatus
 from app.auth.events import SecurityEventService
 from app.auth.login import AuthenticationService
 from app.auth.schemas import (
+    AccountActivationRequest,
     AccountMutationRead,
     AccountTokenRequest,
     AdminSessionRevocationRequest,
     AdminUserRead,
     AdminUserStatusUpdate,
+    AdminUserRoleUpdate,
     AuthSessionRead,
     AuthUserRead,
     InviteUserRequest,
@@ -41,6 +43,7 @@ from app.auth.schemas import (
     SessionMutationRead,
 )
 from app.auth.throttling import LoginThrottleService, source_digest
+from app.auth.passwords import CredentialError
 from app.config import ApplicationSettings, DeploymentMode
 from app.database import get_session
 
@@ -153,6 +156,26 @@ def revoke_user_sessions(
     )
 
 
+@router.put("/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    payload: AdminUserRoleUpdate,
+    context: AuthContext = Depends(require_admin_context),
+    db: Session = Depends(get_session),
+) -> AccountMutationRead:
+    try:
+        user, revoked = IdentityAdminOperationsService(db, context.user).set_role(
+            user_id, payload.system_role, payload.reason,
+        )
+    except IdentityAdminOperationsError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return AccountMutationRead(
+        user=AuthUserRead.from_user(user),
+        message=f"Server role updated; {revoked} session(s) revoked. Sign in again to use the new role.",
+    )
+
+
 @router.post("/admin/sessions/revoke-all")
 def revoke_all_sessions(
     payload: AdminSessionRevocationRequest,
@@ -259,15 +282,17 @@ def login(
 
 @router.post("/activate")
 def activate_account(
-    payload: AccountTokenRequest,
+    payload: AccountActivationRequest,
     db: Session = Depends(get_session),
 ) -> AccountMutationRead:
     try:
         user = account_service(db).activate(
             payload.token.get_secret_value(),
             payload.password.get_secret_value(),
+            username=payload.username,
+            display_name=payload.display_name,
         )
-    except AccountLifecycleError as error:
+    except (AccountLifecycleError, CredentialError) as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
     return AccountMutationRead(

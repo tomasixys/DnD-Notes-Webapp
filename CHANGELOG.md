@@ -8,6 +8,18 @@ and this changelog follows the structure described by
 
 ## [Unreleased]
 
+### Hosted live-testing fixes
+
+- Aligned invitation and password-reset copy buttons with their link inputs.
+- Added audited administrator promotion/removal for other active accounts,
+  with session revocation after role changes.
+- Added campaign-invitation inbox acceptance and decline actions without token entry.
+- Made hosted campaign character summaries specific to the requesting user.
+- Let server invitees choose their username, display name, and password.
+- Allowed members to export visibility-filtered campaign backups.
+- Limited remote-change notices to resources being edited, preserved drafts,
+  and refreshed browsing views quietly.
+
 ### Added
 
 - Added strict TOML launch configuration with local and hosted deployment

@@ -2,8 +2,7 @@
 	admin off
 }
 
-dnd-notes.home.arpa {
-	tls internal
+royalen.no {
 	encode zstd gzip
 
 	@internal_metrics path /metrics

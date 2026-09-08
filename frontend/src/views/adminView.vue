@@ -100,6 +100,21 @@ async function revokeUserSessions(user: AdminUserDto) {
   await loadUsers()
 }
 
+async function setUserRole(user: AdminUserDto, systemRole: "user" | "admin") {
+  const auditReason = requireReason()
+  if (!auditReason) return
+  const response = await PutAPI<AccountMutationDto>(
+    `auth/admin/users/${user.id}/role`,
+    { systemRole, reason: auditReason },
+  )
+  if (isApiFailure(response)) {
+    message.value = response.message
+    return
+  }
+  message.value = response.message
+  await loadUsers()
+}
+
 async function issuePasswordReset(user: AdminUserDto) {
   const response = await PostAPI<IssuedAccountTokenDto>(
     `auth/admin/users/${user.id}/password-reset`,
@@ -230,13 +245,21 @@ onMounted(loadUsers)
             <tr v-for="user in users" :key="user.id">
               <td>
                 <strong>{{ user.displayName || user.username }}</strong>
-                <small>{{ user.username }} · {{ user.systemRole }}</small>
+                <small>{{ user.status === "pending" ? "Awaiting account setup" : user.username }} · {{ user.systemRole }}</small>
               </td>
               <td>{{ user.status }}</td>
               <td>{{ user.campaignMemberships }}</td>
               <td>{{ user.activeSessions }}</td>
               <td>
                 <div class="row-actions">
+                  <button
+                    v-if="user.status === 'active' && user.systemRole !== 'custodian' && user.id !== auth.user.value?.id"
+                    type="button"
+                    class="secondary"
+                    @click="setUserRole(user, user.systemRole === 'admin' ? 'user' : 'admin')"
+                  >
+                    {{ user.systemRole === 'admin' ? 'Remove admin role' : 'Make administrator' }}
+                  </button>
                   <button
                     v-if="
                       user.status === 'active'
@@ -295,7 +318,7 @@ onMounted(loadUsers)
         </table>
       </div>
 
-      <div v-if="issuedLink" class="issued-link">
+      <div v-if="issuedLink" class="issued-link copy-link-row">
         <label>
           One-time password reset link
           <input :value="issuedLink" readonly />

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, onBeforeMount, reactive, ref } from "vue"
 
 import {
@@ -389,6 +390,13 @@ async function updatePurse(action: PurseAction) {
 }
 
 onBeforeMount(fetchInventory)
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create || showPurseManager.value) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: showPurseManager.value ? "purse" : "inventory_item",
+  resourceId: showPurseManager.value ? inventory.value?.id ?? null : viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: inventory.value?.revision,
+}] : [])
 </script>
 
 <template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { ref, watch } from "vue"
 
 import {
@@ -121,6 +122,10 @@ watch(
   () => void fetchSessionRolls(),
   { immediate: true },
 )
+
+useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [{
+  campaignId: selectedCampaignId.value, resourceType: "session", resourceId: null,
+}] : [])
 </script>
 
 <template>

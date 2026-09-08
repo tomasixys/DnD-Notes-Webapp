@@ -37,6 +37,39 @@ class CampaignServiceTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_campaign_character_name_belongs_to_the_requesting_membership(self):
+        from app.authorization.enums import CampaignRole
+        from app.models.database import Person, CharacterProfile
+        from tests.authorization_helpers import campaign_context
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Shared", player_character="Legacy owner's name")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            member = campaign_context(db, campaign, role=CampaignRole.MEMBER, user=create_user(db))
+            viewer = campaign_context(db, campaign, role=CampaignRole.VIEWER, user=create_user(db))
+            for context, name in ((owner, "Owner character"), (member, "Member character")):
+                person = Person(campaign_id=campaign.id, name=name)
+                db.add(person)
+                db.flush()
+                db.add(CharacterProfile(person_id=person.id))
+                db.flush()
+                context.membership.assigned_character_person_id = person.id
+                context.membership.active_character_person_id = person.id
+                db.add(context.membership)
+            db.commit()
+            for context, expected in ((owner, "Owner character"), (member, "Member character"), (viewer, "")):
+                service = CampaignService(db, context.user)
+                self.assertEqual(expected, service.get_read(campaign.id).player_character)
+                self.assertEqual(expected, service.list_reads()[0].player_character)
+
+    def test_local_campaign_keeps_legacy_character_summary_without_a_profile(self):
+        with Session(self.engine) as db:
+            local_user = create_user(db, can_login=False)
+            service = CampaignService(db, local_user)
+            campaign = service.create(name="Local", player_character="Legacy character")
+            self.assertEqual("Legacy character", service.get_read(campaign.id).player_character)
+
     def tearDown(self):
         self.engine.dispose()
 
@@ -123,7 +156,8 @@ class CampaignServiceTests(unittest.TestCase):
                 self.assertIsInstance(imported, CampaignRead)
                 self.assertEqual("campaign.backup", exported.filename)
                 self.assertEqual("Test", imported.name)
-                self.assertEqual("Nalia", imported.player_character)
+                self.assertEqual("", imported.player_character)
+                self.assertEqual("Nalia", db.get(Campaign, imported.id).player_character)
                 self.assertNotEqual(campaign_id, imported.id)
                 self.assertEqual(
                     2,

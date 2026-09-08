@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, reactive, ref, watch } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 
@@ -286,6 +287,13 @@ watch(
 watch(noteIdFromRoute, () => {
   mode.value = "details"
 })
+
+useResourceEditor(() => selectedCampaignId.value && mode.value !== "details" ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: props.kind === "notes" ? "character_note" : "backstory_note",
+  resourceId: mode.value === "edit" ? selectedEntry.value?.id ?? null : null,
+  revision: selectedEntry.value?.revision,
+}] : [])
 </script>
 
 <template>

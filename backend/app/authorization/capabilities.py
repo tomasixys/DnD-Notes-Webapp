@@ -14,6 +14,7 @@ ROLE_CAPABILITIES: dict[
     ),
     CampaignRole.MEMBER: frozenset(
         {
+            CampaignCapability.CAMPAIGN_EXPORT,
             CampaignCapability.CAMPAIGN_READ,
             CampaignCapability.MEMBERSHIP_READ,
             CampaignCapability.CHARACTER_SELF_CREATE,

@@ -81,12 +81,17 @@ class AccountLifecycleService:
     def invite_user(
         self,
         actor: User,
-        username: str,
+        username: str = "",
         *,
         display_name: str = "",
         lifetime_minutes: int,
     ) -> IssuedAccountToken:
         self._require_admin(actor)
+        # Reserve a pending identity without choosing the recipient's username.
+        # Existing named invitations remain valid until they are redeemed.
+        if not username.strip():
+            username = "invite-" + secrets.token_hex(16)
+            display_name = "Pending invitation"
         normalized = normalize_username(username)
         if self._find_user(normalized) is not None:
             raise AccountLifecycleError("That username is already in use.")
@@ -122,6 +127,9 @@ class AccountLifecycleService:
         self,
         raw_token: str,
         password: str,
+        *,
+        username: str | None = None,
+        display_name: str = "",
     ) -> User:
         token, user = self._resolve_token(
             raw_token,
@@ -129,11 +137,21 @@ class AccountLifecycleService:
         )
         if user.status is not UserStatus.PENDING or not user.can_login:
             raise AccountLifecycleError("Invalid or expired account token.")
-        self.credentials.set_password(
-            user,
-            password,
-            revoke_sessions=False,
-        )
+        if username is None and user.username.startswith("invite-"):
+            raise AccountLifecycleError("Choose a username to activate your account.")
+        if username is not None:
+            normalized = normalize_username(username)
+            existing = self._find_user(normalized)
+            if existing is not None and existing.id != user.id:
+                raise AccountLifecycleError("That username is already in use.")
+            user.username = username.strip()
+            user.normalized_username = normalized
+            user.display_name = display_name.strip()
+        try:
+            self.credentials.set_password(user, password, revoke_sessions=False)
+        except IntegrityError as error:
+            self.db.rollback()
+            raise AccountLifecycleError("That username is already in use.") from error
         now = self.clock()
         user.status = UserStatus.ACTIVE
         user.updated_at = now
@@ -144,7 +162,7 @@ class AccountLifecycleService:
             SecurityEventType.ACCOUNT_ACTIVATED,
             user_id=user.id,
         )
-        self.db.commit()
+        self._commit("That username is already in use.")
         self.db.refresh(user)
         return user
 

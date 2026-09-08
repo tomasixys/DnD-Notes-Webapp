@@ -35,6 +35,29 @@ class OptimisticConcurrencyTests(unittest.TestCase):
 
         SQLModel.metadata.create_all(self.engine)
 
+    def test_inventory_item_events_identify_the_specific_edited_item(self):
+        from app.models.api import InventoryItemCreate, InventoryItemUpdate
+        from app.services.inventory import InventoryService
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Inventory sync")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            inventory = InventoryService(owner)
+            created = inventory.create_item(InventoryItemCreate(name="Rope"))
+            item_id = created.items[0].id
+            changes = CampaignChangeService(owner)
+            cursor = changes.list_changes(None).cursor
+            inventory.update_item(item_id, InventoryItemUpdate(name="Silk rope"))
+            events = changes.list_changes(cursor).changes
+            self.assertTrue(any(event.resource_type == "inventory_item"
+                and event.resource_id == item_id and event.action == "updated" for event in events))
+            cursor = changes.list_changes(None).cursor
+            inventory.delete_item(item_id)
+            events = changes.list_changes(cursor).changes
+            self.assertTrue(any(event.resource_type == "inventory_item"
+                and event.resource_id == item_id and event.action == "deleted" for event in events))
+
     def tearDown(self):
         self.engine.dispose()
         self.temporary_directory.cleanup()
@@ -175,6 +198,29 @@ class CampaignChangeCursorTests(unittest.TestCase):
             cursor.close()
 
         SQLModel.metadata.create_all(self.engine)
+
+    def test_inventory_item_events_identify_the_specific_edited_item(self):
+        from app.models.api import InventoryItemCreate, InventoryItemUpdate
+        from app.services.inventory import InventoryService
+        with Session(self.engine) as db:
+            campaign = Campaign(name="Inventory sync")
+            db.add(campaign)
+            db.flush()
+            owner = campaign_context(db, campaign)
+            inventory = InventoryService(owner)
+            created = inventory.create_item(InventoryItemCreate(name="Rope"))
+            item_id = created.items[0].id
+            changes = CampaignChangeService(owner)
+            cursor = changes.list_changes(None).cursor
+            inventory.update_item(item_id, InventoryItemUpdate(name="Silk rope"))
+            events = changes.list_changes(cursor).changes
+            self.assertTrue(any(event.resource_type == "inventory_item"
+                and event.resource_id == item_id and event.action == "updated" for event in events))
+            cursor = changes.list_changes(None).cursor
+            inventory.delete_item(item_id)
+            events = changes.list_changes(cursor).changes
+            self.assertTrue(any(event.resource_type == "inventory_item"
+                and event.resource_id == item_id and event.action == "deleted" for event in events))
 
     def tearDown(self):
         self.engine.dispose()

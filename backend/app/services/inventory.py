@@ -373,6 +373,9 @@ class InventoryService:
             balance.amount = getattr(update.balances, field_name)
             self.db.add(balance)
         self.db.flush()
+        self.changes.stage_record(
+            "purse", inventory.id, action="updated", revision=inventory.revision,
+        )
         return inventory
 
     def update_purse(
@@ -490,6 +493,9 @@ class InventoryService:
 
         self.db.add(item)
         self.db.flush()
+        self.changes.stage_record(
+            "inventory_item", item_id, action="updated", revision=inventory.revision,
+        )
         return inventory
 
     def update_item(
@@ -516,6 +522,9 @@ class InventoryService:
         self._claim_and_record(inventory, expected_revision)
         self.db.delete(self.get_item(inventory, item_id))
         self.db.flush()
+        self.changes.stage_record(
+            "inventory_item", item_id, action="deleted", revision=inventory.revision,
+        )
         return inventory
 
     def delete_item(
