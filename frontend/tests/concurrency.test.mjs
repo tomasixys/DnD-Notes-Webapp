@@ -3,7 +3,7 @@ import { after, before, beforeEach, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
-let server, store, campaignStore, useCampaignAuthorization
+let server, store, campaignStore, authStore, useCampaignAuthorization
 const originalFetch = globalThis.fetch
 const key = Symbol('test-editor')
 const change = { sequence: 1, resourceType: 'person', resourceId: 10, action: 'updated', revision: 2, createdAt: '' }
@@ -30,6 +30,7 @@ before(async () => {
   })
   store = (await server.ssrLoadModule('/src/stores/concurrencyStore.ts')).useConcurrencyStore()
   campaignStore = (await server.ssrLoadModule('/src/stores/campaignStore.ts')).useCampaignStore()
+  authStore = (await server.ssrLoadModule('/src/stores/authStore.ts')).useAuthStore()
   useCampaignAuthorization = (
     await server.ssrLoadModule('/src/composables/useCampaignAuthorization.ts')
   ).useCampaignAuthorization
@@ -120,5 +121,53 @@ test('deleting the assigned character restores member character creation', () =>
   assert.equal(campaignStore.selectedCampaign.value.activeCharacterPersonId, null)
   assert.equal(campaignStore.selectedCampaign.value.assignedCharacterPersonId, null)
   assert.equal(campaignStore.selectedCampaign.value.playerCharacter, '')
+  assert.equal(canCreateCharacter.value, true)
+})
+
+test('login hydrates campaign permissions before opening a protected view', async () => {
+  const requestedEndpoints = []
+  globalThis.fetch = async (url) => {
+    requestedEndpoints.push(String(url))
+    if (String(url).endsWith('/api/auth/login')) {
+      return new Response(JSON.stringify({
+        user: {
+          id: 101,
+          username: 'member',
+          display_name: 'Member',
+          status: 'active',
+          system_role: 'user',
+        },
+        csrf_token: 'test-csrf',
+        authentication_required: true,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (String(url).endsWith('/api/campaigns')) {
+      return new Response(JSON.stringify([{
+        id: 3,
+        name: 'Test campaign',
+        player_character: '',
+        description: '',
+        session_count: 0,
+        image_url: '',
+        banner_image_url: '',
+        active_character_person_id: null,
+        assigned_character_person_id: null,
+        membership_role: 'member',
+        capabilities: ['character.self_create'],
+        revision: 1,
+        updated_at: '',
+      }]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  const response = await authStore.login('member', 'test-password')
+  assert.equal(response.user.username, 'member')
+  assert.deepEqual(
+    requestedEndpoints.map(endpoint => new URL(endpoint).pathname),
+    ['/api/auth/login', '/api/campaigns'],
+  )
+  assert.equal(campaignStore.selectedCampaign.value.id, 3)
+  const { canCreateCharacter } = useCampaignAuthorization()
   assert.equal(canCreateCharacter.value, true)
 })

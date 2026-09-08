@@ -1013,7 +1013,7 @@ added the labeled test-campaign records described in the verification record.
 | LIVE-05 | Let a server invitee choose username, display name, and password at activation. Keep old invitation links valid and reject username collisions without consuming the invitation. | 2 / 4 |
 | LIVE-06 | Allow members as well as owners to export backups filtered by the requester's existing resource visibility. Viewers remain unable to export. | 7 |
 | LIVE-07 | Refresh browsing views quietly. Preserve open forms and show remote-change notices only for the resource currently being edited; inventory item/purse events identify the edited resource. | 8 |
-| LIVE-08 | Clear the frontend's active and assigned character state together after character or People deletion so a member can create a replacement character immediately. | 3 / 4 |
+| LIVE-08 | Clear active and assigned character state together after character or People deletion, and hydrate campaign permissions during session/login initialization, so direct navigation or a refresh still lets a member create a replacement character. | 3 / 4 |
 
 Verification covers backend service regressions, synchronization store tests,
 frontend type-check/build, and isolated browser smoke tests. PostgreSQL

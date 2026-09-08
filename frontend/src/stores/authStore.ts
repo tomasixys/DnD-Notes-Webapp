@@ -10,6 +10,7 @@ import type {
   AccountMutationDto,
   AuthSessionDto,
   AuthUserDto,
+  CampaignsDto,
   SessionMutationDto,
 } from "@/types/DataTransferObjects"
 import { useCampaignStore } from "@/stores/campaignStore"
@@ -55,6 +56,22 @@ function applySession(session: AuthSessionDto) {
   useCampaignStore().setUserScope(session.user.id)
 }
 
+async function hydrateCampaigns(userId: number) {
+  const response = await GetAPI<CampaignsDto[]>(
+    "campaigns",
+    { notifyFailures: false },
+  )
+  if (
+    isApiFailure(response)
+    || !Array.isArray(response)
+    || state.value !== "authenticated"
+    || user.value?.id !== userId
+  ) {
+    return
+  }
+  useCampaignStore().setCampaigns(response)
+}
+
 function clearSession(nextState: AuthState) {
   user.value = null
   csrfToken.value = null
@@ -95,6 +112,7 @@ async function bootstrap() {
       return
     }
     applySession(response)
+    await hydrateCampaigns(response.user.id)
   })()
   return bootstrapPromise
 }
@@ -110,6 +128,7 @@ async function login(username: string, password: string) {
     return response
   }
   applySession(response)
+  await hydrateCampaigns(response.user.id)
   return response
 }
 

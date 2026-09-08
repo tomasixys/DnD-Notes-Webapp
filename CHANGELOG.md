@@ -19,8 +19,9 @@ and this changelog follows the structure described by
 - Allowed members to export visibility-filtered campaign backups.
 - Limited remote-change notices to resources being edited, preserved drafts,
   and refreshed browsing views quietly.
-- Restored character creation for members after their assigned character or
-  its People entry is deleted.
+- Restored campaign authorization state on login and page reload so members
+  can create a replacement after their assigned character or its People entry
+  is deleted.
 
 ### Added
 
