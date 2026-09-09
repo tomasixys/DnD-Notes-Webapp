@@ -150,3 +150,25 @@ def get_tag_matching_owner_ids(
         .distinct()
     )
     return list(db.exec(statement).all())
+
+
+def get_tag_matching_owner_rows(
+    db: Session,
+    campaign_id: int,
+    owner_type: ResourceType,
+    pattern: str,
+) -> list[tuple[int, Tag]]:
+    statement = (
+        select(TagAssignment.owner_id, Tag)
+        .join(Tag, Tag.id == TagAssignment.tag_id)
+        .where(Tag.campaign_id == campaign_id)
+        .where(TagAssignment.owner_type == owner_type.value)
+        .where(
+            or_(
+                Tag.label.ilike(pattern, escape="\\"),
+                Tag.reference_type.ilike(pattern, escape="\\"),
+            )
+        )
+        .distinct()
+    )
+    return list(db.exec(statement).all())

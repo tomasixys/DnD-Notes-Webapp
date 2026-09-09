@@ -1,8 +1,10 @@
 from typing import TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 
+from .revision import MutableAggregate
+
 if TYPE_CHECKING:
-    from .session_note import SessionNote
+    from .episode import Episode
     from .person import Person
     from .location import Location
     from .faction import Faction
@@ -10,13 +12,14 @@ if TYPE_CHECKING:
     from .inventory import Inventory
 
 
-class Campaign(SQLModel, table=True):
+class Campaign(MutableAggregate, SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     player_character: str = ""
     description: str = ""
     image_path: str = ""
     banner_image_path: str = ""
+    orphaned: bool = Field(default=False, index=True)
     active_character_person_id: int | None = Field(
         default=None,
         foreign_key="characterprofile.person_id",
@@ -24,7 +27,7 @@ class Campaign(SQLModel, table=True):
         index=True,
     )
 
-    sessions: list["SessionNote"] = Relationship(
+    episodes: list["Episode"] = Relationship(
         back_populates="campaign",
         cascade_delete=True,
         passive_deletes=True,

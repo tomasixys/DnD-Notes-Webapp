@@ -13,7 +13,8 @@ from app.models.api import (
     PurseUpdate,
 )
 from app.models.database import Campaign, Inventory, InventoryItem
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.inventory import InventoryService
 
 
@@ -43,7 +44,7 @@ class InventoryServiceTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
             inventory_service = InventoryService(
-                CampaignContext(db, campaign)
+                campaign_context(db, campaign)
             )
 
             inventory = inventory_service.stage_update_metadata(
@@ -74,7 +75,7 @@ class InventoryServiceTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
             inventory_service = InventoryService(
-                CampaignContext(db, campaign)
+                campaign_context(db, campaign)
             )
 
             created = inventory_service.create_item(
@@ -102,7 +103,7 @@ class InventoryServiceTests(unittest.TestCase):
 
             with self.assertRaises(HTTPException):
                 InventoryService(
-                    CampaignContext(db, campaign)
+                    campaign_context(db, campaign)
                 ).update_metadata(
                     InventoryUpdate(name="   "),
                 )

@@ -2,7 +2,8 @@ from enum import Enum
 
 
 class ResourceType(str, Enum):
-    SESSION = "session"
+    # The persisted/API value remains "session" for compatibility.
+    EPISODE = "session"
     PERSON = "person"
     LOCATION = "location"
     FACTION = "faction"

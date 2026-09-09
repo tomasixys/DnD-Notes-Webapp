@@ -76,7 +76,7 @@ button {
   align-items: stretch;
   gap: 0.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .main-nav-links {
@@ -142,6 +142,164 @@ button {
   margin-left: auto;
   align-self: center;
   object-fit: cover;
+}
+
+.account-menu {
+  position: relative;
+  z-index: 10;
+  align-self: center;
+  margin-left: 0.5rem;
+}
+
+.account-avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8c6138, #50331f);
+  color: #ead9bd;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.account-avatar:hover,
+.account-avatar:focus-visible,
+.account-avatar-active,
+.account-avatar[aria-expanded="true"] {
+  border-color: var(--color-accent);
+  box-shadow:
+    0 0 0 2px rgba(201, 137, 63, 0.14),
+    0 6px 16px rgba(0, 0, 0, 0.24);
+}
+
+.account-menu-popover {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  width: min(17rem, calc(100vw - 2rem));
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-bg-panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.account-menu-identity {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.account-menu-identity span {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu-popover a,
+.account-menu-popover button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  text-decoration: none;
+}
+
+.account-menu-popover a:hover,
+.account-menu-popover a:focus-visible,
+.account-menu-popover button:hover,
+.account-menu-popover button:focus-visible,
+.account-menu-popover a.router-link-active {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-accent-soft);
+}
+
+.account-menu-signout {
+  border-top: 1px solid var(--color-border);
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.auth-card {
+  width: min(100%, 30rem);
+  padding: clamp(1.4rem, 4vw, 2.25rem);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-bg-panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.auth-card h1 {
+  margin-top: 0;
+}
+
+.auth-card form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-card label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.form-error {
+  color: #ffb4a9;
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.4rem;
+  background: var(--color-accent-dark);
+  text-decoration: none;
+}
+
+.profile-details {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.profile-details div {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 1rem;
+}
+
+.profile-details dt {
+  color: var(--color-text-muted);
+}
+
+.profile-details dd {
+  margin: 0;
 }
 
 .main-search button {
@@ -625,6 +783,10 @@ select {
     padding-right: 1rem;
   }
 
+  .account-menu {
+    margin: 0.25rem 1rem 0.6rem auto;
+  }
+
   .view-header.with-actions {
     align-items: flex-start;
   }
@@ -823,4 +985,65 @@ select {
   .character-portrait-frame {
     width: min(19rem, 100%);
   }
+}
+.form-success {
+  color: #9ed6ac;
+}
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Multi-client changes stay non-destructive until the user chooses to reload. */
+.concurrency-notice {
+  align-items: center;
+  background: #fff4cf;
+  border-bottom: 1px solid #c7952f;
+  color: #3e2d0f;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 0.8rem max(1rem, calc((100vw - 1200px) / 2));
+}
+
+.concurrency-notice p {
+  margin: 0.2rem 0 0;
+}
+
+.concurrency-notice-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.6rem;
+}
+
+@media (max-width: 700px) {
+  .concurrency-notice {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+/* Align the copy action with its input, including inside account cards. */
+.copy-link-row {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.copy-link-row > label {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+}
+.copy-link-row > button {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 0;
+  min-height: 2.75rem;
 }

@@ -1,8 +1,10 @@
 from app.models.enums import RelationshipType, ResourceType, TagResolutionState
 from .campaign import CampaignRead
 from .mutation import DeleteResponse
+from .changes import CampaignChangeRead, CampaignChangesRead
+from .revision import RevisionRead
 from .tag import ResourceTagRead
-from .session_note import SessionNoteData, SessionNoteRead
+from .episode import EpisodeData, EpisodeRead
 from .person import PersonData, PersonRead
 from .character import (
     CharacterCreate,
@@ -10,6 +12,8 @@ from .character import (
     CharacterRead,
     CharacterDeleteResponse,
     CharacterNoteData,
+    CharacterNoteGrantData,
+    CharacterNoteGrantRead,
     CharacterNoteRead,
     BackstoryNoteRead,
 )
@@ -17,9 +21,8 @@ from .location import LocationData, LocationRead
 from .faction import FactionData, FactionRead
 from .backup import (
     CAMPAIGN_BACKUP_SCHEMA_VERSION,
-    CampaignBackupExportRead,
     CampaignBackupCampaign,
-    CampaignBackupSession,
+    CampaignBackupEpisode,
     CampaignBackupPerson,
     CampaignBackupCharacter,
     CampaignBackupCharacterNote,
@@ -41,7 +44,7 @@ from .search import (
 from .parsed_tag import ParsedTag
 from .rolls import (
     RollCreate,
-    SessionRollStats,
+    EpisodeRollStats,
     CampaignRollStats,
     RollMutationResponse,
 )
@@ -66,9 +69,12 @@ __all__ = [
     "RelationshipType",
     "CampaignRead",
     "DeleteResponse",
+    "CampaignChangeRead",
+    "CampaignChangesRead",
+    "RevisionRead",
     "ResourceTagRead",
-    "SessionNoteData",
-    "SessionNoteRead",
+    "EpisodeData",
+    "EpisodeRead",
     "PersonData",
     "PersonRead",
     "CharacterCreate",
@@ -76,6 +82,8 @@ __all__ = [
     "CharacterRead",
     "CharacterDeleteResponse",
     "CharacterNoteData",
+    "CharacterNoteGrantData",
+    "CharacterNoteGrantRead",
     "CharacterNoteRead",
     "BackstoryNoteRead",
     "LocationData",
@@ -83,9 +91,8 @@ __all__ = [
     "FactionData",
     "FactionRead",
     "CAMPAIGN_BACKUP_SCHEMA_VERSION",
-    "CampaignBackupExportRead",
     "CampaignBackupCampaign",
-    "CampaignBackupSession",
+    "CampaignBackupEpisode",
     "CampaignBackupPerson",
     "CampaignBackupCharacter",
     "CampaignBackupCharacterNote",
@@ -102,7 +109,7 @@ __all__ = [
     "SearchResultDto",
     "SearchResponseDto",
     "RollCreate",
-    "SessionRollStats",
+    "EpisodeRollStats",
     "CampaignRollStats",
     "RollMutationResponse",
     "ParsedTag",

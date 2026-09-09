@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, reactive, ref, watch } from "vue"
 
-import { DeleteAPI, PostAPI, PutAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useSessionContext } from "@/composables/useSessionContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   DeleteResponseDto,
@@ -11,6 +18,7 @@ import type {
   SessionListItemDto,
 } from "@/types/DataTransferObjects"
 import { ViewModes } from "@/types/viewTypes"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const {
   selectedCampaignId,
@@ -28,6 +36,7 @@ const {
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const requestError = ref("")
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const sessionForm = reactive({
   date: new Date().toISOString().slice(0, 10),
@@ -84,16 +93,16 @@ function sessionPayload(sessionNumber: number): SessionDataDto {
 async function createSession() {
   if (!selectedCampaignId.value || !sessionForm.title.trim()) return
   const campaignId = selectedCampaignId.value
-  const response = await PostAPI(
+  const response = await PostAPI<SessionListItemDto>(
     `campaigns/${campaignId}/sessions`,
     sessionPayload(nextSessionNumber.value),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be created."
     return
   }
 
-  const createdSession = response as SessionListItemDto
+  const createdSession = response
   upsertSession(createdSession)
   adjustCampaignSessionCount(campaignId, 1)
   resetSessionForm()
@@ -104,16 +113,19 @@ async function createSession() {
 async function updateSession() {
   if (!selectedCampaignId.value || !selectedSession.value || !sessionForm.title.trim()) return
   const sessionId = selectedSession.value.id
-  const response = await PutAPI(
-    `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
+  const response = await PutAPI<SessionListItemDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
+      selectedSession.value.revision,
+    ),
     sessionPayload(selectedSession.value.sessionNumber),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be updated."
     return
   }
 
-  const updatedSession = response as SessionListItemDto
+  const updatedSession = response
   upsertSession(updatedSession)
   resetSessionForm()
   viewMode.value = ViewModes.Details
@@ -123,16 +135,18 @@ async function updateSession() {
 async function deleteSession() {
   if (!selectedCampaignId.value || !selectedSession.value) return
   const campaignId = selectedCampaignId.value
-  const response = await DeleteAPI(
-    `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
+  const response = await DeleteAPI<DeleteResponseDto>(
+    withExpectedRevision(
+      `campaigns/${campaignId}/sessions/${selectedSession.value.id}`,
+      selectedSession.value.revision,
+    ),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     requestError.value = "The session could not be deleted."
     return
   }
 
-  const deleted = response as DeleteResponseDto
-  removeSession(deleted.deletedId)
+  removeSession(response.deletedId)
   adjustCampaignSessionCount(campaignId, -1)
   await replaceWithFirstSession()
 }
@@ -140,11 +154,23 @@ async function deleteSession() {
 watch(selectionRevision, () => {
   cancelSessionForm()
 })
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "session",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedSession.value?.id ?? null : null,
+  revision: selectedSession.value?.revision,
+}] : [])
 </script>
 
 <template>
   <article class="resource-detail-panel">
-    <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+    <template
+      v-if="
+        canWriteSharedResources
+        && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+      "
+    >
       <header class="resource-detail-header">
         <p class="resource-detail-kicker">
           {{ viewMode === ViewModes.Create ? "New session" : "Edit session notes" }}
@@ -203,7 +229,7 @@ watch(selectionRevision, () => {
           <h3>{{ selectedSession.title }}</h3>
         </div>
 
-        <div class="resource-detail-actions">
+        <div v-if="canWriteSharedResources" class="resource-detail-actions">
           <button type="button" @click="showAddSessionForm">Add session</button>
           <button type="button" class="secondary" @click="showEditSessionForm">Edit</button>
           <button type="button" class="danger" @click="deleteSession">Delete</button>
@@ -228,7 +254,13 @@ watch(selectionRevision, () => {
       <p class="resource-detail-kicker">No sessions yet</p>
       <h3>Add the first session</h3>
       <p class="empty-text">Create a session before adding notes or rolls.</p>
-      <button type="button" @click="showAddSessionForm">Add session</button>
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddSessionForm"
+      >
+        Add session
+      </button>
     </div>
   </article>
 </template>

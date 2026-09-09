@@ -13,13 +13,18 @@ from app.models.api import (
 from app.models.database import (
     BackstoryNote,
     CharacterNote,
+    Episode,
     Faction,
     Location,
     Person,
-    SessionNote,
 )
 from app.models.enums import RelationshipType, ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from app.authorization.models import (
+    BackstoryNoteGrant,
+    CharacterNoteGrant,
+)
+from app.authorization.resource_policy import ResourceAccessPolicy
 from app.services.tags import TagService
 
 
@@ -82,6 +87,7 @@ class SearchService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.policy = ResourceAccessPolicy(context)
 
     def search(self, request: SearchQueryDto) -> SearchResponseDto:
         query = request.query.strip()
@@ -112,10 +118,10 @@ class SearchService:
                 self._location_result(location, query)
                 for location in self._find_locations(pattern)
             )
-        if ResourceType.SESSION in requested_types:
+        if ResourceType.EPISODE in requested_types:
             results.extend(
-                self._session_result(session, query)
-                for session in self._find_sessions(pattern)
+                self._episode_result(episode, query)
+                for episode in self._find_episodes(pattern)
             )
         if ResourceType.CHARACTER_NOTE in requested_types:
             results.extend(
@@ -242,27 +248,27 @@ class SearchService:
             .where(or_(*conditions))
         ).all()
 
-    def _find_sessions(self, pattern: str) -> list[SessionNote]:
+    def _find_episodes(self, pattern: str) -> list[Episode]:
         conditions = [
-            SessionNote.title.ilike(pattern, escape="\\"),
-            SessionNote.date.ilike(pattern, escape="\\"),
-            cast(SessionNote.session_number, String).ilike(
+            Episode.title.ilike(pattern, escape="\\"),
+            Episode.date.ilike(pattern, escape="\\"),
+            cast(Episode.session_number, String).ilike(
                 pattern,
                 escape="\\",
             ),
-            SessionNote.content.ilike(pattern, escape="\\"),
+            Episode.content.ilike(pattern, escape="\\"),
         ]
         tag_owner_ids = self._tag_owner_ids(
-            ResourceType.SESSION,
+            ResourceType.EPISODE,
             pattern,
         )
         if tag_owner_ids:
-            conditions.append(SessionNote.id.in_(tag_owner_ids))
+            conditions.append(Episode.id.in_(tag_owner_ids))
 
         return self.db.exec(
-            select(SessionNote)
+            select(Episode)
             .where(
-                SessionNote.campaign_id == self.context.campaign_id
+                Episode.campaign_id == self.context.campaign_id
             )
             .where(or_(*conditions))
         ).all()
@@ -293,6 +299,12 @@ class SearchService:
                 CharacterNote.campaign_id
                 == self.context.campaign_id
             )
+            .where(
+                self.policy.readable_clause(
+                    CharacterNote,
+                    CharacterNoteGrant,
+                )
+            )
             .where(or_(*conditions))
         ).all()
 
@@ -321,6 +333,12 @@ class SearchService:
             .where(
                 BackstoryNote.campaign_id
                 == self.context.campaign_id
+            )
+            .where(
+                self.policy.readable_clause(
+                    BackstoryNote,
+                    BackstoryNoteGrant,
+                )
             )
             .where(or_(*conditions))
         ).all()
@@ -452,36 +470,36 @@ class SearchService:
             relevance=relevance,
         )
 
-    def _session_result(
+    def _episode_result(
         self,
-        session: SessionNote,
+        episode: Episode,
         query: str,
     ) -> SearchResultDto:
         matched_fields, relevance = _evaluate_search_fields(
             query,
             [
-                SearchField("title", session.title, 1.0),
-                SearchField("date", session.date, 0.65),
-                self._tag_field(ResourceType.SESSION, session.id),
+                SearchField("title", episode.title, 1.0),
+                SearchField("date", episode.date, 0.65),
+                self._tag_field(ResourceType.EPISODE, episode.id),
                 SearchField(
                     "description",
-                    session.content,
+                    episode.content,
                     0.55,
                 ),
                 SearchField(
                     "session_number",
-                    str(session.session_number),
+                    str(episode.session_number),
                     0.65,
                 ),
             ],
         )
         return SearchResultDto(
             campaign_id=self.context.campaign_id,
-            resource_type=ResourceType.SESSION,
-            resource_id=session.id,
-            title=session.title,
-            context=f"Session {session.session_number}",
-            snippet=session.content or "",
+            resource_type=ResourceType.EPISODE,
+            resource_id=episode.id,
+            title=episode.title,
+            context=f"Episode {episode.session_number}",
+            snippet=episode.content or "",
             matched_fields=matched_fields,
             relevance=relevance,
         )

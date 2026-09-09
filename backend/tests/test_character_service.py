@@ -13,7 +13,8 @@ from app.models.database import (
     InventoryAccess,
     Person,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.characters import CharacterService
 
 
@@ -43,25 +44,30 @@ class CharacterServiceTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
 
-            profile = CharacterService(
-                CampaignContext(db, campaign)
-            ).stage_create(
+            context = campaign_context(db, campaign)
+            profile = CharacterService(context).stage_create(
                 CharacterCreate(
                     person=PersonData(name="Nalia"),
                     short_bio="Wizard",
                 ),
             )
             person_id = profile.person_id
+            membership_id = context.membership.id
 
             self.assertIsNotNone(db.get(Person, person_id))
             self.assertIsNotNone(db.get(CharacterProfile, person_id))
-            self.assertEqual(person_id, campaign.active_character_person_id)
+            self.assertEqual(
+                person_id,
+                context.active_character_person_id,
+            )
 
             db.rollback()
             self.assertIsNone(db.get(Person, person_id))
             self.assertIsNone(db.get(CharacterProfile, person_id))
             db.refresh(campaign)
-            self.assertIsNone(campaign.active_character_person_id)
+            self.assertIsNone(
+                db.get(type(context.membership), membership_id)
+            )
 
     def test_standalone_character_operations_own_their_transactions(self):
         with Session(self.engine) as db:
@@ -69,7 +75,8 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(CampaignContext(db, campaign))
+            context = campaign_context(db, campaign)
+            characters = CharacterService(context)
 
             created = characters.create(
                 CharacterCreate(
@@ -101,7 +108,8 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(CampaignContext(db, campaign))
+            context = campaign_context(db, campaign)
+            characters = CharacterService(context)
 
             first = characters.create(
                 CharacterCreate(person=PersonData(name="Nalia")),
@@ -118,7 +126,7 @@ class CharacterServiceTests(unittest.TestCase):
 
             self.assertEqual(
                 second.person.id,
-                campaign.active_character_person_id,
+                context.active_character_person_id,
             )
             self.assertEqual(
                 [grant.character_person_id for grant in grants],
@@ -133,7 +141,7 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(CampaignContext(db, campaign))
+            characters = CharacterService(campaign_context(db, campaign))
 
             active = characters.create(
                 CharacterCreate(person=PersonData(name="Nalia")),
@@ -163,7 +171,7 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(CampaignContext(db, campaign))
+            characters = CharacterService(campaign_context(db, campaign))
             created = characters.create(
                 CharacterCreate(person=PersonData(name="Nalia")),
             )
@@ -193,7 +201,10 @@ class CharacterServiceTests(unittest.TestCase):
                 replaced = characters.replace_portrait(person_id, image)
 
                 self.assertEqual(
-                    f"uploads/{new_portrait_path}",
+                    (
+                        f"campaigns/{campaign.id}/assets/"
+                        f"characters/{person_id}/portrait"
+                    ),
                     replaced.image_url,
                 )
                 self.assertEqual(
@@ -224,7 +235,7 @@ class CharacterServiceTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            characters = CharacterService(CampaignContext(db, campaign))
+            characters = CharacterService(campaign_context(db, campaign))
             created = characters.create(
                 CharacterCreate(person=PersonData(name="Nalia")),
             )

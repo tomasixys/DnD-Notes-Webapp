@@ -1,14 +1,27 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, computed, ref, onBeforeMount } from "vue"
 import type {
+  CampaignCapability,
   CampaignsDto,
   DeleteResponseDto,
-  ExportResponse,
 } from "@/types/DataTransferObjects";
 import { ViewModes } from "@/types/viewTypes";
-import { GetAPI, PostFormDataAPI, PutFormDataAPI, DeleteAPI, DownloadAPI, apiUrl } from "@/apihelpers";
+import {
+  apiUrl,
+  DeleteAPI,
+  DownloadAPI,
+  GetAPI,
+  isApiFailure,
+  PostFormDataAPI,
+  PutFormDataAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
+import { withExpectedRevision } from "@/utils/concurrency";
 import ConfirmationPopup from "../components/ConfirmationPopup.vue";
+
+import { useAuthStore } from "@/stores/authStore"
+const auth = useAuthStore()
 
 const {
   campaigns,
@@ -25,6 +38,8 @@ const {
 } = useCampaignStore()
 
 const defaultCampaigndto: CampaignsDto = {
+  revision: 1,
+  updatedAt: "",
   id: 0,
   name: "",
   playerCharacter: "",
@@ -33,6 +48,9 @@ const defaultCampaigndto: CampaignsDto = {
   imageUrl: "",
   bannerImageUrl: "",
   activeCharacterPersonId: null,
+  assignedCharacterPersonId: null,
+  membershipRole: "owner",
+  capabilities: [],
 }
 
 const viewMode = ref<ViewModes>(ViewModes.Current)
@@ -43,6 +61,13 @@ const newCampaignImageFile = ref<File | null>(null)
 const newCampaignBannerFile = ref<File | null>(null)
 
 const showDeleteCampaignPopup = ref(false)
+
+function campaignCan(
+  campaign: CampaignsDto,
+  capability: CampaignCapability,
+): boolean {
+  return campaign.capabilities.includes(capability)
+}
 
 function clearNewCampaignForm() {
   Object.assign(newCampaign, defaultCampaigndto)
@@ -74,6 +99,7 @@ function showEditCampaignForm(campaignId: number) {
 
   editingCampaignId.value = campaignId
 
+  newCampaign.revision = selectedCampaign.value?.revision ?? 1
   newCampaign.name = selectedCampaign.value?.name ?? ""
   newCampaign.playerCharacter = selectedCampaign.value?.playerCharacter ?? ""
   newCampaign.description = selectedCampaign.value?.description ?? ""
@@ -121,9 +147,9 @@ function buildCampaignFormData(): FormData {
 }
 
 async function fetchCampaigns() {
-    const response = await GetAPI("campaigns")
+    const response = await GetAPI<CampaignsDto[]>("campaigns")
 
-    if (response.success === false) {
+    if (isApiFailure(response)) {
         console.error("Failed to fetch campaigns:", response.error)
         return
     }
@@ -139,14 +165,17 @@ async function createCampaign() {
 
   if (!newCampaign.name.trim()) return
 
-  let campaign = buildCampaignFormData()
+  const campaign = buildCampaignFormData()
 
-  const response = await PostFormDataAPI("campaigns", campaign)
-  if (response.success === false) {
+  const response = await PostFormDataAPI<CampaignsDto>(
+    "campaigns",
+    campaign,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create campaign:", response.error)
     return
   }
-  const created = response as CampaignsDto;
+  const created = response;
   if (created.id === 0) {
     console.error("Failed to create campaign: Invalid campaign ID returned")
     return
@@ -162,13 +191,24 @@ async function updateCampaign(campaignId: number) {
   if (!newCampaign.name.trim()) return
 
   const campaign = buildCampaignFormData()
+  const currentCampaign = campaigns.value.find(
+    (entry) => entry.id === campaignId,
+  )
+  if (!currentCampaign) return
+  campaign.append(
+    "expected_revision",
+    String(currentCampaign.revision),
+  )
 
-  const response = await PutFormDataAPI(`campaigns/${campaignId}`, campaign)
-  if (response.success === false) {
+  const response = await PutFormDataAPI<CampaignsDto>(
+    `campaigns/${campaignId}`,
+    campaign,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update campaign:", response.error)
     return
   }
-  const updatedCampaign = response as CampaignsDto;
+  const updatedCampaign = response;
   upsertCampaign(updatedCampaign)
   switchCampaign(updatedCampaign.id)
 
@@ -176,28 +216,28 @@ async function updateCampaign(campaignId: number) {
 }
 
 async function deleteCampaign(campaignId: number) {
-  const response = await DeleteAPI(`campaigns/${campaignId}`)
+  const campaign = campaigns.value.find((entry) => entry.id === campaignId)
+  if (!campaign) return
+  const response = await DeleteAPI<DeleteResponseDto>(
+    withExpectedRevision(
+      `campaigns/${campaignId}`,
+      campaign.revision,
+    ),
+  )
 
-  if (response.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to delete campaign:", response.error)
     return
   }
-  const deleted = response as DeleteResponseDto
-  removeCampaign(deleted.deletedId)
+  removeCampaign(response.deletedId)
 }
 
 async function exportCampaign(campaignId: number) {
-  const response = await GetAPI(`campaigns/${campaignId}/backup/export`)
-  if (response.success === false) {
+  const response = await DownloadAPI(
+    `campaigns/${campaignId}/backup/export`,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to export campaign:", response.error)
-    return
-  }
-  console.log("Exported campaign:", response)
-  const exportResponse = response as ExportResponse
-
-  const downloadResponse = await DownloadAPI(exportResponse.backupUrl)
-  if (!downloadResponse.success) {
-    console.error("Failed to download campaign backup:", downloadResponse.error)
     return
   }
 }
@@ -214,15 +254,17 @@ async function importCampaign() {
     const formData = new FormData()
     formData.append("backup", file)
 
-    const response = await PostFormDataAPI("campaigns/backup/import", formData)
-    if (response.success === false) {
+    const response = await PostFormDataAPI<CampaignsDto>(
+      "campaigns/backup/import",
+      formData,
+    )
+    if (isApiFailure(response)) {
       console.error("Failed to import campaign:", response.error)
       return
     }
     console.log("Imported campaign:", response)
-    const importedCampaign = response as CampaignsDto
-    upsertCampaign(importedCampaign)
-    switchCampaign(importedCampaign.id)
+    upsertCampaign(response)
+    switchCampaign(response.id)
   }
   input.click()
 }
@@ -253,6 +295,13 @@ const campaignBannerPreviewUrl = computed(() => {
   return selectedCampaignBannerUrl.value ?? ""
 })
 
+
+useResourceEditor(() => (viewMode.value === ViewModes.Create || viewMode.value === ViewModes.Edit) ? [{
+  campaignId: editingCampaignId.value ?? selectedCampaignId.value ?? 0,
+  resourceType: "campaign",
+  resourceId: editingCampaignId.value,
+  revision: newCampaign.revision,
+}] : [])
 </script>
 
 <template>
@@ -293,6 +342,10 @@ const campaignBannerPreviewUrl = computed(() => {
               <strong>Sessions:</strong>
               {{ selectedCampaign.sessionCount }}
             </p>
+            <p class="session-count">
+              <strong>Access:</strong>
+              {{ selectedCampaign.membershipRole }}
+            </p>
           </div>
         </div>
 
@@ -322,7 +375,17 @@ const campaignBannerPreviewUrl = computed(() => {
       </template>
     </article>
 
-    <article v-else-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit" class="dashboard-card">
+    <article
+      v-else-if="
+        viewMode === ViewModes.Create
+        || (
+          viewMode === ViewModes.Edit
+          && selectedCampaign
+          && campaignCan(selectedCampaign, 'campaign.update')
+        )
+      "
+      class="dashboard-card"
+    >
       <h3>{{ viewMode === ViewModes.Create ? "Start new campaign" : "Edit campaign" }}</h3>
 
       <form class="campaign-form" @submit.prevent="submitCampaign">
@@ -336,7 +399,7 @@ const campaignBannerPreviewUrl = computed(() => {
           />
         </label>
 
-        <label>
+        <label v-if="!auth.authenticationRequired.value">
           Player character
           <input
             v-model="newCampaign.playerCharacter"
@@ -405,13 +468,14 @@ const campaignBannerPreviewUrl = computed(() => {
               {{ campaign.description || "No description." }}
             </p>
             <small>
-              {{ campaign.sessionCount }} sessions
+              {{ campaign.sessionCount }} sessions · {{ campaign.membershipRole }}
             </small>
 
           </div>
 
           <div class="campaign-list-actions">
             <button
+              v-if="campaignCan(campaign, 'campaign.read')"
               type="button"
               @click="switchCampaign(campaign.id)"
             >
@@ -419,6 +483,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.update')"
               type="button"
               class="secondary"
               @click="showEditCampaignForm(campaign.id)"
@@ -427,6 +492,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.export')"
               type="button"
               class="secondary"
               @click="exportCampaign(campaign.id)"
@@ -435,6 +501,7 @@ const campaignBannerPreviewUrl = computed(() => {
             </button>
 
             <button
+              v-if="campaignCan(campaign, 'campaign.delete')"
               type="button"
               class="danger"
               @click="showDeleteCampaignPopup = true; selectCampaign(campaign.id)"
@@ -474,10 +541,14 @@ const campaignBannerPreviewUrl = computed(() => {
     </article>
 
     <ConfirmationPopup
-      v-if="showDeleteCampaignPopup && selectedCampaign"
-      title="Delete session?"
+      v-if="
+        showDeleteCampaignPopup
+        && selectedCampaign
+        && campaignCan(selectedCampaign, 'campaign.delete')
+      "
+      title="Delete campaign?"
       :message="`Delete campaign ${selectedCampaign.name} and all associated entries? This cannot be undone.`"
-      confirm-text="Delete session"
+      confirm-text="Delete campaign"
       @cancel="showDeleteCampaignPopup = false"
       @confirm="deleteCampaign(selectedCampaign.id); showDeleteCampaignPopup = false"
     />

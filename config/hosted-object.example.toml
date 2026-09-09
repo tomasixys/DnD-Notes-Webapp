@@ -1,0 +1,42 @@
+# Reserved object-storage shape for a future storage adapter. Current builds
+# deliberately reject this configuration instead of silently writing locally.
+# Use config/hosted.example.toml for a supported hosted installation.
+
+[installation]
+mode = "hosted"
+
+[database]
+url_env = "DND_NOTES_DATABASE_URL"
+pool_pre_ping = true
+pool_recycle_seconds = 1800
+
+[storage]
+backend = "object"
+endpoint = "https://objects.example.com"
+bucket = "dnd-notes"
+region = "eu-north-1"
+access_key_env = "DND_NOTES_STORAGE_ACCESS_KEY"
+secret_key_env = "DND_NOTES_STORAGE_SECRET_KEY"
+
+[security]
+session_secret_env = "DND_NOTES_SESSION_SECRET"
+cookie_name = "__Host-dnd_notes_session"
+cookie_secure = true
+cookie_samesite = "lax"
+session_lifetime_minutes = 720
+session_absolute_lifetime_minutes = 10080
+login_failure_limit = 5
+login_initial_lock_seconds = 30
+login_maximum_lock_seconds = 900
+
+[server]
+host = "127.0.0.1"
+port = 8000
+public_origin = "https://notes.example.com"
+open_browser = false
+trusted_hosts = ["notes.example.com"]
+proxy_headers = true
+trusted_proxies = ["127.0.0.1"]
+
+# The first administrator will be created with the offline create-admin
+# command. User passwords and password hashes never belong in this file.

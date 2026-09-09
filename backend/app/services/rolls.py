@@ -2,34 +2,40 @@ from fastapi import HTTPException
 from scipy.stats import norm
 from sqlmodel import select
 
+from app.authorization.enums import CampaignCapability
 from app.models.api import (
     CampaignRollStats,
+    EpisodeRollStats,
     RollCreate,
     RollMutationResponse,
-    SessionRollStats,
 )
-from app.models.database import RollEntry, SessionNote
-from app.services.campaign_context import CampaignContext
+from app.models.database import Episode, RollEntry
+from app.authorization.context import CampaignContext
+from app.concurrency import claim_revision
+from app.models.enums import ResourceType
+from app.services.campaign_changes import CampaignChangeService
 
 
 class RollService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.changes = CampaignChangeService(context)
 
-    def _get_session(
+    def _get_episode(
         self,
-        session_note_id: int,
-    ) -> SessionNote:
-        session_note = self.db.get(SessionNote, session_note_id)
-        if session_note is None:
-            raise HTTPException(status_code=404, detail="Session not found")
-        if session_note.campaign_id != self.context.campaign_id:
+        episode_id: int,
+    ) -> Episode:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
+        episode = self.db.get(Episode, episode_id)
+        if episode is None:
+            raise HTTPException(status_code=404, detail="Episode not found")
+        if episode.campaign_id != self.context.campaign_id:
             raise HTTPException(
                 status_code=404,
-                detail="Session not found for this campaign",
+                detail="Episode not found for this campaign",
             )
-        return session_note
+        return episode
 
     @staticmethod
     def calculate_average(rolls: list[int]) -> float:
@@ -53,29 +59,31 @@ class RollService:
         z_value = (rolled_total - expected_total) / standard_deviation
         return float(norm.cdf(z_value))
 
-    def get_entries_for_session(
+    def get_entries_for_episode(
         self,
-        session_note_id: int,
+        episode_id: int,
     ) -> list[RollEntry]:
-        self._get_session(session_note_id)
+        self._get_episode(episode_id)
         statement = select(RollEntry).where(
-            RollEntry.session_id == session_note_id
+            RollEntry.session_id == episode_id
         )
         return list(self.db.exec(statement).all())
 
-    def get_values_for_session(self, session_note_id: int) -> list[int]:
+    def get_values_for_episode(self, episode_id: int) -> list[int]:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         entries = self.db.exec(
             select(RollEntry)
-            .where(RollEntry.session_id == session_note_id)
+            .where(RollEntry.session_id == episode_id)
             .order_by(RollEntry.id)
         ).all()
         return [entry.roll for entry in entries]
 
     def get_campaign_stats(self) -> CampaignRollStats:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         statement = (
             select(RollEntry)
-            .join(SessionNote, RollEntry.session_id == SessionNote.id)
-            .where(SessionNote.campaign_id == self.context.campaign_id)
+            .join(Episode, RollEntry.session_id == Episode.id)
+            .where(Episode.campaign_id == self.context.campaign_id)
         )
         rolls = [entry.roll for entry in self.db.exec(statement).all()]
         return CampaignRollStats(
@@ -85,29 +93,39 @@ class RollService:
             roll_luck=self.calculate_luck(rolls),
         )
 
-    def get_session_stats(
+    def get_episode_stats(
         self,
-        session_note_id: int,
-    ) -> SessionRollStats:
+        episode_id: int,
+    ) -> EpisodeRollStats:
+        episode = self._get_episode(episode_id)
         rolls = [
             entry.roll
-            for entry in self.get_entries_for_session(
-                session_note_id,
+            for entry in self.get_entries_for_episode(
+                episode_id,
             )
         ]
-        return SessionRollStats(
+        return EpisodeRollStats(
             campaign_id=self.context.campaign_id,
-            session_id=session_note_id,
+            session_id=episode_id,
             rolls=rolls,
             average=self.calculate_average(rolls),
             roll_luck=self.calculate_luck(rolls),
+            revision=episode.revision,
         )
 
     def stage_create(
         self,
         roll_create: RollCreate,
+        expected_revision: int | None = None,
     ) -> RollEntry:
-        self._get_session(roll_create.session_id)
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        episode = self._get_episode(roll_create.session_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
         if roll_create.roll < 1 or roll_create.roll > 20:
             raise HTTPException(
                 status_code=400,
@@ -120,17 +138,24 @@ class RollService:
         )
         self.db.add(roll_entry)
         self.db.flush()
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="updated",
+            revision=episode.revision,
+        )
         return roll_entry
 
     def create(
         self,
         roll_create: RollCreate,
+        expected_revision: int | None = None,
     ) -> RollMutationResponse:
         try:
-            self.stage_create(roll_create)
+            self.stage_create(roll_create, expected_revision)
             response = RollMutationResponse(
                 campaign_stats=self.get_campaign_stats(),
-                session_stats=self.get_session_stats(
+                session_stats=self.get_episode_stats(
                     roll_create.session_id,
                 ),
             )
@@ -140,25 +165,44 @@ class RollService:
             self.db.rollback()
             raise
 
-    def stage_delete_for_session(
+    def stage_delete_for_episode(
         self,
-        session_note_id: int,
+        episode_id: int,
+        expected_revision: int | None = None,
     ) -> None:
-        entries = self.get_entries_for_session(session_note_id)
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        episode = self._get_episode(episode_id)
+        claim_revision(
+            self.db,
+            episode,
+            expected_revision or episode.revision,
+            resource_type=ResourceType.EPISODE.value,
+        )
+        entries = self.get_entries_for_episode(episode_id)
         for entry in entries:
             self.db.delete(entry)
         self.db.flush()
+        self.changes.stage_record(
+            ResourceType.EPISODE.value,
+            episode.id,
+            action="updated",
+            revision=episode.revision,
+        )
 
-    def delete_for_session(
+    def delete_for_episode(
         self,
-        session_note_id: int,
+        episode_id: int,
+        expected_revision: int | None = None,
     ) -> RollMutationResponse:
         try:
-            self.stage_delete_for_session(session_note_id)
+            self.stage_delete_for_episode(
+                episode_id,
+                expected_revision,
+            )
             response = RollMutationResponse(
                 campaign_stats=self.get_campaign_stats(),
-                session_stats=self.get_session_stats(
-                    session_note_id,
+                session_stats=self.get_episode_stats(
+                    episode_id,
                 ),
             )
             self.db.commit()
@@ -167,16 +211,17 @@ class RollService:
             self.db.rollback()
             raise
 
-    def stage_restore_for_session(
+    def stage_restore_for_episode(
         self,
-        session_note: SessionNote,
+        episode: Episode,
         rolls: list[int],
     ) -> None:
         """Restore stored roll values in the caller-owned transaction."""
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         for roll in rolls:
             self.db.add(
                 RollEntry(
-                    session_id=session_note.id,
+                    session_id=episode.id,
                     roll=roll,
                 )
             )

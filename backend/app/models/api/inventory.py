@@ -9,6 +9,7 @@ from app.models.enums import (
     ItemCategory,
     ItemRarity,
 )
+from .revision import RevisionRead
 
 
 class MoneyAmount(SQLModel):
@@ -113,7 +114,7 @@ class InventoryUpdate(SQLModel):
         return value
 
 
-class InventoryRead(SQLModel):
+class InventoryRead(RevisionRead):
     """The authoritative inventory returned by reads and all mutations."""
 
     id: int

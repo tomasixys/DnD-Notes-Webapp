@@ -4,6 +4,7 @@ from typing import Callable
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from app.authorization.enums import CampaignCapability
 from app.models.api import (
     CampaignBackupInventory,
     CampaignBackupInventoryItem,
@@ -33,7 +34,9 @@ from app.models.enums import (
     CurrencyDenomination,
     InventoryAccessRole,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 COPPER_PER_GOLD = Decimal("100")
@@ -43,6 +46,25 @@ class InventoryService:
     def __init__(self, context: CampaignContext):
         self.context = context
         self.db = context.db
+        self.changes = CampaignChangeService(context)
+
+    def _claim_and_record(
+        self,
+        inventory: Inventory,
+        expected_revision: int | None,
+    ) -> None:
+        claim_revision(
+            self.db,
+            inventory,
+            expected_revision or inventory.revision,
+            resource_type="inventory",
+        )
+        self.changes.stage_record(
+            "inventory",
+            inventory.id,
+            action="updated",
+            revision=inventory.revision,
+        )
 
     @staticmethod
     def money_to_copper(value: MoneyAmount) -> int:
@@ -79,7 +101,7 @@ class InventoryService:
         )
 
     def _active_character_belongs_to_campaign(self) -> bool:
-        person_id = self.context.campaign.active_character_person_id
+        person_id = self.context.active_character_person_id
         if (
             person_id is None
             or self.db.get(CharacterProfile, person_id) is None
@@ -133,7 +155,7 @@ class InventoryService:
                 InventoryAccess,
                 (
                     inventory.id,
-                    self.context.campaign.active_character_person_id,
+                    self.context.active_character_person_id,
                 ),
             )
             is None
@@ -142,7 +164,7 @@ class InventoryService:
                 InventoryAccess(
                     inventory_id=inventory.id,
                     character_person_id=(
-                        self.context.campaign.active_character_person_id
+                        self.context.active_character_person_id
                     ),
                     role=InventoryAccessRole.OWNER,
                 )
@@ -154,6 +176,7 @@ class InventoryService:
     def stage_sync_default_owner(self) -> Inventory:
         """Replace default-inventory grants in the caller-owned transaction."""
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, inventory.revision)
         grants = self.db.exec(
             select(InventoryAccess).where(
                 InventoryAccess.inventory_id == inventory.id
@@ -168,7 +191,7 @@ class InventoryService:
                 InventoryAccess(
                     inventory_id=inventory.id,
                     character_person_id=(
-                        self.context.campaign.active_character_person_id
+                        self.context.active_character_person_id
                     ),
                     role=InventoryAccessRole.OWNER,
                 )
@@ -224,7 +247,7 @@ class InventoryService:
                 character_name=person.name,
                 role=grant.role,
                 is_active_character=(
-                    self.context.campaign.active_character_person_id
+                    self.context.active_character_person_id
                     == person.id
                 ),
             )
@@ -261,6 +284,8 @@ class InventoryService:
         ]
 
         return InventoryRead(
+            revision=inventory.revision,
+            updated_at=inventory.updated_at,
             id=inventory.id,
             campaign_id=self.context.campaign_id,
             name=inventory.name,
@@ -290,6 +315,7 @@ class InventoryService:
             raise
 
     def get_default(self) -> InventoryRead:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         return self._commit_staged(
             lambda: self.stage_ensure_default(),
         )
@@ -297,8 +323,11 @@ class InventoryService:
     def stage_update_metadata(
         self,
         update: InventoryUpdate,
+        expected_revision: int | None = None,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, expected_revision)
 
         if "name" in update.model_fields_set:
             name = update.name.strip()
@@ -318,16 +347,23 @@ class InventoryService:
     def update_metadata(
         self,
         update: InventoryUpdate,
+        expected_revision: int | None = None,
     ) -> InventoryRead:
         return self._commit_staged(
-            lambda: self.stage_update_metadata(update),
+            lambda: self.stage_update_metadata(
+                update,
+                expected_revision,
+            ),
         )
 
     def stage_update_purse(
         self,
         update: PurseUpdate,
+        expected_revision: int | None = None,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, expected_revision)
         for field_name in update.balances.model_fields_set:
             denomination = CurrencyDenomination(field_name)
             balance = self.db.get(
@@ -337,14 +373,21 @@ class InventoryService:
             balance.amount = getattr(update.balances, field_name)
             self.db.add(balance)
         self.db.flush()
+        self.changes.stage_record(
+            "purse", inventory.id, action="updated", revision=inventory.revision,
+        )
         return inventory
 
     def update_purse(
         self,
         update: PurseUpdate,
+        expected_revision: int | None = None,
     ) -> InventoryRead:
         return self._commit_staged(
-            lambda: self.stage_update_purse(update),
+            lambda: self.stage_update_purse(
+                update,
+                expected_revision,
+            ),
         )
 
     def get_item(
@@ -376,8 +419,11 @@ class InventoryService:
     def stage_create_item(
         self,
         item_data: InventoryItemCreate,
+        expected_revision: int | None = None,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, expected_revision)
         name = item_data.name.strip()
         if not name:
             raise HTTPException(
@@ -404,17 +450,24 @@ class InventoryService:
     def create_item(
         self,
         item_data: InventoryItemCreate,
+        expected_revision: int | None = None,
     ) -> InventoryRead:
         return self._commit_staged(
-            lambda: self.stage_create_item(item_data),
+            lambda: self.stage_create_item(
+                item_data,
+                expected_revision,
+            ),
         )
 
     def stage_update_item(
         self,
         item_id: int,
         update: InventoryItemUpdate,
+        expected_revision: int | None = None,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, expected_revision)
         item = self.get_item(inventory, item_id)
 
         if "name" in update.model_fields_set:
@@ -440,35 +493,50 @@ class InventoryService:
 
         self.db.add(item)
         self.db.flush()
+        self.changes.stage_record(
+            "inventory_item", item_id, action="updated", revision=inventory.revision,
+        )
         return inventory
 
     def update_item(
         self,
         item_id: int,
         update: InventoryItemUpdate,
+        expected_revision: int | None = None,
     ) -> InventoryRead:
         return self._commit_staged(
             lambda: self.stage_update_item(
                 item_id,
                 update,
+                expected_revision,
             ),
         )
 
     def stage_delete_item(
         self,
         item_id: int,
+        expected_revision: int | None = None,
     ) -> Inventory:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         inventory = self.stage_ensure_default()
+        self._claim_and_record(inventory, expected_revision)
         self.db.delete(self.get_item(inventory, item_id))
         self.db.flush()
+        self.changes.stage_record(
+            "inventory_item", item_id, action="deleted", revision=inventory.revision,
+        )
         return inventory
 
     def delete_item(
         self,
         item_id: int,
+        expected_revision: int | None = None,
     ) -> InventoryRead:
         return self._commit_staged(
-            lambda: self.stage_delete_item(item_id),
+            lambda: self.stage_delete_item(
+                item_id,
+                expected_revision,
+            ),
         )
 
     def to_backup(self, inventory: Inventory) -> CampaignBackupInventory:

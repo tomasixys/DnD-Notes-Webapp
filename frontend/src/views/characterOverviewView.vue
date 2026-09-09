@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, onBeforeUnmount, reactive, ref } from "vue"
 import { useRouter } from "vue-router"
 
 import {
   DeleteAPI,
   GetAPI,
+  isApiFailure,
   PostAPI,
   PutAPI,
   PutFormDataAPI,
@@ -13,6 +15,7 @@ import {
 import ConfirmationPopup from "@/components/ConfirmationPopup.vue"
 import ResourceTag from "@/components/ResourceTag.vue"
 import { useCharacterContext } from "@/composables/useCharacterContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CharacterCreateDto,
@@ -22,6 +25,7 @@ import type {
   PersonDataDto,
   PersonDto,
 } from "@/types/DataTransferObjects"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const router = useRouter()
 const {
@@ -42,6 +46,8 @@ const portraitFile = ref<File | null>(null)
 const portraitPreviewUrl = ref("")
 const formError = ref("")
 const showDeletePopup = ref(false)
+const { canCreateCharacter, canWriteCharacter } =
+  useCampaignAuthorization(() => character.value?.person.id)
 
 const form = reactive({
   name: "",
@@ -105,9 +111,11 @@ function resetForm() {
 
 async function fetchPeople() {
   if (!selectedCampaignId.value) return
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/people`)
-  if (Array.isArray(response)) {
-    people.value = response as PersonDto[]
+  const response = await GetAPI<PersonDto[]>(
+    `campaigns/${selectedCampaignId.value}/people`,
+  )
+  if (!isApiFailure(response) && Array.isArray(response)) {
+    people.value = response
   }
 }
 
@@ -157,21 +165,26 @@ function buildPersonData(): PersonDataDto {
   }
 }
 
-async function uploadPortrait(personId: number): Promise<CharacterDto | null> {
+async function uploadPortrait(
+  currentCharacter: CharacterDto,
+): Promise<CharacterDto | null> {
   if (!portraitFile.value || !selectedCampaignId.value) {
     return null
   }
   const data = new FormData()
   data.append("image", portraitFile.value)
-  const response = await PutFormDataAPI(
-    `campaigns/${selectedCampaignId.value}/characters/${personId}/image`,
+  const response = await PutFormDataAPI<CharacterDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${currentCharacter.person.id}/image`,
+      currentCharacter.revision,
+    ),
     data,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character was saved, but the portrait upload failed."
     return null
   }
-  return response as CharacterDto
+  return response
 }
 
 async function createCharacter() {
@@ -189,22 +202,23 @@ async function createCharacter() {
     appearance: form.appearance.trim(),
     makeActive: true,
   }
-  const response = await PostAPI(
+  const response = await PostAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters`,
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character could not be created."
     return
   }
 
-  let savedCharacter = response as CharacterDto
-  const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
+  let savedCharacter = response
+  const uploadedCharacter = await uploadPortrait(savedCharacter)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
   setCampaignActiveCharacter(
     selectedCampaignId.value,
     savedCharacter.person.id,
+    savedCharacter.person.name,
   )
   mode.value = "details"
   resetPortraitPreview()
@@ -221,61 +235,74 @@ async function updateCharacter() {
     shortBio: form.shortBio.trim(),
     appearance: form.appearance.trim(),
   }
-  const response = await PutAPI(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+  const response = await PutAPI<CharacterDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+      character.value.revision,
+      {
+        expected_person_revision: character.value.person.revision,
+      },
+    ),
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     formError.value = "The character could not be updated."
     return
   }
 
-  let savedCharacter = response as CharacterDto
-  const uploadedCharacter = await uploadPortrait(savedCharacter.person.id)
+  let savedCharacter = response
+  const uploadedCharacter = await uploadPortrait(savedCharacter)
   if (uploadedCharacter) savedCharacter = uploadedCharacter
   setCharacter(savedCharacter)
+  if (savedCharacter.isActive) {
+    setCampaignActiveCharacter(selectedCampaignId.value, savedCharacter.person.id, savedCharacter.person.name)
+  }
   mode.value = "details"
   resetPortraitPreview()
 }
 
 async function activateCharacter() {
   if (!selectedCampaignId.value || !character.value) return
-  const response = await PostAPI(
+  const response = await PostAPI<CharacterDto>(
     `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/activate`,
     {},
   )
-  if (response?.success !== false) {
-    const activeCharacter = response as CharacterDto
-    setCharacter(activeCharacter)
+  if (!isApiFailure(response)) {
+    setCharacter(response)
     setCampaignActiveCharacter(
       selectedCampaignId.value,
-      activeCharacter.person.id,
+      response.person.id,
+      response.person.name,
     )
   }
 }
 
 async function removePortrait() {
   if (!selectedCampaignId.value || !character.value) return
-  const response = await DeleteAPI(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/image`,
+  const response = await DeleteAPI<CharacterDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}/image`,
+      character.value.revision,
+    ),
   )
-  if (response?.success !== false) {
-    setCharacter(response as CharacterDto)
-  }
+  if (!isApiFailure(response)) setCharacter(response)
 }
 
 async function deleteProfile() {
   showDeletePopup.value = false
   if (!selectedCampaignId.value || !character.value) return
-  const response = await DeleteAPI(
-    `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+  const response = await DeleteAPI<CharacterDeleteResponseDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/characters/${character.value.person.id}`,
+      character.value.revision,
+    ),
   )
-  if (response?.success === false) return
-  const deleted = response as CharacterDeleteResponseDto
-  setCharacter(deleted.activeCharacter)
+  if (isApiFailure(response)) return
+  setCharacter(response.activeCharacter)
   setCampaignActiveCharacter(
     selectedCampaignId.value,
-    deleted.activeCharacter?.person.id ?? null,
+    response.activeCharacter?.person.id ?? null,
+    response.activeCharacter?.person.name ?? "",
   )
   await router.replace({
     name: "CharacterOverview",
@@ -284,6 +311,11 @@ async function deleteProfile() {
 }
 
 onBeforeUnmount(resetPortraitPreview)
+
+useResourceEditor(() => selectedCampaignId.value && mode.value !== "details" ? [
+  { campaignId: selectedCampaignId.value, resourceType: "character", resourceId: mode.value === "edit" ? character.value?.person.id ?? null : null, revision: character.value?.revision },
+  { campaignId: selectedCampaignId.value, resourceType: "person", resourceId: mode.value === "edit" ? character.value?.person.id ?? null : null, revision: character.value?.person.revision },
+] : [])
 </script>
 
 <template>
@@ -295,7 +327,7 @@ onBeforeUnmount(resetPortraitPreview)
       </div>
 
       <button
-        v-if="mode === 'details' && character"
+        v-if="mode === 'details' && character && canCreateCharacter"
         type="button"
         @click="showCreateForm"
       >
@@ -308,7 +340,10 @@ onBeforeUnmount(resetPortraitPreview)
     </article>
 
     <article
-      v-else-if="mode === 'create' || mode === 'edit'"
+      v-else-if="
+        (mode === 'create' && canCreateCharacter)
+        || (mode === 'edit' && canWriteCharacter)
+      "
       class="resource-detail-panel character-editor"
     >
       <header class="resource-detail-header">
@@ -441,7 +476,7 @@ onBeforeUnmount(resetPortraitPreview)
               <p class="character-role">{{ character.person.role || "Adventurer" }}</p>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteCharacter" class="resource-detail-actions">
               <button type="button" class="secondary" @click="showEditForm">Edit</button>
               <button
                 v-if="!character.isActive"
@@ -510,12 +545,18 @@ onBeforeUnmount(resetPortraitPreview)
         <p class="empty-text">
           The character profile will also appear in People and can be retained when a new character becomes active.
         </p>
-        <button type="button" @click="showCreateForm">Create character</button>
+        <button
+          v-if="canCreateCharacter"
+          type="button"
+          @click="showCreateForm"
+        >
+          Create character
+        </button>
       </template>
     </article>
 
     <ConfirmationPopup
-      v-if="showDeletePopup && character"
+      v-if="showDeletePopup && character && canWriteCharacter"
       title="Delete character profile?"
       :message="`Delete ${character.person.name}'s private profile, notes, and backstory? The People entry will remain.`"
       confirm-text="Delete profile"

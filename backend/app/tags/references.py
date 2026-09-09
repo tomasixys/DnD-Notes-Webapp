@@ -9,7 +9,7 @@ from app.models.database import (
     Faction,
     Location,
     Person,
-    SessionNote,
+    Episode,
     Tag,
     TagAssignment,
     BackstoryNote,
@@ -24,7 +24,7 @@ REFERENCE_MODELS = {
     ResourceType.PERSON: Person,
     ResourceType.LOCATION: Location,
     ResourceType.FACTION: Faction,
-    ResourceType.SESSION: SessionNote,
+    ResourceType.EPISODE: Episode,
     ResourceType.CHARACTER_NOTE: CharacterNote,
     ResourceType.BACKSTORY_NOTE: BackstoryNote,
 }
@@ -35,11 +35,12 @@ def resource_model(resource_type: ResourceType):
 
 
 def candidate_labels(resource_type: ResourceType, resource) -> list[str]:
-    if resource_type == ResourceType.SESSION:
+    if resource_type == ResourceType.EPISODE:
         return [
             resource.title,
             str(resource.session_number),
             f"session {resource.session_number}",
+            f"episode {resource.session_number}",
         ]
     if resource_type in {
         ResourceType.CHARACTER_NOTE,
@@ -51,7 +52,7 @@ def candidate_labels(resource_type: ResourceType, resource) -> list[str]:
 
 def canonical_label(resource_type: ResourceType, resource) -> str:
     if resource_type in {
-        ResourceType.SESSION,
+        ResourceType.EPISODE,
         ResourceType.CHARACTER_NOTE,
         ResourceType.BACKSTORY_NOTE,
     }:

@@ -4,9 +4,10 @@ DnD Notes is a local campaign-management application for keeping campaign
 information, session notes, characters, relationships, rolls, and party
 inventory in one place.
 
-The Vue frontend and FastAPI backend are packaged as a single application. In
-production, FastAPI serves both the JSON API and the compiled frontend, while
-SQLite and uploaded files remain in the operating system's user-data directory.
+The Vue frontend and FastAPI backend are packaged as a single application.
+FastAPI serves both the JSON API and compiled frontend. Local mode uses SQLite
+and the operating system's application-data directory; hosted mode uses
+PostgreSQL and an explicitly configured protected filesystem directory.
 
 ## Features
 
@@ -19,18 +20,28 @@ SQLite and uploaded files remain in the operating system's user-data directory.
 - Add free-form and typed reference tags that link related entries.
 - Search campaign resources, including character notes and backstory.
 - Link directly to individual resources through their URLs.
+- Invite existing server accounts into campaigns and manage member roles.
 
-DnD Notes currently runs as a local, single-user application. Authentication
-and hosted multi-user collaboration are future roadmap items.
+DnD Notes supports the established local single-user mode and an authenticated
+server mode for private hosting. Server mode
+keeps application-managed user accounts, PostgreSQL data, and protected files
+under the operator's control. Campaign membership and resource authorization
+are enforced across the API and reflected in the authenticated frontend.
+Campaign images, portraits, and backup downloads are protected by those same
+membership boundaries. Controlled campaign invitations, one-time account
+activation, role changes, removal, leaving, and ownership transfer are
+available without requiring an email provider. Character notes and backstory
+support campaign-wide, restricted, and private visibility.
 
 ## Technology
 
-- FastAPI, SQLModel, and SQLite
+- FastAPI, SQLModel, SQLite, and PostgreSQL
 - Vue, Vue Router, TypeScript, and Vite
-- PyInstaller for distributable application builds
+- PyInstaller for host-native Windows and Linux application builds
 
-The backend API is available under `/api`. Uploaded campaign assets are served
-under `/api/uploads`.
+The backend API is available under `/api`. Campaign assets are available only
+through authorized, campaign-scoped API routes; the storage directory is never
+mounted as public static content.
 
 ## Development setup
 
@@ -55,6 +66,14 @@ Start the backend:
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
+```
+
+Or use the typed configuration launcher:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe run.py --config ..\config\local.example.toml
+cd ..
 ```
 
 In a second terminal, start the frontend:
@@ -93,9 +112,17 @@ cd backend
 See [BUILDING.md](BUILDING.md) for distributable builds, single-file builds,
 source launches with a compiled frontend, and data-location details.
 
+For an authenticated LAN server with PostgreSQL, protected local file storage,
+and HTTPS, use the [hosted deployment stack](deploy/hosted/README.md). You do
+not need to build a desktop executable for that deployment.
+
 ## Documentation
 
 - [Roadmap](ROADMAP.md)
+- [Hosted multi-user development plan](docs/hosted-multi-user-plan.md)
+- [Application configuration](docs/configuration.md)
+- [Offline maintenance and recovery](docs/maintenance.md)
+- [Hosted operations and incident response](docs/hosted-operations.md)
 - [Changelog](CHANGELOG.md)
 - [Backend architecture](docs/backend-architecture.md)
 - [Completed backend refactoring record](docs/archive/backend-refactoring-2026-07.md)

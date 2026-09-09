@@ -1,8 +1,15 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { ref, watch } from "vue"
 
-import { DeleteAPI, GetAPI, PostAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+} from "@/apihelpers"
 import { useSessionContext } from "@/composables/useSessionContext"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   CampaignRollDto,
@@ -10,9 +17,11 @@ import type {
   RollMutationDto,
   SessionRollDto,
 } from "@/types/DataTransferObjects"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 const { selectedCampaignId } = useCampaignStore()
-const { selectedSession } = useSessionContext()
+const { selectedSession, upsertSession } = useSessionContext()
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const rollInput = ref<number | null>(null)
 const sessionRolls = ref<SessionRollDto | null>(null)
@@ -29,27 +38,27 @@ function formatRollLuck(value: number) {
 
 async function fetchCampaignStats() {
   if (!selectedCampaignId.value) return
-  const response = await GetAPI(
+  const response = await GetAPI<CampaignRollDto>(
     `campaigns/${selectedCampaignId.value}/rolls/campaign-stats`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to fetch campaign stats:", response.error)
     return
   }
-  campaignRollStats.value = response as CampaignRollDto
+  campaignRollStats.value = response
 }
 
 async function fetchSessionRolls() {
   sessionRolls.value = null
   if (!selectedCampaignId.value || !selectedSession.value) return
-  const response = await GetAPI(
+  const response = await GetAPI<SessionRollDto>(
     `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to fetch session rolls:", response.error)
     return
   }
-  sessionRolls.value = response as SessionRollDto
+  sessionRolls.value = response
 }
 
 async function addRoll() {
@@ -61,17 +70,23 @@ async function addRoll() {
     sessionId: selectedSession.value.id,
     roll,
   }
-  const response = await PostAPI(
-    `campaigns/${selectedCampaignId.value}/rolls`,
+  const response = await PostAPI<RollMutationDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/rolls`,
+      selectedSession.value.revision,
+    ),
     payload,
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to add roll:", response.error)
     return
   }
-  const mutation = response as RollMutationDto
-  sessionRolls.value = mutation.sessionStats
-  campaignRollStats.value = mutation.campaignStats
+  sessionRolls.value = response.sessionStats
+  upsertSession({
+    ...selectedSession.value,
+    revision: response.sessionStats.revision,
+  })
+  campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }
 
@@ -82,16 +97,22 @@ async function deleteRolls() {
     || !sessionRolls.value?.rolls.length
   ) return
 
-  const response = await DeleteAPI(
-    `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
+  const response = await DeleteAPI<RollMutationDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/rolls/sessions/${selectedSession.value.id}`,
+      selectedSession.value.revision,
+    ),
   )
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     console.error("Failed to delete rolls:", response.error)
     return
   }
-  const mutation = response as RollMutationDto
-  sessionRolls.value = mutation.sessionStats
-  campaignRollStats.value = mutation.campaignStats
+  sessionRolls.value = response.sessionStats
+  upsertSession({
+    ...selectedSession.value,
+    revision: response.sessionStats.revision,
+  })
+  campaignRollStats.value = response.campaignStats
   rollInput.value = null
 }
 
@@ -101,6 +122,10 @@ watch(
   () => void fetchSessionRolls(),
   { immediate: true },
 )
+
+useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [{
+  campaignId: selectedCampaignId.value, resourceType: "session", resourceId: null,
+}] : [])
 </script>
 
 <template>
@@ -128,7 +153,11 @@ watch(
         </div>
       </dl>
 
-      <form class="roll-input-form" @submit.prevent="addRoll">
+      <form
+        v-if="canWriteSharedResources"
+        class="roll-input-form"
+        @submit.prevent="addRoll"
+      >
         <label>
           Add d20 roll
           <input

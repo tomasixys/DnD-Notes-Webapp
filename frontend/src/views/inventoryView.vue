@@ -1,10 +1,18 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { computed, onBeforeMount, reactive, ref } from "vue"
 
-import { DeleteAPI, GetAPI, PatchAPI, PostAPI } from "@/apihelpers"
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PatchAPI,
+  PostAPI,
+} from "@/apihelpers"
 import ConfirmationPopup from "@/components/ConfirmationPopup.vue"
 import Popup from "@/components/Popup.vue"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type {
   InventoryDto,
@@ -23,8 +31,10 @@ import {
   type ItemRarity,
 } from "@/types/inventoryTypes"
 import { ViewModes } from "@/types/viewTypes"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 type PurseAction = "deposit" | "withdraw"
+const { canWriteSharedResources } = useCampaignAuthorization()
 type InventorySort =
   | "rarity_desc"
   | "name_asc"
@@ -127,15 +137,6 @@ const purseChanges = reactive<Record<CurrencyDenomination, number>>({
   pp: 0,
 })
 
-function isApiError(response: unknown): response is { success: false; message?: string } {
-  return (
-    typeof response === "object" &&
-    response !== null &&
-    "success" in response &&
-    response.success === false
-  )
-}
-
 function moneyValue(money: { amount: string } | null | undefined): number {
   if (!money) return 0
   const amount = Number(money.amount)
@@ -203,15 +204,15 @@ async function fetchInventory() {
 
   loading.value = true
   pageError.value = ""
-  const response = await GetAPI(inventoryEndpoint())
+  const response = await GetAPI<InventoryDto>(inventoryEndpoint())
 
-  if (isApiError(response)) {
-    pageError.value = response.message ?? "Could not load the inventory."
+  if (isApiFailure(response)) {
+    pageError.value = response.message
     loading.value = false
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   loading.value = false
   await ensureDefaultEntry()
 }
@@ -270,13 +271,19 @@ async function createItem() {
 
   formError.value = ""
   const existingIds = new Set(items.value.map((item) => item.id))
-  const response = await PostAPI(inventoryEndpoint("/items"), itemPayload())
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not add the item."
+  const response = await PostAPI<InventoryDto>(
+    withExpectedRevision(
+      inventoryEndpoint("/items"),
+      inventory.value?.revision ?? 1,
+    ),
+    itemPayload(),
+  )
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   const createdItem = inventory.value.items.find((item) => !existingIds.has(item.id))
   resetItemForm()
   viewMode.value = ViewModes.Details
@@ -289,16 +296,19 @@ async function updateItem() {
   formError.value = ""
   const itemId = selectedEntry.value.id
   const payload: InventoryItemUpdateDto = itemPayload()
-  const response = await PatchAPI(
-    inventoryEndpoint(`/items/${itemId}`),
+  const response = await PatchAPI<InventoryDto>(
+    withExpectedRevision(
+      inventoryEndpoint(`/items/${itemId}`),
+      inventory.value?.revision ?? 1,
+    ),
     payload,
   )
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not update the item."
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   resetItemForm()
   viewMode.value = ViewModes.Details
   await openEntry(itemId, true)
@@ -307,16 +317,19 @@ async function updateItem() {
 async function deleteItem() {
   if (!selectedEntry.value || !selectedCampaignId.value) return
 
-  const response = await DeleteAPI(
-    inventoryEndpoint(`/items/${selectedEntry.value.id}`),
+  const response = await DeleteAPI<InventoryDto>(
+    withExpectedRevision(
+      inventoryEndpoint(`/items/${selectedEntry.value.id}`),
+      inventory.value?.revision ?? 1,
+    ),
   )
   showDeleteConfirmation.value = false
-  if (isApiError(response)) {
-    pageError.value = response.message ?? "Could not remove the item."
+  if (isApiFailure(response)) {
+    pageError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   viewMode.value = ViewModes.Details
   await replaceWithFirstEntry()
 }
@@ -360,17 +373,30 @@ async function updatePurse(action: PurseAction) {
   }
 
   const payload: PurseUpdateDto = { balances }
-  const response = await PatchAPI(inventoryEndpoint("/purse"), payload)
-  if (isApiError(response)) {
-    formError.value = response.message ?? "Could not update the purse."
+  const response = await PatchAPI<InventoryDto>(
+    withExpectedRevision(
+      inventoryEndpoint("/purse"),
+      inventory.value.revision,
+    ),
+    payload,
+  )
+  if (isApiFailure(response)) {
+    formError.value = response.message
     return
   }
 
-  inventory.value = response as InventoryDto
+  inventory.value = response
   showPurseManager.value = false
 }
 
 onBeforeMount(fetchInventory)
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create || showPurseManager.value) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: showPurseManager.value ? "purse" : "inventory_item",
+  resourceId: showPurseManager.value ? inventory.value?.id ?? null : viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: inventory.value?.revision,
+}] : [])
 </script>
 
 <template>
@@ -386,7 +412,11 @@ onBeforeMount(fetchInventory)
             <p>Owned by {{ ownerNames }}</p>
           </div>
 
-          <button type="button" @click="openPurseManager">
+          <button
+            v-if="canWriteSharedResources"
+            type="button"
+            @click="openPurseManager"
+          >
             Manage purse
           </button>
         </div>
@@ -426,7 +456,13 @@ onBeforeMount(fetchInventory)
         <aside class="resource-list-panel inventory-list-panel">
           <div class="resource-list-header">
             <h3>Items</h3>
-            <button type="button" @click="showAddItemForm">Add item</button>
+            <button
+              v-if="canWriteSharedResources"
+              type="button"
+              @click="showAddItemForm"
+            >
+              Add item
+            </button>
           </div>
 
           <div class="inventory-filters">
@@ -502,7 +538,12 @@ onBeforeMount(fetchInventory)
         </aside>
 
         <article class="resource-detail-panel inventory-detail-panel">
-          <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+          <template
+            v-if="
+              canWriteSharedResources
+              && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+            "
+          >
             <header class="resource-detail-header">
               <p class="resource-detail-kicker">
                 {{ viewMode === ViewModes.Create ? "New item" : "Edit item" }}
@@ -601,7 +642,7 @@ onBeforeMount(fetchInventory)
                 <h3>{{ selectedEntry.name }}</h3>
               </div>
 
-              <div class="resource-detail-actions">
+              <div v-if="canWriteSharedResources" class="resource-detail-actions">
                 <button type="button" class="secondary" @click="showEditItemForm">Edit</button>
                 <button type="button" class="danger" @click="showDeleteConfirmation = true">Delete</button>
               </div>
@@ -630,14 +671,24 @@ onBeforeMount(fetchInventory)
               <p class="empty-text">
                 {{ items.length === 0 ? "Add an item to begin cataloguing the party's equipment and valuables." : "Choose an item from the list to see its details." }}
               </p>
-              <button v-if="items.length === 0" type="button" @click="showAddItemForm">Add first item</button>
+              <button
+                v-if="items.length === 0 && canWriteSharedResources"
+                type="button"
+                @click="showAddItemForm"
+              >
+                Add first item
+              </button>
             </div>
           </template>
         </article>
       </div>
     </template>
 
-    <Popup v-if="showPurseManager" title="Adjust purse" @close="showPurseManager = false">
+    <Popup
+      v-if="showPurseManager && canWriteSharedResources"
+      title="Adjust purse"
+      @close="showPurseManager = false"
+    >
       <form class="purse-form" @submit.prevent="updatePurse('deposit')">
         <div class="purse-inputs">
           <label v-for="denomination in displayedCurrencyDenominations" :key="denomination">
@@ -665,7 +716,11 @@ onBeforeMount(fetchInventory)
     </Popup>
 
     <ConfirmationPopup
-      v-if="showDeleteConfirmation && selectedEntry"
+      v-if="
+        showDeleteConfirmation
+        && selectedEntry
+        && canWriteSharedResources
+      "
       title="Remove item?"
       :message="`Remove ${selectedEntry.name} from the inventory?`"
       confirm-text="Remove"

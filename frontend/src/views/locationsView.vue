@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, ref, onBeforeMount } from "vue"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import type {
@@ -9,16 +16,19 @@ import type {
   LocationDto,
 } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import {
   compareByName,
   removeById,
   upsertById,
 } from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const locations = ref<LocationDto[]>([])
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const {
   entryIdFromUrl,
@@ -102,12 +112,18 @@ async function fetchLocations() {
     console.error("No campaign selected. Cannot fetch locations.")
     return
   }
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/locations`)
-  if (response.success === false || !Array.isArray(response)) {
-    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
+  const response = await GetAPI<LocationDto[]>(
+    `campaigns/${selectedCampaignId.value}/locations`,
+  )
+  if (isApiFailure(response)) {
+    console.error("Failed to fetch locations:", response.error)
     return
   }
-  locations.value = response as LocationDto[]
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch locations: Response is not an array")
+    return
+  }
+  locations.value = response
 }
 
 async function createLocation() {
@@ -122,12 +138,15 @@ async function createLocation() {
     tags: parseTags(locationForm.tags),
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/locations`, location)
-  if (response.success === false) {
+  const response = await PostAPI<LocationDto>(
+    `campaigns/${selectedCampaignId.value}/locations`,
+    location,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create location:", response.error)
     return
   }
-  const createdLocation = response as LocationDto
+  const createdLocation = response
 
   locations.value = upsertById(
     locations.value,
@@ -151,12 +170,18 @@ async function updateLocation() {
     tags: parseTags(locationForm.tags),
   }
   const locationId = selectedEntry.value.id
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/locations/${locationId}`, location)
-  if (response.success === false) {
+  const response = await PutAPI<LocationDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/locations/${locationId}`,
+      selectedEntry.value.revision,
+    ),
+    location,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update location:", response.error)
     return
   }
-  const updatedLocation = response as LocationDto
+  const updatedLocation = response
   locations.value = upsertById(
     locations.value,
     updatedLocation,
@@ -169,19 +194,30 @@ async function updateLocation() {
 async function deleteLocation() {
   if (!selectedCampaignId.value || !selectedEntry.value) return
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`)
-  if (response.success === false) {
+  const response = await DeleteAPI<DeleteResponseDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/locations/${selectedEntry.value.id}`,
+      selectedEntry.value.revision,
+    ),
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to delete location:", response.error)
     return
   }
-  const deleted = response as DeleteResponseDto
   locations.value = removeById(
     locations.value,
-    deleted.deletedId,
+    response.deletedId,
   )
   await replaceWithFirstEntry()
 }
 
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "location",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: selectedEntry.value?.revision,
+}] : [])
 </script>
 
 <template>
@@ -192,7 +228,11 @@ async function deleteLocation() {
         <p>Track cities, districts, buildings, rooms, wilderness sites, and other campaign places.</p>
       </div>
 
-      <button type="button" @click="showAddLocationForm">
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddLocationForm"
+      >
         Add location
       </button>
     </header>
@@ -239,7 +279,12 @@ async function deleteLocation() {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+        <template
+          v-if="
+            canWriteSharedResources
+            && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ viewMode === ViewModes.Create ? "New location" : "Edit location" }}
@@ -326,7 +371,7 @@ async function deleteLocation() {
               <h3>{{ selectedEntry.name }}</h3>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteSharedResources" class="resource-detail-actions">
               <button
                 type="button"
                 class="secondary"

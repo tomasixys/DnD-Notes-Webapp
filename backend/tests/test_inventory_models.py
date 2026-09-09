@@ -421,7 +421,14 @@ class InventoryMigrationTests(unittest.TestCase):
 
             self.assertEqual(
                 inventory_columns,
-                {"id", "campaign_id", "name", "description"},
+                {
+                    "id",
+                    "campaign_id",
+                    "name",
+                    "description",
+                    "revision",
+                    "updated_at",
+                },
             )
             self.assertTrue(
                 {

@@ -1,6 +1,13 @@
 <script setup lang="ts">
+import { useResourceEditor } from "@/composables/useResourceEditor"
 import { reactive, ref, onBeforeMount } from "vue"
-import { GetAPI, PostAPI, PutAPI, DeleteAPI } from "@/apihelpers";
+import {
+  DeleteAPI,
+  GetAPI,
+  isApiFailure,
+  PostAPI,
+  PutAPI,
+} from "@/apihelpers";
 import { useCampaignStore } from "@/stores/campaignStore";
 import { ViewModes } from "@/types/viewTypes"
 import type {
@@ -9,16 +16,19 @@ import type {
   FactionDto,
 } from "@/types/DataTransferObjects"
 import { useRouteEntrySelection } from "@/composables/useRouteEntrySelection"
+import { useCampaignAuthorization } from "@/composables/useCampaignAuthorization"
 import {
   compareByName,
   removeById,
   upsertById,
 } from "@/utils/resourceCollections"
 import ResourceTag from "@/components/ResourceTag.vue"
+import { withExpectedRevision } from "@/utils/concurrency"
 
 
 const viewMode = ref<ViewModes>(ViewModes.Details)
 const factions = ref<FactionDto[]>([])
+const { canWriteSharedResources } = useCampaignAuthorization()
 
 const {
   entryIdFromUrl,
@@ -108,12 +118,18 @@ async function fetchFactions() {
     return
   }
 
-  const response = await GetAPI(`campaigns/${selectedCampaignId.value}/factions`)
-  if (response.success === false || !Array.isArray(response)) {
-    console.error("Failed to fetch locations:", response.error ?? "Response is not an array")
+  const response = await GetAPI<FactionDto[]>(
+    `campaigns/${selectedCampaignId.value}/factions`,
+  )
+  if (isApiFailure(response)) {
+    console.error("Failed to fetch factions:", response.error)
     return
   }
-  factions.value = response as FactionDto[]
+  if (!Array.isArray(response)) {
+    console.error("Failed to fetch factions: Response is not an array")
+    return
+  }
+  factions.value = response
 }
 
 
@@ -131,12 +147,15 @@ async function createFaction() {
     tags: parseTags(factionForm.tags),
   }
 
-  const response = await PostAPI(`campaigns/${selectedCampaignId.value}/factions`, faction)
-  if (response.success === false) {
+  const response = await PostAPI<FactionDto>(
+    `campaigns/${selectedCampaignId.value}/factions`,
+    faction,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to create faction:", response.error)
     return
   }
-  const createdFaction = response as FactionDto
+  const createdFaction = response
 
   factions.value = upsertById(
     factions.value,
@@ -163,13 +182,19 @@ async function updateFaction() {
     tags: parseTags(factionForm.tags),
   }
 
-  const response = await PutAPI(`campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`, updatedFaction)
-  if (response.success === false) {
+  const response = await PutAPI<FactionDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/factions/${selectedEntry.value.id}`,
+      selectedEntry.value.revision,
+    ),
+    updatedFaction,
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to update faction:", response.error)
     return
   }
 
-  const savedFaction = response as FactionDto
+  const savedFaction = response
   factions.value = upsertById(
     factions.value,
     savedFaction,
@@ -186,18 +211,31 @@ async function deleteFaction(factionId: number) {
     return
   }
 
-  const response = await DeleteAPI(`campaigns/${selectedCampaignId.value}/factions/${factionId}`)
-  if (response.success === false) {
+  const faction = factions.value.find((entry) => entry.id === factionId)
+  if (!faction) return
+  const response = await DeleteAPI<DeleteResponseDto>(
+    withExpectedRevision(
+      `campaigns/${selectedCampaignId.value}/factions/${factionId}`,
+      faction.revision,
+    ),
+  )
+  if (isApiFailure(response)) {
     console.error("Failed to delete faction:", response.error)
     return
   }
 
-  const deleted = response as DeleteResponseDto
-  factions.value = removeById(factions.value, deleted.deletedId)
+  factions.value = removeById(factions.value, response.deletedId)
   await replaceWithFirstEntry()
 }
 
 
+
+useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewModes.Edit || viewMode.value === ViewModes.Create) ? [{
+  campaignId: selectedCampaignId.value,
+  resourceType: "faction",
+  resourceId: viewMode.value === ViewModes.Edit ? selectedEntry.value?.id ?? null : null,
+  revision: selectedEntry.value?.revision,
+}] : [])
 </script>
 
 <template>
@@ -208,7 +246,11 @@ async function deleteFaction(factionId: number) {
         <p>Track organizations, noble houses, churches, guilds, cults, gangs, and other power groups.</p>
       </div>
 
-      <button type="button" @click="showAddFactionForm">
+      <button
+        v-if="canWriteSharedResources"
+        type="button"
+        @click="showAddFactionForm"
+      >
         Add faction
       </button>
     </header>
@@ -255,7 +297,12 @@ async function deleteFaction(factionId: number) {
       </aside>
 
       <article class="resource-detail-panel">
-        <template v-if="viewMode === ViewModes.Create || viewMode === ViewModes.Edit">
+        <template
+          v-if="
+            canWriteSharedResources
+            && (viewMode === ViewModes.Create || viewMode === ViewModes.Edit)
+          "
+        >
           <header class="resource-detail-header">
             <p class="resource-detail-kicker">
               {{ viewMode === ViewModes.Create ? "New faction" : "Edit faction" }}
@@ -342,7 +389,7 @@ async function deleteFaction(factionId: number) {
               <h3>{{ selectedEntry.name }}</h3>
             </div>
 
-            <div class="resource-detail-actions">
+            <div v-if="canWriteSharedResources" class="resource-detail-actions">
               <button
                 type="button"
                 class="secondary"

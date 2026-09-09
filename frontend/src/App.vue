@@ -3,16 +3,43 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
 import { useCampaignStore } from "@/stores/campaignStore"
+import { useAuthStore } from "@/stores/authStore"
+import { useConcurrencyStore } from "@/stores/concurrencyStore"
+import { GetAPI, isApiFailure } from "@/apihelpers"
+import { useSearchStore } from "@/stores/searchStore"
 import bannerImageDefault from "./assets/banner.png"
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
+const concurrency = useConcurrencyStore()
+const draftCopyStatus = ref("")
+const accountMenuOpen = ref(false)
+const accountMenuElement = ref(null)
+const accountMenuButtonElement = ref(null)
+
+const accountName = computed(() => (
+  auth.user.value?.displayName?.trim()
+  || auth.user.value?.username?.trim()
+  || "User"
+))
+const accountInitial = computed(() => (
+  Array.from(accountName.value)[0]?.toLocaleUpperCase() ?? "?"
+))
+const canViewInvitations = computed(() => (
+  auth.authenticationRequired.value
+))
+const canAdministerServer = computed(() => (
+  auth.authenticationRequired.value
+  && auth.user.value?.systemRole === "admin"
+))
 
 const {
   selectedCampaignId,
   selectedCampaign,
   selectedCampaignImageUrl,
   selectedCampaignBannerUrl,
+  setCampaigns,
 } = useCampaignStore()
 
 const mainLinks = computed(() => [
@@ -37,6 +64,13 @@ const submenuLinks = computed(() => {
 
   return children
     .filter((child) => child.name && child.meta?.showInSubmenu !== false)
+    .filter((child) => (
+      !child.meta?.hostedOnly || auth.authenticationRequired.value
+    ))
+    .filter((child) => (
+      !child.meta?.capability
+      || selectedCampaign.value?.capabilities.includes(child.meta.capability)
+    ))
     .map((child) => ({
       name: child.name,
       label: child.meta?.label ?? child.name,
@@ -55,6 +89,8 @@ const submenuLinks = computed(() => {
 })
 
 const hasSubmenu = computed(() => submenuLinks.value.length > 0)
+const isAuthPage = computed(() => route.meta.authPage === true)
+const isAccountPage = computed(() => route.meta.accountPage === true)
 
 const activeMainLinkIndex = computed(() => {
   const routeRoot = `/${route.path.split("/").filter(Boolean)[0] ?? ""}`
@@ -111,14 +147,142 @@ watch(
   { flush: "post" },
 )
 
+async function pollCampaignChanges() {
+  if (
+    !auth.isAuthenticated.value
+    || selectedCampaignId.value === null
+    || isAuthPage.value
+    || isAccountPage.value
+  ) {
+    return
+  }
+  const shouldRefresh = await concurrency.pollCampaignChanges(selectedCampaignId.value)
+  if (shouldRefresh) await refreshCurrentView(true)
+}
+
+async function refreshCurrentView(quiet = false) {
+  const campaignId = selectedCampaignId.value
+  if (quiet === true && concurrency.hasActiveEditors.value) return
+  const response = await GetAPI("campaigns")
+  if (quiet === true && (concurrency.hasActiveEditors.value || selectedCampaignId.value !== campaignId)) return
+  if (!isApiFailure(response) && Array.isArray(response)) {
+    setCampaigns(response)
+  }
+  useSearchStore().clearSearchCache()
+  concurrency.refreshCurrentView(campaignId)
+}
+
+async function copyVisibleDraft() {
+  const controls = document.querySelectorAll(
+    "#app-content input:not([type='password']):not([type='file']), "
+    + "#app-content textarea, #app-content select",
+  )
+  const draft = Array.from(controls)
+    .map((control) => {
+      const label = (
+        control.getAttribute("aria-label")
+        || control.getAttribute("name")
+        || control.id
+        || control.closest("label")?.textContent?.trim()
+        || "Field"
+      )
+      const value = control.type === "checkbox"
+        ? (control.checked ? "yes" : "no")
+        : control.value
+      return `${label}: ${value}`
+    })
+    .filter((line) => line.split(": ", 2)[1]?.trim())
+    .join("\n\n")
+  if (!draft) {
+    draftCopyStatus.value = "No open form values found."
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(draft)
+    draftCopyStatus.value = "Draft copied."
+  } catch {
+    draftCopyStatus.value = "Copy was blocked by the browser."
+  }
+}
+
+function pollOnFocus() {
+  if (document.visibilityState === "visible") {
+    void pollCampaignChanges()
+  }
+}
+
+function closeAccountMenu({ restoreFocus = false } = {}) {
+  if (!accountMenuOpen.value) {
+    return
+  }
+
+  accountMenuOpen.value = false
+  if (restoreFocus) {
+    void nextTick(() => accountMenuButtonElement.value?.focus())
+  }
+}
+
+function toggleAccountMenu() {
+  accountMenuOpen.value = !accountMenuOpen.value
+}
+
+function closeAccountMenuOnOutsideClick(event) {
+  if (
+    accountMenuOpen.value
+    && event.target instanceof Node
+    && !accountMenuElement.value?.contains(event.target)
+  ) {
+    closeAccountMenu()
+  }
+}
+
+function closeAccountMenuOnEscape(event) {
+  if (event.key === "Escape" && accountMenuOpen.value) {
+    closeAccountMenu({ restoreFocus: true })
+  }
+}
+
+let changePollTimer = null
+
 onMounted(() => {
   window.addEventListener("resize", scheduleSubmenuPositionUpdate)
+  window.addEventListener("focus", pollOnFocus)
+  window.addEventListener("online", pollOnFocus)
+  document.addEventListener("visibilitychange", pollOnFocus)
+  document.addEventListener("pointerdown", closeAccountMenuOnOutsideClick)
+  document.addEventListener("keydown", closeAccountMenuOnEscape)
+  changePollTimer = window.setInterval(
+    () => void pollCampaignChanges(),
+    15_000,
+  )
   scheduleSubmenuPositionUpdate()
+  void pollCampaignChanges()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", scheduleSubmenuPositionUpdate)
+  window.removeEventListener("focus", pollOnFocus)
+  window.removeEventListener("online", pollOnFocus)
+  document.removeEventListener("visibilitychange", pollOnFocus)
+  document.removeEventListener("pointerdown", closeAccountMenuOnOutsideClick)
+  document.removeEventListener("keydown", closeAccountMenuOnEscape)
+  if (changePollTimer !== null) {
+    window.clearInterval(changePollTimer)
+  }
 })
+
+watch(
+  () => [selectedCampaignId.value, auth.isAuthenticated.value],
+  () => {
+    concurrency.dismissNotice()
+    void pollCampaignChanges()
+  },
+)
+
+watch(
+  () => route.fullPath,
+  () => closeAccountMenu(),
+)
 
 const searchPhrase = ref("")
 
@@ -132,6 +296,13 @@ const canSearch = computed(() => {
 watch(
   () => [route.name, route.query.q],
   ([routeName, queryValue]) => {
+    if (
+      route.meta.authPage === true
+      || route.meta.accountPage === true
+      || !auth.isAuthenticated.value
+    ) {
+      return
+    }
 
     if (selectedCampaignId.value === null && routeName !== "Dashboard") {
       searchPhrase.value = ""
@@ -178,10 +349,18 @@ async function submitSearch() {
   })
 }
 
+async function logout() {
+  closeAccountMenu()
+  await auth.logout()
+  await router.replace({ name: "Login" })
+}
+
 </script>
 
 <template>
-  <div id="app-shell">
+  <RouterView v-if="isAuthPage" />
+
+  <div v-else id="app-shell">
     <header id="app-header">
 
       <div>
@@ -238,6 +417,68 @@ async function submitSearch() {
             alt=""
             aria-hidden="true"
           />
+
+          <div ref="accountMenuElement" class="account-menu">
+            <button
+              ref="accountMenuButtonElement"
+              type="button"
+              class="account-avatar"
+              :class="{ 'account-avatar-active': isAccountPage }"
+              aria-haspopup="menu"
+              :aria-expanded="accountMenuOpen"
+              aria-controls="account-menu-popover"
+              :aria-label="`Open account menu for ${accountName}`"
+              :title="accountName"
+              @click="toggleAccountMenu"
+            >
+              <span aria-hidden="true">{{ accountInitial }}</span>
+            </button>
+
+            <div
+              v-if="accountMenuOpen"
+              id="account-menu-popover"
+              class="account-menu-popover"
+              role="menu"
+              aria-label="Account menu"
+            >
+              <div class="account-menu-identity">
+                <strong>{{ accountName }}</strong>
+                <span>
+                  {{ auth.user.value?.username }}
+                  <template v-if="auth.user.value?.systemRole === 'admin'">
+                    &middot; administrator
+                  </template>
+                </span>
+              </div>
+
+              <RouterLink role="menuitem" to="/profile">
+                Account
+              </RouterLink>
+              <RouterLink
+                v-if="canViewInvitations"
+                role="menuitem"
+                to="/invitations"
+              >
+                Invitations
+              </RouterLink>
+              <RouterLink
+                v-if="canAdministerServer"
+                role="menuitem"
+                to="/admin"
+              >
+                Administration
+              </RouterLink>
+              <button
+                v-if="auth.authenticationRequired.value"
+                type="button"
+                class="account-menu-signout"
+                role="menuitem"
+                @click="logout"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
 
@@ -258,9 +499,60 @@ async function submitSearch() {
       </div>
     </header>
 
+    <aside
+      v-if="concurrency.hasNotice.value && !isAccountPage"
+      class="concurrency-notice"
+      aria-live="polite"
+    >
+      <div>
+        <strong>
+          {{ concurrency.conflict.value
+            ? "Your changes were not saved."
+            : concurrency.accessChanged.value
+              ? "Your campaign access changed."
+              : "The resource you are editing changed in another client." }}
+        </strong>
+        <p v-if="concurrency.conflict.value">
+          Copy any draft text you want to keep, then refresh this view and
+          reapply it to the current version.
+        </p>
+        <p v-else-if="concurrency.accessChanged.value">
+          Refresh to update your campaign list and current permissions. Any
+          open form values remain untouched until you choose to refresh.
+        </p>
+        <p v-else>
+          Your draft is preserved. Copy it before refreshing to load the
+          updated resource, then reapply your changes.
+        </p>
+      </div>
+      <div class="concurrency-notice-actions">
+        <button
+          v-if="concurrency.conflict.value || concurrency.remoteChanges.value.length"
+          type="button"
+          class="secondary"
+          @click="copyVisibleDraft"
+        >
+          Copy draft
+        </button>
+        <button type="button" @click="refreshCurrentView">
+          Refresh view
+        </button>
+        <button
+          type="button"
+          class="secondary"
+          @click="concurrency.dismissNotice"
+        >
+          Keep working
+        </button>
+      </div>
+      <span v-if="draftCopyStatus" class="sr-only" aria-live="polite">
+        {{ draftCopyStatus }}
+      </span>
+    </aside>
+
     <div id="main">
       <main id="app-content">
-        <RouterView />
+        <RouterView :key="concurrency.viewRevision.value" />
       </main>
     </div>
   </div>

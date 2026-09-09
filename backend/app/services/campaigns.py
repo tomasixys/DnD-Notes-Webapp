@@ -2,8 +2,15 @@ from fastapi import UploadFile
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.auth.enums import SecurityEventType
+from app.auth.events import SecurityEventService
+from app.auth.models import User
+from app.authorization.capabilities import ROLE_CAPABILITIES
+from app.authorization.context import CampaignContext
+from app.authorization.enums import CampaignCapability, CampaignRole
+from app.authorization.models import CampaignMembership
 from app.file_storage import (
-    build_upload_url,
+    build_campaign_asset_url,
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
@@ -12,78 +19,121 @@ from app.models.database import (
     Campaign,
     CharacterProfile,
     Person,
-    SessionNote,
+    Episode,
 )
-from app.services.campaign_context import CampaignContext
 from app.services.inventory import InventoryService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class CampaignService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user: User):
         self.db = db
+        self.user = user
 
-    @staticmethod
     def to_read(
+        self,
         campaign: Campaign,
+        membership: CampaignMembership,
         session_count: int = 0,
     ) -> CampaignRead:
         image_url = (
-            build_upload_url(campaign.image_path)
+            build_campaign_asset_url(campaign.id, "image")
             if campaign.image_path
             else ""
         )
         banner_image_url = (
-            build_upload_url(campaign.banner_image_path)
+            build_campaign_asset_url(campaign.id, "banner")
             if campaign.banner_image_path
             else image_url
         )
         return CampaignRead(
+            revision=campaign.revision,
+            updated_at=campaign.updated_at,
             id=campaign.id,
             name=campaign.name,
-            player_character=campaign.player_character,
+            player_character=self.player_character_name(campaign, membership),
             description=campaign.description,
             session_count=session_count,
             image_url=image_url,
             banner_image_url=banner_image_url,
             active_character_person_id=(
-                campaign.active_character_person_id
+                membership.active_character_person_id
+            ),
+            assigned_character_person_id=(
+                membership.assigned_character_person_id
+            ),
+            membership_role=membership.role,
+            capabilities=sorted(
+                ROLE_CAPABILITIES[membership.role],
+                key=lambda capability: capability.value,
             ),
         )
 
-    def get(self, campaign_id: int) -> Campaign:
+    def player_character_name(
+        self, campaign: Campaign, membership: CampaignMembership,
+    ) -> str:
+        person_id = (
+            membership.active_character_person_id
+            or membership.assigned_character_person_id
+        )
+        if person_id is not None:
+            person = self.db.exec(select(Person).where(
+                Person.id == person_id, Person.campaign_id == campaign.id,
+            )).first()
+            if person is not None:
+                return person.name
+        return campaign.player_character if not self.user.can_login else ""
+
+    def get_context(self, campaign_id: int) -> CampaignContext:
         return CampaignContext.resolve(
             self.db,
             campaign_id,
-        ).campaign
+            self.user,
+        )
 
-    def count_sessions(self, campaign_id: int) -> int:
+    def count_episodes(self, campaign_id: int) -> int:
         return self.db.exec(
-            select(func.count(SessionNote.id)).where(
-                SessionNote.campaign_id == campaign_id
+            select(func.count(Episode.id)).where(
+                Episode.campaign_id == campaign_id
             )
         ).one()
 
     def list_reads(self) -> list[CampaignRead]:
         results = self.db.exec(
-            select(Campaign, func.count(SessionNote.id))
+            select(
+                Campaign,
+                CampaignMembership,
+                func.count(Episode.id),
+            )
             .join(
-                SessionNote,
-                SessionNote.campaign_id == Campaign.id,
+                CampaignMembership,
+                CampaignMembership.campaign_id == Campaign.id,
+            )
+            .join(
+                Episode,
+                Episode.campaign_id == Campaign.id,
                 isouter=True,
             )
-            .group_by(Campaign.id)
+            .where(
+                CampaignMembership.user_id == self.user.id,
+                CampaignMembership.is_custodial.is_(False),
+                Campaign.orphaned.is_(False),
+            )
+            .group_by(Campaign.id, CampaignMembership.id)
             .order_by(Campaign.id)
         ).all()
         return [
-            self.to_read(campaign, session_count)
-            for campaign, session_count in results
+            self.to_read(campaign, membership, session_count)
+            for campaign, membership, session_count in results
         ]
 
     def get_read(self, campaign_id: int) -> CampaignRead:
-        campaign = self.get(campaign_id)
+        context = self.get_context(campaign_id)
         return self.to_read(
-            campaign,
-            self.count_sessions(campaign_id),
+            context.campaign,
+            context.membership,
+            self.count_episodes(campaign_id),
         )
 
     def stage_create(
@@ -94,7 +144,7 @@ class CampaignService:
         description: str = "",
         image_path: str = "",
         banner_image_path: str = "",
-    ) -> Campaign:
+    ) -> CampaignContext:
         """Create a campaign aggregate in the caller-owned transaction."""
         campaign = Campaign(
             name=name,
@@ -105,9 +155,21 @@ class CampaignService:
         )
         self.db.add(campaign)
         self.db.flush()
-        context = CampaignContext(self.db, campaign)
+        membership = CampaignMembership(
+            campaign_id=campaign.id,
+            user_id=self.user.id,
+            role=CampaignRole.OWNER,
+        )
+        self.db.add(membership)
+        self.db.flush()
+        context = CampaignContext(
+            self.db,
+            campaign,
+            self.user,
+            membership,
+        )
         InventoryService(context).stage_ensure_default()
-        return campaign
+        return context
 
     def create(
         self,
@@ -120,11 +182,12 @@ class CampaignService:
     ) -> CampaignRead:
         saved_paths: list[str] = []
         try:
-            campaign = self.stage_create(
+            context = self.stage_create(
                 name=name,
                 player_character=player_character,
                 description=description,
             )
+            campaign = context.campaign
             if image is not None and image.filename:
                 campaign.image_path = save_image_from_uploadfile(
                     campaign.id,
@@ -141,7 +204,7 @@ class CampaignService:
             self.db.add(campaign)
             self.db.commit()
             self.db.refresh(campaign)
-            return self.to_read(campaign)
+            return self.to_read(campaign, context.membership)
         except Exception:
             self.db.rollback()
             for path in saved_paths:
@@ -150,15 +213,17 @@ class CampaignService:
 
     def update(
         self,
-        campaign_id: int,
+        context: CampaignContext,
         *,
         name: str,
         player_character: str = "",
         description: str = "",
         image: UploadFile | None = None,
         banner: UploadFile | None = None,
+        expected_revision: int | None = None,
     ) -> CampaignRead:
-        campaign = self.get(campaign_id)
+        context.require(CampaignCapability.CAMPAIGN_UPDATE)
+        campaign = context.campaign
         old_paths = {
             path
             for path in (
@@ -170,6 +235,12 @@ class CampaignService:
         saved_paths: list[str] = []
 
         try:
+            claim_revision(
+                self.db,
+                campaign,
+                expected_revision or campaign.revision,
+                resource_type="campaign",
+            )
             campaign.name = name
             campaign.player_character = player_character
             campaign.description = description
@@ -188,6 +259,12 @@ class CampaignService:
                 saved_paths.append(campaign.banner_image_path)
 
             self.db.add(campaign)
+            CampaignChangeService(context).stage_record(
+                "campaign",
+                campaign.id,
+                action="updated",
+                revision=campaign.revision,
+            )
             self.db.commit()
             self.db.refresh(campaign)
         except Exception:
@@ -209,11 +286,18 @@ class CampaignService:
 
         return self.to_read(
             campaign,
-            self.count_sessions(campaign_id),
+            context.membership,
+            self.count_episodes(context.campaign_id),
         )
 
-    def delete(self, campaign_id: int) -> DeleteResponse:
-        campaign = self.get(campaign_id)
+    def delete(
+        self,
+        context: CampaignContext,
+        *,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
+        context.require(CampaignCapability.CAMPAIGN_DELETE)
+        campaign = context.campaign
         uploaded_paths = {
             path
             for path in (
@@ -230,12 +314,26 @@ class CampaignService:
                     Person,
                     Person.id == CharacterProfile.person_id,
                 )
-                .where(Person.campaign_id == campaign_id)
+                .where(Person.campaign_id == context.campaign_id)
             ).all()
             if profile.image_path
         )
 
         try:
+            claim_revision(
+                self.db,
+                campaign,
+                expected_revision or campaign.revision,
+                resource_type="campaign",
+            )
+            SecurityEventService(self.db).record(
+                SecurityEventType.MEMBERSHIP_CHANGED,
+                user_id=context.user.id,
+                actor_user_id=context.user.id,
+                campaign_id=context.campaign_id,
+                reason="action=campaign_deleted",
+                used_elevation=context.elevated,
+            )
             self.db.delete(campaign)
             self.db.commit()
         except Exception:
@@ -245,4 +343,4 @@ class CampaignService:
         for path in uploaded_paths:
             delete_uploaded_file(path)
 
-        return DeleteResponse(deleted_id=campaign_id)
+        return DeleteResponse(deleted_id=context.campaign_id)

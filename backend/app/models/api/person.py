@@ -1,6 +1,7 @@
 from sqlmodel import Field, SQLModel
 
 from .tag import ResourceTagRead
+from .revision import RevisionRead
 
 
 class PersonBase(SQLModel):
@@ -15,7 +16,7 @@ class PersonData(PersonBase):
     tags: list[str] = Field(default_factory=list)
 
 
-class PersonRead(PersonBase):
+class PersonRead(PersonBase, RevisionRead):
     id: int
     campaign_id: int
     faction: ResourceTagRead | None = None

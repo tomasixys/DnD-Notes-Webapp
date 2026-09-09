@@ -16,7 +16,8 @@ from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.characters import CharacterService
 
 
@@ -44,7 +45,7 @@ class CharacterNoteServiceTests(unittest.TestCase):
         db.add(campaign)
         db.commit()
         db.refresh(campaign)
-        context = CampaignContext(db, campaign)
+        context = campaign_context(db, campaign)
         characters = CharacterService(context)
         character = characters.create(
             CharacterCreate(person=PersonData(name="Nalia")),

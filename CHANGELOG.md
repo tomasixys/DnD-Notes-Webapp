@@ -8,8 +8,97 @@ and this changelog follows the structure described by
 
 ## [Unreleased]
 
+### Hosted live-testing fixes
+
+- Aligned invitation and password-reset copy buttons with their link inputs.
+- Added audited administrator promotion/removal for other active accounts,
+  with session revocation after role changes.
+- Added campaign-invitation inbox acceptance and decline actions without token entry.
+- Made hosted campaign character summaries specific to the requesting user.
+- Let server invitees choose their username, display name, and password.
+- Allowed members to export visibility-filtered campaign backups.
+- Limited remote-change notices to resources being edited, preserved drafts,
+  and refreshed browsing views quietly.
+- Restored campaign authorization state on login and page reload so members
+  can create a replacement after their assigned character or its People entry
+  is deleted.
+- Released usernames when accounts are deleted while retaining an internal
+  user tombstone for historical ownership and audit references.
+- Added a backup-first hosted update script that refreshes pinned images,
+  rebuilds the application, restarts the stack, and runs its health check.
+- Updated audited frontend build dependencies to patched versions.
+- Removed the extra campaign-member request while browsing character notes or
+  backstory, avoided reloading the active character during the default-entry
+  redirect, and added a stable loading state while switching sections.
+
 ### Added
 
+- Added strict TOML launch configuration with local and hosted deployment
+  validation, safe discovery, and documented example files.
+- Added a persisted installation identity and immutable deployment mode;
+  administrator credentials remain application-managed rather than config.
+- Added embedded local/hosted build profiles, build-time config validation,
+  mode-specific artifact names, and packaged executable-specific config files.
+- Added explicit Windows/Linux build-target detection, platform-specific build
+  environments and artifact names, and clear rejection of cross-compilation.
+- Added the initial local-account persistence model for users, password
+  credentials, revocable server sessions, and activation/reset tokens.
+- Added Argon2id password hashing with automatic parameter upgrades, a
+  15-character single-factor password policy, and lock-protected offline
+  first-administrator and password-reset commands.
+- Added local login/session foundations with generic credential failures,
+  bounded account lockout, digest-backed revocable session and CSRF tokens,
+  idle/absolute expiry, and secure host-only cookie responses.
+- Enabled hosted startup with mounted authentication endpoints, complete
+  session/CSRF protection for hosted API and upload paths, and a non-login
+  internal identity for local mode.
+- Added administrator-issued activation and password-reset tokens, invite-only
+  account creation, account tombstoning, keyed source login throttling, and
+  persistent security events.
+- Added typed SQLite/PostgreSQL database URL and pool settings with
+  environment-referenced hosted credentials.
+- Added an Alembic current-schema baseline for SQLite and PostgreSQL, a legacy
+  SQLite adoption bridge, and disposable-schema PostgreSQL CI coverage.
+- Added trusted host/proxy, secure cookie, runtime secret, filesystem, and
+  object-storage configuration validation.
+- Allowed authenticated network deployments to use an explicit durable server
+  filesystem path by default instead of requiring remote object storage.
+- Added an exclusive instance lock and a separate offline inspection and
+  filesystem campaign-export command.
+- Added campaign memberships with owner, member, and viewer roles, centralized
+  named capabilities, membership-filtered campaign access, and per-member
+  character assignment and active-character state.
+- Added last-owner protection, atomic account-deletion transfer to a non-login
+  system custodian, orphan recovery, and explicitly reasoned and audited system
+  administrator elevation.
+- Added startup route auditing so application API routes cannot be registered
+  without an authentication or campaign-authorization classification.
+- Added an authenticated frontend shell with session bootstrap, hosted login
+  and account flows, CSRF-aware API requests, protected routes, centralized
+  authorization failures, and user-scoped campaign browser state.
+- Added capability-aware campaign, shared-resource, and assigned-character
+  controls for owner, member, and viewer memberships.
+- Added authorized campaign-image and character-portrait delivery without a
+  public uploads mount, using existing database ownership relationships.
+- Added byte-decoded image validation with MIME, extension, filename, size,
+  pixel, and animation limits, including validation of restored backup images.
+- Changed campaign backup export to a direct authorized download whose
+  temporary archive is deleted after transfer and expired after interruption.
+- Added backup upload, archive-member, expansion, link, duplicate-path, and
+  manifest limits.
+- Added digest-backed campaign invitations for existing active or
+  activation-pending accounts, with replacement, revocation, expiry,
+  exact-account redemption, source throttling, and atomic membership creation.
+- Added campaign membership and pending-invitation screens, administrator
+  account-invitation controls, role changes, member removal and leaving, and
+  explicit ownership transfer.
+- Added action-specific security audit records for campaign invitations,
+  membership role/removal changes, ownership transfer, and campaign deletion.
+- Added campaign, restricted, and private visibility for character notes and
+  backstory, with distinct creator/access-owner metadata and normalized
+  read/write grants for campaign users.
+- Added centralized resource policy enforcement across direct note access,
+  lists, search, tag references, result counts, and frontend controls.
 - Added relationship metadata to tag assignments in preparation for moving
   dedicated entry relationships into the tag system.
 - Marked every tag entered through a Tags field as `associated_with`, while
@@ -24,9 +113,38 @@ and this changelog follows the structure described by
   categories, rarities, values, and campaign wealth totals.
 - Added a purse with copper, silver, electrum, gold, and platinum balances.
 - Added inventory ownership metadata tied to campaign characters.
+- Added optimistic revision tokens and atomic stale-write checks for mutable
+  campaign aggregates, with structured `409 Conflict` responses.
+- Added privacy-aware, per-member campaign change cursors and per-browser
+  source markers for lightweight multi-client polling.
+- Added a conflict and remote-change banner that preserves open forms, can copy
+  visible draft fields, refreshes the current view on demand, and checks for
+  changes on a timer, focus, visibility restoration, and reconnect.
+- Added a reproducible private-server stack with a hosted application image,
+  PostgreSQL, protected bind-mounted files, and Caddy-managed LAN HTTPS.
+- Added unauthenticated liveness/readiness endpoints, internal Prometheus
+  metrics, JSON request logs, correlation IDs, and container health checks.
+- Added an audited hosted administration console for account status, password
+  resets, session revocation, account deletion, and orphaned-campaign recovery.
+- Added configurable per-client limits for searches, file uploads, campaign
+  imports, and backup exports, plus the existing authentication and invitation
+  throttles.
+- Added coordinated database/filesystem backups, a disposable restore drill,
+  an offline global-session-revocation command, hosted image validation, and
+  dependency and secret scanning in CI.
 
 ### Changed
 
+- Changed downloadable campaign exports to exclude private or restricted
+  character entries the requesting owner cannot read; imported private data is
+  re-owned by the importer without restoring source-server user identifiers.
+- Kept offline maintenance exports explicitly elevated and complete rather than
+  applying the ordinary user-download privacy filter.
+- Isolated identity models, password handling, login, browser sessions,
+  authentication dependencies, and account administration in a dedicated
+  backend authentication domain.
+- Renamed the played-game backend domain from session notes to episodes while
+  preserving existing database, HTTP, tag, roll, and backup contracts.
 - Split tag parsing, reference resolution, assignments, and read queries into
   focused modules behind a small compatibility facade.
 - Consolidated the unreleased database changes into one version 1 to version 2
@@ -49,6 +167,9 @@ and this changelog follows the structure described by
 - Standardized mutation and deletion responses with explicit API models.
 - Updated frontend mutation handling to apply authoritative response data
   locally instead of immediately fetching the same resource again.
+- Updated campaign-content mutations to send the revision that was originally
+  loaded, preventing a later save or delete from silently winning over newer
+  data.
 
 ### Fixed
 
@@ -63,6 +184,8 @@ and this changelog follows the structure described by
 - Made invalid backup imports return a consistent client error without leaving
   a partially created campaign.
 - Corrected location deletion to send the selected location ID.
+- Prevented one browser tab from reporting its own successful mutations as
+  remote changes while still notifying other tabs and devices.
 
 ## [0.2.0] - 2026-07-18
 

@@ -124,7 +124,8 @@ dist
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
-.vscode
+.vscode/*
+!.vscode/settings.json
 
 # pnpm
 .pnpm-store
@@ -152,6 +153,7 @@ __pycache__/
 
 # app compiler dirs
 .build-venv/
+.build-venv-*/
 build/
 dist/
 *.spec
@@ -159,3 +161,8 @@ dist/
 # developer specific code env
 pyrefly.toml
 pyrightconfig.json
+
+# Private-server deployment state
+deploy/hosted/data/
+deploy/hosted/backups/
+deploy/hosted/*.crt

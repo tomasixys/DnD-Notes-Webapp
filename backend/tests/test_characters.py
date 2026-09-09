@@ -1,5 +1,4 @@
 import asyncio
-import io
 import json
 import sqlite3
 import tempfile
@@ -20,7 +19,7 @@ from app.models.api import (
     CharacterNoteData,
     PersonData,
     SearchQueryDto,
-    SessionNoteData,
+    EpisodeData,
 )
 from app.models.database import (
     BackstoryNote,
@@ -33,7 +32,7 @@ from app.models.database import (
     InventoryItem,
     NoteBase,
     Person,
-    SessionNote,
+    Episode,
     TagAssignment,
 )
 from app.models.enums import (
@@ -54,13 +53,14 @@ from app.routers.characters import (
     get_character_notes,
 )
 from app.routers.people import delete_person
-from app.routers.sessions import create_session_note
+from app.routers.episodes import create_episode
 from app.routers.search import search_campaign
 from app.routers.campaign_backups import (
     export_campaign_backup,
     import_campaign_backup,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from tests.authorization_helpers import campaign_context, create_user
 from app.services.people import PersonService
 
 
@@ -89,7 +89,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
 
             first = create_character(
                 CharacterCreate(
@@ -106,9 +106,8 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 context,
             )
 
-            db.refresh(campaign)
             self.assertEqual(
-                campaign.active_character_person_id,
+                context.active_character_person_id,
                 second.person.id,
             )
             former = get_character(first.person.id, context)
@@ -127,8 +126,8 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             self.assertTrue(former_person.character_profile_available)
             self.assertFalse(former_person.is_active_character)
 
-    def test_all_note_models_share_note_base_and_sessions_keep_api_shape(self):
-        self.assertTrue(issubclass(SessionNote, NoteBase))
+    def test_all_note_models_share_note_base_and_episodes_keep_api_shape(self):
+        self.assertTrue(issubclass(Episode, NoteBase))
         self.assertTrue(issubclass(CharacterNote, NoteBase))
         self.assertTrue(issubclass(BackstoryNote, NoteBase))
 
@@ -137,10 +136,10 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
 
-            response = create_session_note(
-                SessionNoteData(
+            response = create_episode(
+                EpisodeData(
                     date="2026-07-21",
                     title="Arrival",
                     description="Reached the city",
@@ -148,7 +147,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 ),
                 context,
             )
-            stored = db.get(SessionNote, response.id)
+            stored = db.get(Episode, response.id)
 
             self.assertEqual(stored.content, "Reached the city")
             self.assertEqual(response.description, "Reached the city")
@@ -164,7 +163,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.commit()
             db.refresh(campaign)
             db.refresh(person)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
 
             create_character(
                 CharacterCreate(person_id=person.id),
@@ -215,7 +214,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
 
             character = create_character(
                 CharacterCreate(person=PersonData(name="Nalia")),
@@ -279,7 +278,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
             db.add(campaign)
             db.commit()
             db.refresh(campaign)
-            context = CampaignContext(db, campaign)
+            context = campaign_context(db, campaign)
 
             character = create_character(
                 CharacterCreate(person=PersonData(name="Nalia")),
@@ -335,7 +334,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 db.add(campaign)
                 db.commit()
                 db.refresh(campaign)
-                context = CampaignContext(db, campaign)
+                context = campaign_context(db, campaign)
 
                 character = create_character(
                     CharacterCreate(
@@ -407,25 +406,33 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     "app.services.campaign_backups.make_backup_archive_path",
                     return_value=(archive_path, "campaign.backup"),
                 ):
-                    export_campaign_backup(campaign.id, db)
+                    export_campaign_backup(context)
 
+                upload_stream = tempfile.SpooledTemporaryFile()
+                upload_stream.write(archive_path.read_bytes())
+                upload_stream.seek(0)
                 upload = UploadFile(
-                    file=io.BytesIO(archive_path.read_bytes()),
+                    file=upload_stream,
                     filename="campaign.backup",
                 )
                 imported_response = asyncio.run(
-                    import_campaign_backup(upload, db)
+                    import_campaign_backup(
+                        upload,
+                        context.user,
+                        db,
+                    )
                 )
+                upload_stream.close()
                 imported_campaign = db.get(
                     Campaign, imported_response.id
                 )
-                imported_profile = db.get(
-                    CharacterProfile,
-                    imported_campaign.active_character_person_id,
-                )
-                imported_context = CampaignContext(
+                imported_context = campaign_context(
                     db,
                     imported_campaign,
+                )
+                imported_profile = db.get(
+                    CharacterProfile,
+                    imported_context.active_character_person_id,
                 )
                 imported_person = PersonService(imported_context).to_read(
                     db.get(Person, imported_profile.person_id)
@@ -517,7 +524,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 )
 
     def test_version_two_backup_import_creates_default_inventory(self):
-        raw_archive = io.BytesIO()
+        raw_archive = tempfile.SpooledTemporaryFile()
         with ZipFile(
             raw_archive,
             "w",
@@ -540,8 +547,13 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 filename="legacy.backup",
             )
             imported_response = asyncio.run(
-                import_campaign_backup(upload, db)
+                import_campaign_backup(
+                    upload,
+                    create_user(db),
+                    db,
+                )
             )
+            raw_archive.close()
             inventories = db.exec(
                 select(Inventory).where(
                     Inventory.campaign_id == imported_response.id

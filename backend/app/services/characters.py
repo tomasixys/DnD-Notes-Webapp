@@ -2,7 +2,7 @@ from fastapi import HTTPException, UploadFile
 from sqlmodel import select
 
 from app.file_storage import (
-    build_upload_url,
+    build_character_asset_url,
     delete_uploaded_file,
     save_image_from_uploadfile,
 )
@@ -17,13 +17,16 @@ from app.models.database import (
     CharacterProfile,
     Person,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.enums import CampaignCapability, CampaignRole
+from app.authorization.context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
 from app.services.inventory import InventoryService
 from app.services.people import PersonService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class CharacterService:
@@ -37,6 +40,7 @@ class CharacterService:
         self.db = context.db
         self.people = people or PersonService(context)
         self.inventory = inventory or InventoryService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(
         self,
@@ -44,16 +48,21 @@ class CharacterService:
     ) -> CharacterRead:
         person = self.people.get(profile.person_id)
         return CharacterRead(
+            revision=profile.revision,
+            updated_at=profile.updated_at,
             person=self.people.to_read(person),
             short_bio=profile.short_bio,
             appearance=profile.appearance,
             image_url=(
-                build_upload_url(profile.image_path)
+                build_character_asset_url(
+                    self.context.campaign_id,
+                    profile.person_id,
+                )
                 if profile.image_path
                 else ""
             ),
             is_active=(
-                self.context.campaign.active_character_person_id
+                self.context.active_character_person_id
                 == profile.person_id
             ),
         )
@@ -72,17 +81,16 @@ class CharacterService:
         return profile
 
     def get_active(self) -> CharacterRead | None:
-        campaign = self.context.campaign
-        if campaign.active_character_person_id is None:
+        if self.context.active_character_person_id is None:
             return None
 
         profile = self.db.get(
             CharacterProfile,
-            campaign.active_character_person_id,
+            self.context.active_character_person_id,
         )
         if profile is None:
-            campaign.active_character_person_id = None
-            self.db.add(campaign)
+            self.context.active_character_person_id = None
+            self.db.add(self.context.membership)
             self.db.commit()
             return None
 
@@ -161,6 +169,12 @@ class CharacterService:
         )
         self.db.add(profile)
         self.db.flush()
+        self.changes.stage_record(
+            "character",
+            profile.person_id,
+            action="created",
+            revision=profile.revision,
+        )
         return profile
 
     def stage_create(
@@ -168,12 +182,29 @@ class CharacterService:
         character: CharacterCreate,
     ) -> CharacterProfile:
         """Create the person/profile aggregate in the caller-owned transaction."""
+        self.context.require(
+            CampaignCapability.CHARACTER_SELF_CREATE
+        )
         has_person_id = character.person_id is not None
         has_person_data = character.person is not None
         if has_person_id == has_person_data:
             raise HTTPException(
                 status_code=422,
                 detail="Provide either person_id or person, but not both",
+            )
+
+        if (
+            self.context.membership.role is not CampaignRole.OWNER
+            and (
+                character.person_id is not None
+                or self.context.membership.assigned_character_person_id
+                is not None
+            )
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Members may create only their own unassigned "
+                "character",
             )
 
         if character.person_id is not None:
@@ -186,6 +217,13 @@ class CharacterService:
             short_bio=character.short_bio,
             appearance=character.appearance,
         )
+        if (
+            self.context.membership.assigned_character_person_id is None
+        ):
+            self.context.membership.assigned_character_person_id = (
+                profile.person_id
+            )
+            self.db.add(self.context.membership)
         if character.make_active:
             self.set_active_pointer(profile.person_id)
             self.inventory.stage_sync_default_owner()
@@ -195,17 +233,33 @@ class CharacterService:
         self,
         person_id: int,
         updated_character: CharacterUpdate,
+        expected_revision: int | None = None,
+        expected_person_revision: int | None = None,
     ) -> CharacterProfile:
         """Update the person/profile aggregate in the caller-owned transaction."""
+        self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         self.people.stage_update(
             person_id,
             updated_character.person,
+            expected_person_revision,
         )
         profile.short_bio = updated_character.short_bio.strip()
         profile.appearance = updated_character.appearance.strip()
         self.db.add(profile)
         self.db.flush()
+        self.changes.stage_record(
+            "character",
+            profile.person_id,
+            action="updated",
+            revision=profile.revision,
+        )
         return profile
 
     def set_active_pointer(
@@ -214,8 +268,24 @@ class CharacterService:
     ) -> CharacterProfile:
         """Set and flush the active profile without synchronizing inventory."""
         profile = self.get_profile(person_id)
-        self.context.campaign.active_character_person_id = person_id
-        self.db.add(self.context.campaign)
+        if (
+            self.context.membership.role is CampaignRole.OWNER
+            and (
+                self.context.membership.assigned_character_person_id
+                != person_id
+            )
+        ):
+            self.context.membership.assigned_character_person_id = person_id
+        elif (
+            self.context.membership.assigned_character_person_id
+            != person_id
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only the assigned character can be active",
+            )
+        self.context.active_character_person_id = person_id
+        self.db.add(self.context.membership)
         self.db.flush()
         return profile
 
@@ -227,7 +297,7 @@ class CharacterService:
             profile = self.stage_create(character)
             self.db.commit()
             self.db.refresh(profile)
-            self.db.refresh(self.context.campaign)
+            self.db.refresh(self.context.membership)
             return self.to_read(profile)
         except Exception:
             self.db.rollback()
@@ -237,11 +307,15 @@ class CharacterService:
         self,
         person_id: int,
         updated_character: CharacterUpdate,
+        expected_revision: int | None = None,
+        expected_person_revision: int | None = None,
     ) -> CharacterRead:
         try:
             profile = self.stage_update(
                 person_id,
                 updated_character,
+                expected_revision,
+                expected_person_revision,
             )
             self.db.commit()
             self.db.refresh(profile)
@@ -258,7 +332,7 @@ class CharacterService:
             profile = self.set_active_pointer(person_id)
             self.inventory.stage_sync_default_owner()
             self.db.commit()
-            self.db.refresh(self.context.campaign)
+            self.db.refresh(self.context.membership)
             return self.to_read(profile)
         except Exception:
             self.db.rollback()
@@ -268,8 +342,16 @@ class CharacterService:
         self,
         person_id: int,
         image: UploadFile,
+        expected_revision: int | None = None,
     ) -> CharacterRead:
+        self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         old_portrait_path = profile.image_path
         saved_portrait_path: str | None = None
 
@@ -280,6 +362,12 @@ class CharacterService:
             )
             profile.image_path = saved_portrait_path
             self.db.add(profile)
+            self.changes.stage_record(
+                "character",
+                profile.person_id,
+                action="updated",
+                revision=profile.revision,
+            )
             self.db.commit()
             self.db.refresh(profile)
         except Exception:
@@ -298,13 +386,27 @@ class CharacterService:
     def remove_portrait(
         self,
         person_id: int,
+        expected_revision: int | None = None,
     ) -> CharacterRead:
+        self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         old_portrait_path = profile.image_path
 
         try:
             profile.image_path = ""
             self.db.add(profile)
+            self.changes.stage_record(
+                "character",
+                profile.person_id,
+                action="updated",
+                revision=profile.revision,
+            )
             self.db.commit()
             self.db.refresh(profile)
         except Exception:
@@ -315,8 +417,19 @@ class CharacterService:
             delete_uploaded_file(old_portrait_path)
         return self.to_read(profile)
 
-    def delete(self, person_id: int) -> CharacterDeleteResponse:
+    def delete(
+        self,
+        person_id: int,
+        expected_revision: int | None = None,
+    ) -> CharacterDeleteResponse:
+        self.context.require_character_write(person_id)
         profile = self.get_profile(person_id)
+        claim_revision(
+            self.db,
+            profile,
+            expected_revision or profile.revision,
+            resource_type="character",
+        )
         portrait_path = profile.image_path
 
         try:
@@ -329,11 +442,23 @@ class CharacterService:
                 self,
             ).stage_delete_all_for_character(person_id)
 
-            if self.context.campaign.active_character_person_id == person_id:
-                self.context.campaign.active_character_person_id = None
-                self.db.add(self.context.campaign)
+            if self.context.active_character_person_id == person_id:
+                self.context.active_character_person_id = None
+            if (
+                self.context.membership.assigned_character_person_id
+                == person_id
+            ):
+                self.context.membership.assigned_character_person_id = None
+            self.db.add(self.context.membership)
+            self.inventory.stage_sync_default_owner()
 
             self.db.delete(profile)
+            self.changes.stage_record(
+                "character",
+                person_id,
+                action="deleted",
+                revision=profile.revision,
+            )
             self.db.commit()
         except Exception:
             self.db.rollback()

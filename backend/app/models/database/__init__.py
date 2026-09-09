@@ -1,7 +1,7 @@
 from .campaign import Campaign
 from .tag import Tag
 from .tag_assignment import TagAssignment
-from .session_note import SessionNote
+from .episode import Episode
 from .roll_entry import RollEntry
 from .person import Person
 from .location import Location
@@ -11,12 +11,14 @@ from .character import CharacterProfile, CharacterNote, BackstoryNote
 from .inventory import Inventory, InventoryAccess
 from .purse import Purse, CurrencyBalance
 from .inventory_item import InventoryItem
+from .installation import Installation
+from .campaign_change import CampaignChange
 
 __all__ = [
     "Campaign",
     "Tag",
     "TagAssignment",
-    "SessionNote",
+    "Episode",
     "RollEntry",
     "Person",
     "Location",
@@ -30,4 +32,6 @@ __all__ = [
     "Purse",
     "CurrencyBalance",
     "InventoryItem",
+    "Installation",
+    "CampaignChange",
 ]

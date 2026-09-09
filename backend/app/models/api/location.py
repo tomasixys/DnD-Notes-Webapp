@@ -1,6 +1,7 @@
 from sqlmodel import Field, SQLModel
 
 from .tag import ResourceTagRead
+from .revision import RevisionRead
 
 
 class LocationBase(SQLModel):
@@ -14,7 +15,7 @@ class LocationData(LocationBase):
     tags: list[str] = Field(default_factory=list)
 
 
-class LocationRead(LocationBase):
+class LocationRead(LocationBase, RevisionRead):
     id: int
     campaign_id: int
     parent_location: ResourceTagRead | None = None

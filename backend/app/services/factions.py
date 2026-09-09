@@ -12,8 +12,10 @@ from app.models.api import (
 )
 from app.models.database import Faction
 from app.models.enums import RelationshipType, ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class FactionService:
@@ -21,9 +23,12 @@ class FactionService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(self, faction: Faction) -> FactionRead:
         return FactionRead(
+            revision=faction.revision,
+            updated_at=faction.updated_at,
             id=faction.id,
             campaign_id=faction.campaign_id,
             name=faction.name,
@@ -96,6 +101,12 @@ class FactionService:
             ResourceType.FACTION,
             faction.id,
         )
+        self.changes.stage_record(
+            ResourceType.FACTION.value,
+            faction.id,
+            action="created",
+            revision=faction.revision,
+        )
         return faction
 
     def stage_create(self, faction_data: FactionData) -> Faction:
@@ -121,8 +132,15 @@ class FactionService:
         self,
         faction_id: int,
         faction_data: FactionData,
+        expected_revision: int | None = None,
     ) -> Faction:
         faction = self.get(faction_id)
+        claim_revision(
+            self.db,
+            faction,
+            expected_revision or faction.revision,
+            resource_type=ResourceType.FACTION.value,
+        )
         previous_name = faction.name
         faction.name = faction_data.name
         faction.type = faction_data.type
@@ -146,15 +164,26 @@ class FactionService:
             faction.id,
             previous_labels=[previous_name],
         )
+        self.changes.stage_record(
+            ResourceType.FACTION.value,
+            faction.id,
+            action="updated",
+            revision=faction.revision,
+        )
         return faction
 
     def update(
         self,
         faction_id: int,
         faction_data: FactionData,
+        expected_revision: int | None = None,
     ) -> FactionRead:
         try:
-            faction = self.stage_update(faction_id, faction_data)
+            faction = self.stage_update(
+                faction_id,
+                faction_data,
+                expected_revision,
+            )
             self.db.commit()
             self.db.refresh(faction)
             return self.to_read(faction)
@@ -162,18 +191,38 @@ class FactionService:
             self.db.rollback()
             raise
 
-    def stage_delete(self, faction_id: int) -> None:
+    def stage_delete(
+        self,
+        faction_id: int,
+        expected_revision: int | None = None,
+    ) -> None:
         faction = self.get(faction_id)
+        claim_revision(
+            self.db,
+            faction,
+            expected_revision or faction.revision,
+            resource_type=ResourceType.FACTION.value,
+        )
         self.tags.stage_handle_resource_deletion(
             ResourceType.FACTION,
             faction.id,
         )
+        self.changes.stage_record(
+            ResourceType.FACTION.value,
+            faction.id,
+            action="deleted",
+            revision=faction.revision,
+        )
         self.db.delete(faction)
         self.db.flush()
 
-    def delete(self, faction_id: int) -> DeleteResponse:
+    def delete(
+        self,
+        faction_id: int,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
         try:
-            self.stage_delete(faction_id)
+            self.stage_delete(faction_id, expected_revision)
             self.db.commit()
         except Exception:
             self.db.rollback()

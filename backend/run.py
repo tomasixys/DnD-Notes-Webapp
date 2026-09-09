@@ -2,16 +2,33 @@ import argparse
 import threading
 import time
 import webbrowser
+from pathlib import Path
 
 import uvicorn
 
-from app.main import app
+from app.config import (
+    ConfigurationError,
+    apply_server_overrides,
+    load_runtime_settings,
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the DnD Notes application.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Path to a DnD Notes TOML configuration file.",
+    )
+    parser.add_argument(
+        "--host",
+        help="Override server.host from the configuration file.",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        help="Override server.port from the configuration file.",
+    )
     parser.add_argument(
         "--no-browser",
         action="store_true",
@@ -31,21 +48,41 @@ def open_browser_when_ready(server: uvicorn.Server, url: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    browser_host = "127.0.0.1" if args.host in {"0.0.0.0", "::"} else args.host
-    url = f"http://{browser_host}:{args.port}"
+    settings = load_runtime_settings(args.config)
+    settings = apply_server_overrides(
+        settings,
+        host=args.host,
+        port=args.port,
+        open_browser=False if args.no_browser else None,
+    )
+
+    # Import after configuration validation so invalid startup never creates
+    # application storage or constructs the FastAPI application.
+    from app.application import create_app
+
+    app = create_app(settings)
+    host = settings.server.host
+    port = settings.server.port
+    browser_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+    internal_url = f"http://{browser_host}:{port}"
+    url = settings.server.public_origin or internal_url
 
     config = uvicorn.Config(
         app,
-        host=args.host,
-        port=args.port,
+        host=host,
+        port=port,
         loop="asyncio",
         http="h11",
         lifespan="on",
         log_level="info",
+        proxy_headers=settings.server.proxy_headers,
+        forwarded_allow_ips=",".join(
+            settings.server.trusted_proxies
+        ),
     )
     server = uvicorn.Server(config)
 
-    if not args.no_browser:
+    if settings.server.open_browser:
         threading.Thread(
             target=open_browser_when_ready,
             args=(server, url),
@@ -54,8 +91,14 @@ def main() -> None:
 
     print(f"DnD Notes is available at {url}")
     print("Press Ctrl+C to stop the server.")
-    server.run()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ConfigurationError as error:
+        raise SystemExit(f"Configuration error: {error}") from error

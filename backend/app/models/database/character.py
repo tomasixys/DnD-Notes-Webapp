@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from sqlalchemy import CheckConstraint, Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.authorization.enums import ResourceVisibility
+
 from .note import NoteBase
+from .revision import MutableAggregate, RevisionField
 
 if TYPE_CHECKING:
     from .person import Person
@@ -14,7 +18,37 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class CharacterProfile(SQLModel, table=True):
+def resource_visibility_enum() -> SAEnum:
+    return SAEnum(
+        ResourceVisibility,
+        values_callable=lambda enum: [member.value for member in enum],
+        native_enum=False,
+        create_constraint=True,
+        name="resource_visibility",
+    )
+
+
+class PersonalNoteAccess:
+    created_by_user_id: int | None = Field(
+        default=None,
+        foreign_key="app_user.id",
+        ondelete="SET NULL",
+        index=True,
+    )
+    visibility: ResourceVisibility = Field(
+        default=ResourceVisibility.CAMPAIGN,
+        sa_type=resource_visibility_enum(),
+        index=True,
+    )
+    access_owner_user_id: int | None = Field(
+        default=None,
+        foreign_key="app_user.id",
+        ondelete="RESTRICT",
+        index=True,
+    )
+
+
+class CharacterProfile(MutableAggregate, SQLModel, table=True):
     """Private character details extending a campaign Person record."""
 
     person_id: int = Field(
@@ -44,7 +78,19 @@ class CharacterProfile(SQLModel, table=True):
     )
 
 
-class CharacterNote(NoteBase, table=True):
+class CharacterNote(
+    NoteBase,
+    PersonalNoteAccess,
+    RevisionField,
+    table=True,
+):
+    __table_args__ = (
+        CheckConstraint(
+            "visibility = 'campaign' "
+            "OR access_owner_user_id IS NOT NULL",
+            name="ck_character_note_private_owner",
+        ),
+    )
     id: int | None = Field(default=None, primary_key=True)
     campaign_id: int = Field(
         foreign_key="campaign.id",
@@ -62,7 +108,19 @@ class CharacterNote(NoteBase, table=True):
     character_profile: CharacterProfile = Relationship(back_populates="notes")
 
 
-class BackstoryNote(NoteBase, table=True):
+class BackstoryNote(
+    NoteBase,
+    PersonalNoteAccess,
+    RevisionField,
+    table=True,
+):
+    __table_args__ = (
+        CheckConstraint(
+            "visibility = 'campaign' "
+            "OR access_owner_user_id IS NOT NULL",
+            name="ck_backstory_note_private_owner",
+        ),
+    )
     id: int | None = Field(default=None, primary_key=True)
     campaign_id: int = Field(
         foreign_key="campaign.id",

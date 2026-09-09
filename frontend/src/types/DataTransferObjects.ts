@@ -10,7 +10,12 @@ import type {
   TagResolutionState,
 } from "./tagTypes"
 
-export type CampaignsDto = {
+export type RevisionDto = {
+  revision: number
+  updatedAt: string
+}
+
+export type CampaignsDto = RevisionDto & {
   id: number
   name: string
   playerCharacter: string
@@ -19,6 +24,110 @@ export type CampaignsDto = {
   imageUrl: string
   bannerImageUrl: string
   activeCharacterPersonId: number | null
+  assignedCharacterPersonId: number | null
+  membershipRole: CampaignRole
+  capabilities: CampaignCapability[]
+}
+
+export type CampaignRole = "owner" | "member" | "viewer"
+
+export type CampaignCapability =
+  | "campaign.read"
+  | "campaign.update"
+  | "campaign.delete"
+  | "campaign.export"
+  | "membership.read"
+  | "membership.manage"
+  | "character.assign"
+  | "character.self_create"
+  | "shared_resource.read"
+  | "shared_resource.write"
+  | "assigned_character.write"
+
+export type AuthUserDto = {
+  id: number
+  username: string
+  displayName: string
+  status: "pending" | "active" | "suspended" | "deleted"
+  systemRole: "user" | "admin" | "custodian"
+}
+
+export type AdminUserDto = AuthUserDto & {
+  activeSessions: number
+  campaignMemberships: number
+}
+
+export type AdminCampaignDto = {
+  id: number
+  name: string
+  orphaned: boolean
+}
+
+export type AuthSessionDto = {
+  user: AuthUserDto
+  csrfToken: string
+  authenticationRequired: boolean
+}
+
+export type AccountMutationDto = {
+  user: AuthUserDto
+  message: string
+}
+
+export type SessionMutationDto = {
+  message: string
+  revokedSessions: number
+}
+
+export type IssuedAccountTokenDto = {
+  user: AuthUserDto
+  token: string
+  expiresAt: string
+}
+
+export type CampaignMembershipDto = {
+  id: number
+  userId: number
+  username: string
+  displayName: string
+  role: CampaignRole
+  assignedCharacterPersonId: number | null
+  activeCharacterPersonId: number | null
+  capabilities: CampaignCapability[]
+}
+
+export type CampaignInvitationStatus =
+  | "pending"
+  | "accepted"
+  | "revoked"
+  | "expired"
+
+export type CampaignInvitationDto = {
+  id: number
+  campaignId: number
+  campaignName: string
+  invitedUserId: number
+  username: string
+  displayName: string
+  role: CampaignRole
+  status: CampaignInvitationStatus
+  createdAt: string
+  expiresAt: string
+}
+
+export type IssuedCampaignInvitationDto = {
+  invitation: CampaignInvitationDto
+  token: string
+}
+
+export type CampaignInvitationAcceptanceDto = {
+  invitation: CampaignInvitationDto
+  membership: CampaignMembershipDto
+}
+
+export type CampaignOwnershipTransferDto = {
+  previousOwner: CampaignMembershipDto
+  newOwner: CampaignMembershipDto
 }
 
 export type DeleteResponseDto = {
@@ -34,7 +143,7 @@ export type ResourceTagDto = {
   resolutionState: TagResolutionState
 }
 
-export type SessionListItemDto = {
+export type SessionListItemDto = RevisionDto & {
   id: number
   campaignId: number
   sessionNumber: number
@@ -46,7 +155,7 @@ export type SessionListItemDto = {
 
 export type SessionDataDto = Omit<
   SessionListItemDto,
-  "id" | "campaignId" | "tags"
+  "id" | "campaignId" | "tags" | "revision" | "updatedAt"
 > & {
   tags: string[]
 }
@@ -58,6 +167,7 @@ export type SessionRollDto = {
   rolls: number[]
   average: number
   rollLuck: number
+  revision: number
 }
   
 export type CampaignRollDto = {
@@ -77,7 +187,7 @@ export type RollMutationDto = {
   sessionStats: SessionRollDto
 }
 
-export type PersonDto = {
+export type PersonDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -99,13 +209,15 @@ export type PersonDataDto = Omit<
   | "tags"
   | "characterProfileAvailable"
   | "isActiveCharacter"
+  | "revision"
+  | "updatedAt"
 > & {
   faction: string
   location: string
   tags: string[]
 }
 
-export type CharacterDto = {
+export type CharacterDto = RevisionDto & {
   person: PersonDto
   shortBio: string
   appearance: string
@@ -131,6 +243,20 @@ export type CharacterUpdateDto = {
   appearance: string
 }
 
+export type ResourceVisibility = "campaign" | "restricted" | "private"
+
+export type ResourceGrantPermission = "read" | "write"
+
+export type CharacterNoteGrantDataDto = {
+  userId: number
+  permission: ResourceGrantPermission
+}
+
+export type CharacterNoteGrantDto = CharacterNoteGrantDataDto & {
+  username: string
+  displayName: string
+}
+
 export type CharacterNoteDto = {
   id: number
   campaignId: number
@@ -139,6 +265,13 @@ export type CharacterNoteDto = {
   content: string
   createdAt: string
   updatedAt: string
+  revision: number
+  createdByUserId: number | null
+  visibility: ResourceVisibility
+  accessOwnerUserId: number | null
+  grants: CharacterNoteGrantDto[]
+  canWrite: boolean
+  canManageAccess: boolean
   tags: ResourceTagDto[]
 }
 
@@ -146,9 +279,11 @@ export type CharacterNoteDataDto = {
   title: string
   content: string
   tags: string[]
+  visibility: ResourceVisibility
+  grants: CharacterNoteGrantDataDto[]
 }
 
-export type LocationDto = {
+export type LocationDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -161,13 +296,19 @@ export type LocationDto = {
 
 export type LocationDataDto = Omit<
   LocationDto,
-  "id" | "campaignId" | "parentLocation" | "people" | "tags"
+  | "id"
+  | "campaignId"
+  | "parentLocation"
+  | "people"
+  | "tags"
+  | "revision"
+  | "updatedAt"
 > & {
   parentLocation: string
   tags: string[]
 }
 
-export type FactionDto = {
+export type FactionDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -180,7 +321,13 @@ export type FactionDto = {
 
 export type FactionDataDto = Omit<
   FactionDto,
-  "id" | "campaignId" | "location" | "members" | "tags"
+  | "id"
+  | "campaignId"
+  | "location"
+  | "members"
+  | "tags"
+  | "revision"
+  | "updatedAt"
 > & {
   location: string
   tags: string[]
@@ -254,7 +401,7 @@ export type InventoryUpdateDto = {
   description?: string
 }
 
-export type InventoryDto = {
+export type InventoryDto = RevisionDto & {
   id: number
   campaignId: number
   name: string
@@ -264,9 +411,18 @@ export type InventoryDto = {
   items: InventoryItemDto[]
 }
 
-export type ExportResponse = {
-  backupUrl: string
-  filename: string
+export type CampaignChangeDto = {
+  sequence: number
+  resourceType: string
+  resourceId: number | null
+  action: "created" | "updated" | "deleted"
+  revision: number | null
+  createdAt: string
+}
+
+export type CampaignChangesDto = {
+  cursor: number
+  changes: CampaignChangeDto[]
 }
 
 export type SearchQueryDto = {

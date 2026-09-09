@@ -1,0 +1,47 @@
+[installation]
+mode = "hosted"
+
+[database]
+url_env = "DND_NOTES_DATABASE_URL"
+pool_pre_ping = true
+pool_recycle_seconds = 1800
+
+[storage]
+backend = "filesystem"
+path = "/var/lib/dnd-notes"
+
+[security]
+session_secret_env = "DND_NOTES_SESSION_SECRET"
+cookie_name = "__Host-dnd_notes_session"
+cookie_secure = true
+cookie_samesite = "lax"
+session_lifetime_minutes = 720
+session_absolute_lifetime_minutes = 10080
+login_failure_limit = 5
+login_initial_lock_seconds = 30
+login_maximum_lock_seconds = 900
+login_source_failure_limit = 20
+login_source_window_seconds = 300
+login_source_lock_seconds = 300
+activation_token_lifetime_minutes = 10080
+password_reset_token_lifetime_minutes = 60
+campaign_invitation_lifetime_minutes = 10080
+invitation_failure_limit = 10
+invitation_failure_window_seconds = 300
+invitation_lock_seconds = 300
+
+[request_limits]
+enabled = true
+search_per_minute = 60
+upload_per_minute = 20
+import_per_minute = 5
+export_per_minute = 10
+
+[server]
+host = "0.0.0.0"
+port = 8000
+public_origin = "https://royalen.no"
+open_browser = false
+trusted_hosts = ["royalen.no"]
+proxy_headers = true
+trusted_proxies = ["172.30.0.0/24"]

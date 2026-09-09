@@ -35,6 +35,7 @@ not useful on its own without the backend.
 | Command | Purpose |
 | --- | --- |
 | `npm run dev` | Start the Vite development server. |
+| `npm test` | Run synchronization store regressions with mocked API responses. |
 | `npm run type-check` | Check Vue and TypeScript files without emitting output. |
 | `npm run build` | Compile the production frontend into `frontend/dist`. |
 | `npm run preview` | Preview a previously compiled frontend. |

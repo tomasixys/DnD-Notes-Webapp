@@ -7,13 +7,9 @@ from app.models.enums import (
     ItemCategory,
     ItemRarity,
 )
+from app.authorization.enums import ResourceVisibility
 
-CAMPAIGN_BACKUP_SCHEMA_VERSION = 3
-
-
-class CampaignBackupExportRead(SQLModel):
-    backup_url: str
-    filename: str
+CAMPAIGN_BACKUP_SCHEMA_VERSION = 4
 
 
 class CampaignBackupCampaign(SQLModel):
@@ -25,7 +21,7 @@ class CampaignBackupCampaign(SQLModel):
     active_character_person_backup_id: int | None = None
 
 
-class CampaignBackupSession(SQLModel):
+class CampaignBackupEpisode(SQLModel):
     date: str
     title: str
     description: str = ""
@@ -50,6 +46,7 @@ class CampaignBackupCharacterNote(SQLModel):
     tags: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+    visibility: ResourceVisibility = ResourceVisibility.CAMPAIGN
 
 
 class CampaignBackupLegacyCharacterEntry(CampaignBackupCharacterNote):
@@ -116,8 +113,10 @@ class CampaignBackupInventory(SQLModel):
 
 class CampaignBackup(SQLModel):
     schema_version: int = CAMPAIGN_BACKUP_SCHEMA_VERSION
+    access_filtered: bool = False
     campaign: CampaignBackupCampaign
-    sessions: list[CampaignBackupSession] = Field(default_factory=list)
+    # Keep the serialized key for backup-schema compatibility.
+    sessions: list[CampaignBackupEpisode] = Field(default_factory=list)
     people: list[CampaignBackupPerson] = Field(default_factory=list)
     locations: list[CampaignBackupLocation] = Field(default_factory=list)
     factions: list[CampaignBackupFaction] = Field(default_factory=list)

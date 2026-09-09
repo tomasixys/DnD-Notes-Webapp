@@ -9,6 +9,7 @@ from .queries import (
     get_resource_tag_reads,
     get_resource_tags,
     get_tag_matching_owner_ids,
+    get_tag_matching_owner_rows,
 )
 from .references import (
     REFERENCE_MODELS,
@@ -33,6 +34,7 @@ __all__ = [
     "get_resource_tag_reads",
     "get_resource_tags",
     "get_tag_matching_owner_ids",
+    "get_tag_matching_owner_rows",
     "handle_tags_of_deleted_resource",
     "normalize_tag_label",
     "parse_tag",

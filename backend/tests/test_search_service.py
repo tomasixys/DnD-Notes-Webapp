@@ -7,7 +7,8 @@ from sqlmodel import Session, SQLModel, create_engine
 from app.models.api import FactionData, PersonData, SearchQueryDto
 from app.models.database import Campaign
 from app.models.enums import ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
+from tests.authorization_helpers import campaign_context
 from app.services.factions import FactionService
 from app.services.people import PersonService
 from app.services.search import SearchService
@@ -34,7 +35,7 @@ class SearchServiceTests(unittest.TestCase):
         db.add(campaign)
         db.commit()
         db.refresh(campaign)
-        return CampaignContext(db, campaign)
+        return campaign_context(db, campaign)
 
     def test_search_is_scoped_filtered_and_relevance_ordered(self):
         with Session(self.engine) as db:

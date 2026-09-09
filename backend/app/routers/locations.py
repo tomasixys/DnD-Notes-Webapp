@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api import DeleteResponse, LocationData, LocationRead
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.locations import LocationService
 
 
@@ -14,7 +17,7 @@ router = APIRouter(
 
 @router.get("")
 def get_locations_for_campaign(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> list[LocationRead]:
     locations = LocationService(context)
     return [locations.to_read(location) for location in locations.list()]
@@ -23,7 +26,7 @@ def get_locations_for_campaign(
 @router.get("/{location_id}")
 def get_location(
     location_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> LocationRead:
     locations = LocationService(context)
     return locations.to_read(locations.get(location_id))
@@ -32,7 +35,7 @@ def get_location(
 @router.post("")
 def create_location(
     location: LocationData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
 ) -> LocationRead:
     return LocationService(context).create(location)
 
@@ -41,17 +44,23 @@ def create_location(
 def update_location(
     location_id: int,
     updated_location: LocationData,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> LocationRead:
     return LocationService(context).update(
         location_id,
         updated_location,
+        expected_revision,
     )
 
 
 @router.delete("/{location_id}")
 def delete_location(
     location_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> DeleteResponse:
-    return LocationService(context).delete(location_id)
+    return LocationService(context).delete(
+        location_id,
+        expected_revision,
+    )

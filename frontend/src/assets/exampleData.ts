@@ -2,6 +2,11 @@ import * as dto from "@/types/DataTransferObjects"
 import type { ResourceType } from "@/types/resourceTypes"
 import type { RelationshipType } from "@/types/tagTypes"
 
+const exampleRevision = {
+  revision: 1,
+  updatedAt: "2026-01-01T00:00:00Z",
+}
+
 function passiveTags(...values: string[]): dto.ResourceTagDto[] {
   return values.map((value) => ({
     value,
@@ -32,6 +37,7 @@ function referenceTag(
 
 export const sessionListExample: dto.SessionListItemDto[] = [
   {
+    ...exampleRevision,
     id: 1,
     campaignId: 1,
     sessionNumber: 1,
@@ -42,6 +48,7 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     tags: passiveTags("opening", "Gernanti", "mystery"),
   },
   {
+    ...exampleRevision,
     id: 2,
     campaignId: 1,
     sessionNumber: 2,
@@ -52,6 +59,7 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     tags: passiveTags("caves", "undead", "investigation"),
   },
   {
+    ...exampleRevision,
     id: 3,
     campaignId: 1,
     sessionNumber: 3,
@@ -72,6 +80,7 @@ export const campaignRollStatsExample: dto.CampaignRollDto = {
 
 export const sessionRollsExample: dto.SessionRollDto[] = [
   {
+    revision: 1,
     id: 1,
     campaignId: 1,
     sessionNumber: 1,
@@ -80,6 +89,7 @@ export const sessionRollsExample: dto.SessionRollDto[] = [
     rollLuck: 0.5,
   },
   {
+    revision: 1,
     id: 2,
     campaignId: 1,
     sessionNumber: 2,
@@ -88,6 +98,7 @@ export const sessionRollsExample: dto.SessionRollDto[] = [
     rollLuck: 0.42,
   },
   {
+    revision: 1,
     id: 3,
     campaignId: 1,
     sessionNumber: 3,
@@ -99,6 +110,7 @@ export const sessionRollsExample: dto.SessionRollDto[] = [
 
 export const peopleExample: dto.PersonDto[] = [
   {
+    ...exampleRevision,
     id: 1,
     campaignId: 1,
     name: "Skiv Whistler",
@@ -112,6 +124,7 @@ export const peopleExample: dto.PersonDto[] = [
     isActiveCharacter: false,
   },
   {
+    ...exampleRevision,
     id: 2,
     campaignId: 1,
     name: "Eryn Marrowell",
@@ -125,6 +138,7 @@ export const peopleExample: dto.PersonDto[] = [
     isActiveCharacter: false,
   },
   {
+    ...exampleRevision,
     id: 3,
     campaignId: 1,
     name: "Velcor Thanes",
@@ -141,6 +155,7 @@ export const peopleExample: dto.PersonDto[] = [
 
 export const locationsExample: dto.LocationDto[] = [
   {
+    ...exampleRevision,
     id: 1,
     campaignId: 1,
     name: "Gernanti",
@@ -152,6 +167,7 @@ export const locationsExample: dto.LocationDto[] = [
     tags: passiveTags("city", "magic", "campaign-hub"),
   },
   {
+    ...exampleRevision,
     id: 2,
     campaignId: 1,
     name: "Gernanti Mainland",
@@ -163,6 +179,7 @@ export const locationsExample: dto.LocationDto[] = [
     tags: passiveTags("district", "street-level", "lower-city"),
   },
   {
+    ...exampleRevision,
     id: 3,
     campaignId: 1,
     name: "Nalia and Elira's Lodging House",
@@ -177,6 +194,7 @@ export const locationsExample: dto.LocationDto[] = [
 
 export const factionsExample: dto.FactionDto[] = [
   {
+    ...exampleRevision,
     id: 1,
     campaignId: 1,
     name: "The Dragon Order",
@@ -188,6 +206,7 @@ export const factionsExample: dto.FactionDto[] = [
     tags: passiveTags("academy", "dragons", "magic", "political"),
   },
   {
+    ...exampleRevision,
     id: 2,
     campaignId: 1,
     name: "Talmira's Church",
@@ -199,6 +218,7 @@ export const factionsExample: dto.FactionDto[] = [
     tags: passiveTags("religion", "knowledge", "library", "academy"),
   },
   {
+    ...exampleRevision,
     id: 3,
     campaignId: 1,
     name: "The Beggars",
@@ -213,6 +233,7 @@ export const factionsExample: dto.FactionDto[] = [
 
 export const campaignsExample: dto.CampaignsDto[] = [
   {
+    ...exampleRevision,
     id: 1,
     name: "Streets of Gernanti",
     playerCharacter: "Nalyathina Calemdor",
@@ -221,6 +242,9 @@ export const campaignsExample: dto.CampaignsDto[] = [
     sessionCount: 0,
     imageUrl: "/src/assets/banner.png",
     bannerImageUrl: "/src/assets/banner.png",
-    activeCharacterPersonId: null,
+  activeCharacterPersonId: null,
+  assignedCharacterPersonId: null,
+  membershipRole: "owner",
+  capabilities: [],
   },
 ]

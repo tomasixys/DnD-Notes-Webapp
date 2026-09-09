@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
-from app.dependencies.campaigns import get_campaign_context
+from app.authorization.dependencies import (
+    get_shared_read_context,
+    get_shared_write_context,
+)
 from app.models.api.rolls import (
     CampaignRollStats,
+    EpisodeRollStats,
     RollCreate,
     RollMutationResponse,
-    SessionRollStats,
 )
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.rolls import RollService
 
 
@@ -19,30 +22,38 @@ router = APIRouter(
 
 @router.get("/campaign-stats")
 def get_campaign_roll_stats(
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_read_context),
 ) -> CampaignRollStats:
     return RollService(context).get_campaign_stats()
 
 
-@router.get("/sessions/{session_id}")
-def get_session_roll_stats(
-    session_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
-) -> SessionRollStats:
-    return RollService(context).get_session_stats(session_id)
+@router.get("/sessions/{episode_id}")
+def get_episode_roll_stats(
+    episode_id: int,
+    context: CampaignContext = Depends(get_shared_read_context),
+) -> EpisodeRollStats:
+    return RollService(context).get_episode_stats(episode_id)
 
 
 @router.post("")
 def create_roll(
     roll_create: RollCreate,
-    context: CampaignContext = Depends(get_campaign_context),
+    context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> RollMutationResponse:
-    return RollService(context).create(roll_create)
+    return RollService(context).create(
+        roll_create,
+        expected_revision,
+    )
 
 
-@router.delete("/sessions/{session_id}")
-def delete_session_rolls(
-    session_id: int,
-    context: CampaignContext = Depends(get_campaign_context),
+@router.delete("/sessions/{episode_id}")
+def delete_episode_rolls(
+    episode_id: int,
+    context: CampaignContext = Depends(get_shared_write_context),
+    expected_revision: int = Query(..., ge=1),
 ) -> RollMutationResponse:
-    return RollService(context).delete_for_session(session_id)
+    return RollService(context).delete_for_episode(
+        episode_id,
+        expected_revision,
+    )

@@ -4,6 +4,8 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlmodel import Session, select
 
+from app.authorization.enums import CampaignCapability
+from app.authorization.models import CampaignMembership
 from app.file_storage import delete_uploaded_file
 from app.models.api import (
     CampaignBackupPerson,
@@ -16,12 +18,15 @@ from app.models.database import (
     Person,
 )
 from app.models.enums import RelationshipType, ResourceType
-from app.services.campaign_context import CampaignContext
+from app.authorization.context import CampaignContext
 from app.services.character_notes import (
     BackstoryNoteService,
     CharacterNoteService,
 )
+from app.services.inventory import InventoryService
 from app.services.tags import TagService
+from app.concurrency import claim_revision
+from app.services.campaign_changes import CampaignChangeService
 
 
 class PersonService:
@@ -29,10 +34,14 @@ class PersonService:
         self.context = context
         self.db = context.db
         self.tags = TagService(context)
+        self.changes = CampaignChangeService(context)
 
     def to_read(self, person: Person) -> PersonRead:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         character_profile = self.db.get(CharacterProfile, person.id)
         return PersonRead(
+            revision=person.revision,
+            updated_at=person.updated_at,
             id=person.id,
             campaign_id=person.campaign_id,
             name=person.name,
@@ -54,11 +63,12 @@ class PersonService:
             ),
             character_profile_available=character_profile is not None,
             is_active_character=(
-                self.context.campaign.active_character_person_id == person.id
+                self.context.active_character_person_id == person.id
             ),
         )
 
     def get(self, person_id: int) -> Person:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         person = self.db.get(Person, person_id)
         if (
             person is None
@@ -69,6 +79,7 @@ class PersonService:
         return person
 
     def list(self) -> list[Person]:
+        self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
         statement = (
             select(Person)
             .where(Person.campaign_id == self.context.campaign_id)
@@ -109,6 +120,7 @@ class PersonService:
 
     def stage_create(self, person: PersonData) -> Person:
         """Create and synchronize a person in the caller-owned transaction."""
+        self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
         db_person = Person(
             campaign_id=self.context.campaign_id,
             name=person.name.strip(),
@@ -146,15 +158,32 @@ class PersonService:
             ResourceType.PERSON,
             db_person.id,
         )
+        self.changes.stage_record(
+            ResourceType.PERSON.value,
+            db_person.id,
+            action="created",
+            revision=db_person.revision,
+        )
         return db_person
 
     def stage_update(
         self,
         person_id: int,
         updated_person: PersonData,
+        expected_revision: int | None = None,
     ) -> Person:
         """Update a person in the caller-owned transaction."""
         person = self.get(person_id)
+        if self.db.get(CharacterProfile, person_id) is not None:
+            self.context.require_character_write(person_id)
+        else:
+            self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        claim_revision(
+            self.db,
+            person,
+            expected_revision or person.revision,
+            resource_type=ResourceType.PERSON.value,
+        )
         previous_name = person.name
         person.name = updated_person.name.strip()
         person.role = updated_person.role.strip()
@@ -191,6 +220,12 @@ class PersonService:
             person.id,
             previous_labels=[previous_name],
         )
+        self.changes.stage_record(
+            ResourceType.PERSON.value,
+            person.id,
+            action="updated",
+            revision=person.revision,
+        )
         return person
 
     def create(
@@ -211,12 +246,14 @@ class PersonService:
         self,
         person_id: int,
         updated_person: PersonData,
+        expected_revision: int | None = None,
     ) -> PersonRead:
         """Update and commit a person as a standalone operation."""
         try:
             person = self.stage_update(
                 person_id,
                 updated_person,
+                expected_revision,
             )
             self.db.commit()
             self.db.refresh(person)
@@ -225,9 +262,23 @@ class PersonService:
             self.db.rollback()
             raise
 
-    def delete(self, person_id: int) -> DeleteResponse:
+    def delete(
+        self,
+        person_id: int,
+        expected_revision: int | None = None,
+    ) -> DeleteResponse:
         person = self.get(person_id)
         profile = self.db.get(CharacterProfile, person.id)
+        if profile is not None:
+            self.context.require_character_write(person_id)
+        else:
+            self.context.require(CampaignCapability.SHARED_RESOURCE_WRITE)
+        claim_revision(
+            self.db,
+            person,
+            expected_revision or person.revision,
+            resource_type=ResourceType.PERSON.value,
+        )
         portrait_path = profile.image_path if profile is not None else ""
 
         try:
@@ -239,13 +290,43 @@ class PersonService:
                     self.context,
                 ).stage_delete_all_for_character(person.id)
 
-            if self.context.campaign.active_character_person_id == person.id:
-                self.context.campaign.active_character_person_id = None
-                self.db.add(self.context.campaign)
+            memberships = self.db.exec(
+                select(CampaignMembership).where(
+                    CampaignMembership.campaign_id
+                    == self.context.campaign_id,
+                    (
+                        (
+                            CampaignMembership.assigned_character_person_id
+                            == person.id
+                        )
+                        | (
+                            CampaignMembership.active_character_person_id
+                            == person.id
+                        )
+                    ),
+                )
+            ).all()
+            for membership in memberships:
+                if (
+                    membership.active_character_person_id == person.id
+                ):
+                    membership.active_character_person_id = None
+                if (
+                    membership.assigned_character_person_id == person.id
+                ):
+                    membership.assigned_character_person_id = None
+                self.db.add(membership)
 
+            InventoryService(self.context).stage_sync_default_owner()
             self.tags.stage_handle_resource_deletion(
                 ResourceType.PERSON,
                 person.id,
+            )
+            self.changes.stage_record(
+                ResourceType.PERSON.value,
+                person.id,
+                action="deleted",
+                revision=person.revision,
             )
             self.db.delete(person)
             self.db.commit()

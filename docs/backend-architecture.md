@@ -9,17 +9,22 @@ in the [July 2026 backend refactoring record](archive/backend-refactoring-2026-0
 DnD Notes uses one FastAPI/Uvicorn process in production. It serves:
 
 - the JSON API under `/api`;
-- uploaded campaign files under `/api/uploads`;
+- authorized campaign images and portraits under campaign-scoped API routes;
+- one-request campaign backup downloads backed by transient files;
 - the compiled Vue frontend at `/`; and
 - Vue Router history routes through the frontend catch-all.
 
-`app/main.py` registers every API router before mounting the frontend catch-all.
-Application startup initializes storage and applies database migrations.
+`app/application.py` constructs the application, registers every API router
+before mounting the frontend catch-all, and owns startup initialization.
+`app/main.py` is the ASGI compatibility entry point. The typed launcher in
+`backend/run.py` validates configuration before constructing the application.
 
 ## Package boundaries
 
 ```text
 backend/app/
+  auth/               Local identity, credentials, login, and browser sessions
+  authorization/      Campaign context, roles, memberships, and invitations
   dependencies/       Reusable FastAPI request dependencies
   migrations/         Ordered SQLite schema migrations
   models/
@@ -29,10 +34,55 @@ backend/app/
   routers/             HTTP paths, inputs, outputs, and status codes
   services/            Domain operations and transaction coordination
   tags/                Stateless parsing plus focused tag query helpers
+  application.py       FastAPI construction and startup lifecycle
   app_paths.py         Platform-specific persistent paths
+  backup_downloads.py  Private download responses and cleanup behavior
+  config.py            Typed launch configuration and deployment validation
   file_storage.py      Shared validation and filesystem primitives
   frontend.py          Compiled-frontend mounting and history fallback
 ```
+
+### Campaign admission
+
+Server account admission and campaign admission are separate. A system
+administrator first creates an activation-pending local account. A campaign
+owner can then issue that active or pending account a campaign invitation.
+The pending account must activate and sign in before redeeming the campaign
+token.
+
+Campaign invitation tokens are random and stored only as SHA-256 digests.
+Issuing a replacement invalidates the previous token. Redemption verifies the
+exact signed-in user, expiry, revocation state, campaign state, and current
+membership before atomically consuming the token and creating membership.
+Invalid attempts use a keyed source throttle. A token presented by a different
+signed-in user receives the same invalid-invitation response and never reveals
+the intended account. The frontend places issued tokens in URL fragments,
+which are not sent in HTTP request targets, carries them across login in
+session storage, removes them on entry, and submits them only in the protected
+acceptance request body.
+
+Direct membership creation by username is not an API operation. Owners manage
+roles, character assignments, removals, invitations, and explicit ownership
+transfer through the campaign authorization domain. Last-owner checks remain
+transactional, and account deletion revokes unaccepted invitations involving
+the deleted account.
+
+### Protected files
+
+Stored image paths are internal persistence details and are never exposed as
+web paths. Campaign image records and character-profile relationships prove
+which campaign owns each file. Asset requests first resolve an authorized
+`CampaignContext`, then map the requested campaign or character ID to its
+stored path.
+
+Uploaded and restored images are decoded before storage, with byte, pixel,
+animation, MIME, filename, and extension limits. Files are revalidated before
+delivery and responses use private, no-store caching.
+
+Campaign exports are generated outside the asset directory and returned
+directly by the authorized export request. The response deletes its temporary
+archive after transfer; startup, an hourly cleanup cycle, and subsequent
+exports also remove expired archives left by interrupted processes.
 
 ### Routers
 
@@ -73,8 +123,8 @@ Services use composition instead of inheritance:
   backed by a person.
 - `CharacterNoteService` and `BackstoryNoteService` share private note
   mechanics while preserving separate models and public APIs.
-- `SessionNoteService` composes `RollService` for rolls stored beneath a
-  session.
+- `EpisodeService` owns played-game notes and composes `RollService` for rolls
+  stored beneath an episode.
 - `CampaignBackupService` composes domain services instead of reimplementing
   their rules.
 - `LocationService` and `FactionService` coordinate relationship-backed tags
@@ -85,6 +135,25 @@ Services use composition instead of inheritance:
   references, search matching, refresh, and deletion cleanup.
 
 Stateless tag parsing and formatting remain pure functions in `app/tags`.
+
+### Episode terminology and compatibility
+
+`Episode` is the backend domain term for one played game and its notes/rolls.
+This avoids collisions with SQLModel database `Session` objects and
+authentication `AuthSession` records.
+
+Existing compatibility boundaries deliberately keep their released names:
+
+- the database table remains `sessionnote`, with `session_id` roll foreign keys;
+- HTTP routes remain under `/api/campaigns/{campaign_id}/sessions`;
+- request/response fields retain `session_number`, `session_id`,
+  `session_stats`, and `session_count`;
+- tag resources continue to serialize as `"session"`; and
+- campaign backups continue to serialize their episode collection as
+  `sessions`.
+
+Those names may change only through an explicit API, database, or backup-schema
+migration. New internal backend code should otherwise use `Episode`.
 
 ## Transactions
 
@@ -156,12 +225,68 @@ planning and migration tests.
 SQLite data and uploads live in the platform-specific user-data directory
 selected by `platformdirs`, outside the executable and source tree.
 
-Numbered migration modules are registered in `app/migrations/runner.py`.
-Before migrating an older database, the runner creates a pre-migration backup.
-The development migration hook is unversioned and must remain idempotent; its
-work is promoted into a numbered migration before release.
+The engine is configured lazily during application startup from typed settings.
+Local mode defaults to the platform data-directory SQLite file; hosted
+configuration references a PostgreSQL URL through an environment variable.
+Request dependencies resolve the initialized engine rather than importing a
+hard-coded global connection.
 
-The current schema version is 4.
+Every initialized database has one `Installation` row. It records the
+installation identity, deployment mode, and initialization time. Startup
+rejects a requested mode that differs from the stored mode. User accounts and
+administrator credentials are separate application-managed records.
+
+Hosted local identity is an independent application domain under `app/auth`.
+Its persistence state is split across `User`, `PasswordCredential`,
+`AuthSession`, `AccountToken`, `LoginThrottle`, and `SecurityEvent`. Password
+operations go through
+`auth/passwords.py`, which delegates hashing and verification to
+`argon2-cffi`, upgrades hashes after successful verification when parameters
+change, and revokes server-side sessions during password reset. Offline
+administrator creation and password reset use the same authentication-domain
+services while holding the installation lock.
+
+The authentication foundation issues independent random session and CSRF
+tokens. Only SHA-256 token digests are persisted. Sessions have renewable idle
+expiry, an absolute expiry ceiling, explicit revocation, and account-state
+checks. Authentication request dependencies and routes remain inside the same
+domain package; resource services do not import password or login mechanics.
+The authentication router returns the session token only in a host-only,
+secure, HTTP-only cookie and returns the session-bound CSRF token in the
+response body. Hosted mode mounts these routes and protects every other API
+path, including uploaded files, with session authentication and CSRF checks
+for unsafe methods. Local mode seeds one non-login internal user instead of
+exposing a hosted authentication bypass.
+
+System administrators create pending accounts through one-time activation
+tokens and may issue one-time password-reset tokens. Raw account tokens are
+returned once for the administrator to share and only their SHA-256 digests
+are stored. Password resets revoke existing sessions. Account deletion removes
+the credential, revokes sessions and active account tokens, and retains a
+tombstoned user row.
+
+Login defenses combine username/account lockout with a keyed, source-aware
+throttle. The source key is an HMAC derived from the runtime session secret, so
+throttle and security-event rows do not retain a raw network address.
+Pre-installation databases containing campaigns can be claimed only by local
+mode; moving desktop data into hosted mode remains an explicit import process.
+
+Alembic in `app/migrations/portable` owns the cross-database migration history.
+Its first revision is a current-schema baseline used to create empty SQLite and
+PostgreSQL databases.
+
+The original numbered SQLite migrations remain as an adoption bridge. An
+existing SQLite database is backed up, upgraded through legacy schema version
+4 plus the final development hook, and stamped at the Alembic baseline in the
+same startup operation. A non-empty PostgreSQL database without Alembic history
+is rejected and requires an explicit reviewed adoption process.
+
+PostgreSQL integration tests create a unique temporary schema and remove only
+that generated schema. CI runs them against a disposable PostgreSQL service.
+
+Normal startup holds an exclusive instance lock. The separate offline
+maintenance command uses the same lock for non-secret inspection and
+filesystem-backed campaign export.
 
 ## Verification expectations
 

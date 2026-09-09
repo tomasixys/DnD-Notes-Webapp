@@ -2,7 +2,7 @@
 import { provide, ref, watch } from "vue"
 import { RouterView, useRoute } from "vue-router"
 
-import { GetAPI } from "@/apihelpers"
+import { GetAPI, isApiFailure } from "@/apihelpers"
 import { characterContextKey } from "@/composables/useCharacterContext"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type { CharacterDto } from "@/types/DataTransferObjects"
@@ -13,6 +13,7 @@ const { selectedCampaignId } = useCampaignStore()
 const character = ref<CharacterDto | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
+let loadGeneration = 0
 
 function personIdFromRoute(): number | null {
   const rawValue = Array.isArray(route.params.personId)
@@ -23,6 +24,7 @@ function personIdFromRoute(): number | null {
 }
 
 async function loadCharacter() {
+  const requestGeneration = ++loadGeneration
   character.value = null
   errorMessage.value = ""
   if (!selectedCampaignId.value) {
@@ -34,17 +36,18 @@ async function loadCharacter() {
   const endpoint = personId === null
     ? `campaigns/${selectedCampaignId.value}/characters/active`
     : `campaigns/${selectedCampaignId.value}/characters/${personId}`
-  const response = await GetAPI(endpoint)
+  const response = await GetAPI<CharacterDto | null>(endpoint)
+  if (requestGeneration !== loadGeneration) return
   loading.value = false
 
-  if (response?.success === false) {
+  if (isApiFailure(response)) {
     errorMessage.value = personId === null
       ? "The active character could not be loaded."
       : "That character profile could not be loaded."
     return
   }
 
-  character.value = response as CharacterDto | null
+  character.value = response
 }
 
 function setCharacter(updatedCharacter: CharacterDto | null) {
@@ -61,7 +64,7 @@ provide(characterContextKey, {
 })
 
 watch(
-  () => [selectedCampaignId.value, route.params.personId],
+  [selectedCampaignId, personIdFromRoute],
   () => void loadCharacter(),
   { immediate: true },
 )
