@@ -42,8 +42,11 @@ const { character, loading } = useCharacterContext()
 
 const entries = ref<CharacterNoteDto[]>([])
 const members = ref<CampaignMembershipDto[]>([])
+const entriesLoading = ref(false)
 const mode = ref<"details" | "create" | "edit">("details")
 const requestError = ref("")
+let entriesRequestGeneration = 0
+let membersCampaignId: number | null = null
 const { canWriteCharacter } = useCampaignAuthorization(
   () => character.value?.person.id,
 )
@@ -130,9 +133,23 @@ function resetForm() {
   requestError.value = ""
 }
 
+async function loadMembersForEditor() {
+  const campaignId = selectedCampaignId.value
+  if (!campaignId || membersCampaignId === campaignId) return
+  members.value = []
+  const response = await GetAPI<CampaignMembershipDto[]>(
+    `campaigns/${campaignId}/members`,
+  )
+  if (selectedCampaignId.value !== campaignId) return
+  if (isApiFailure(response)) return
+  members.value = response
+  membersCampaignId = campaignId
+}
+
 function showCreateForm() {
   resetForm()
   mode.value = "create"
+  void loadMembersForEditor()
 }
 
 function showEditForm() {
@@ -148,6 +165,7 @@ function showEditForm() {
     ]),
   )
   mode.value = "edit"
+  void loadMembersForEditor()
 }
 
 function cancelForm() {
@@ -184,15 +202,23 @@ function notesEndpoint() {
 }
 
 async function fetchEntries() {
+  const requestGeneration = ++entriesRequestGeneration
   entries.value = []
   mode.value = "details"
   requestError.value = ""
-  if (!selectedCampaignId.value || !character.value) return
-  const memberResponse = await GetAPI<CampaignMembershipDto[]>(
-    `campaigns/${selectedCampaignId.value}/members`,
+  const campaignId = selectedCampaignId.value
+  const characterId = character.value?.person.id
+  const kind = props.kind
+  if (!campaignId || !characterId) {
+    entriesLoading.value = false
+    return
+  }
+  entriesLoading.value = true
+  const response = await GetAPI<CharacterNoteDto[]>(
+    `campaigns/${campaignId}/characters/${characterId}/${kind}`,
   )
-  members.value = isApiFailure(memberResponse) ? [] : memberResponse
-  const response = await GetAPI<CharacterNoteDto[]>(notesEndpoint())
+  if (requestGeneration !== entriesRequestGeneration) return
+  entriesLoading.value = false
   if (isApiFailure(response)) {
     requestError.value = `The ${sectionTitle.value.toLowerCase()} could not be loaded.`
     return
@@ -279,7 +305,11 @@ function formatUpdatedAt(value: string) {
 }
 
 watch(
-  () => [character.value?.person.id, props.kind],
+  [
+    selectedCampaignId,
+    () => character.value?.person.id,
+    () => props.kind,
+  ],
   () => void fetchEntries(),
   { immediate: true },
 )
@@ -327,6 +357,10 @@ useResourceEditor(() => selectedCampaignId.value && mode.value !== "details" ? [
       >
         Open overview
       </RouterLink>
+    </article>
+
+    <article v-else-if="entriesLoading" class="resource-detail-panel">
+      <p class="empty-text">Loading {{ sectionTitle.toLowerCase() }}…</p>
     </article>
 
     <div v-else class="resource-layout">

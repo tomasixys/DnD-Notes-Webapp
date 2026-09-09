@@ -13,6 +13,7 @@ const { selectedCampaignId } = useCampaignStore()
 const character = ref<CharacterDto | null>(null)
 const loading = ref(false)
 const errorMessage = ref("")
+let loadGeneration = 0
 
 function personIdFromRoute(): number | null {
   const rawValue = Array.isArray(route.params.personId)
@@ -23,6 +24,7 @@ function personIdFromRoute(): number | null {
 }
 
 async function loadCharacter() {
+  const requestGeneration = ++loadGeneration
   character.value = null
   errorMessage.value = ""
   if (!selectedCampaignId.value) {
@@ -35,6 +37,7 @@ async function loadCharacter() {
     ? `campaigns/${selectedCampaignId.value}/characters/active`
     : `campaigns/${selectedCampaignId.value}/characters/${personId}`
   const response = await GetAPI<CharacterDto | null>(endpoint)
+  if (requestGeneration !== loadGeneration) return
   loading.value = false
 
   if (isApiFailure(response)) {
@@ -61,7 +64,7 @@ provide(characterContextKey, {
 })
 
 watch(
-  () => [selectedCampaignId.value, route.params.personId],
+  [selectedCampaignId, personIdFromRoute],
   () => void loadCharacter(),
   { immediate: true },
 )

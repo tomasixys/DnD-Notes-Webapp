@@ -27,6 +27,9 @@ and this changelog follows the structure described by
 - Added a backup-first hosted update script that refreshes pinned images,
   rebuilds the application, restarts the stack, and runs its health check.
 - Updated audited frontend build dependencies to patched versions.
+- Removed the extra campaign-member request while browsing character notes or
+  backstory, avoided reloading the active character during the default-entry
+  redirect, and added a stable loading state while switching sections.
 
 ### Added
 

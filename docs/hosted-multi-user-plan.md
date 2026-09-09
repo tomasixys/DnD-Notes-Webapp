@@ -1,8 +1,7 @@
 # Hosted multi-user development plan
 
-Status: Milestones 0-8 implemented; the Milestone 9 private-server baseline is
-deployed with live operator testing underway. Wider-rollout hardening remains
-optional where noted below.
+Status: Milestones 0-9 implemented and the private-server operational checks
+are complete. Wider-rollout hardening remains optional where noted below.
 
 Updated: 2026-09-09
 
@@ -723,10 +722,10 @@ operator testing is underway as of 2026-09-08, with verified public-domain TLS,
 health endpoints, and initial anonymous-access checks. The operator also
 confirmed mobile-data access without certificate warnings, administrator
 login/logout, and successful account and campaign invitations with a friend.
-The remaining private-server work is a LAN exposure check, scheduling backups
-and health checks, and exercising the update procedure. Encrypted off-host
-restore, external monitoring, CI review, and formal sign-off are optional for
-this friends-and-family deployment.
+The LAN exposure check, scheduled backups and health checks, and update
+procedure have been operator-confirmed. Encrypted off-host restore, external
+monitoring, CI review, and formal sign-off are optional for this
+friends-and-family deployment.
 
 **Purpose:** keep the private server maintainable and recoverable while it is
 reachable from the public internet.
@@ -795,11 +794,10 @@ On the same date, the operator confirmed these additional browser checks:
 
 These observations establish successful collaboration, role, privacy, and
 session-revocation smoke tests. Invitation single-use behavior was subsequently
-operator-confirmed. The complete operator health script, which also checks
-backups and disk capacity, has not been verified in this session. Earlier
-staging results above are historical evidence, not a fresh test or restore run
-against this live deployment. Detailed evidence may optionally be kept using
-the [sign-off template](hosted-alpha-signoff-template.md).
+operator-confirmed. The complete health script was subsequently exercised by
+the update procedure and scheduled alongside the coordinated backup. Detailed
+evidence may optionally be kept using the
+[sign-off template](hosted-alpha-signoff-template.md).
 
 Authenticated live verification on 2026-09-08 used the dedicated non-admin
 member test account and its assigned test campaign. Credentials remain in the
@@ -820,7 +818,7 @@ replacement-character creation was subsequently operator-confirmed. The API
 checks establish the server behavior above; the reported browser workflows
 have also been operator-confirmed where recorded below.
 
-Post-merge private-server checks:
+Completed private-server checks:
 
 - [x] Public-domain certificate validation and frontend response.
 - [x] Liveness and database-backed readiness through the HTTPS proxy.
@@ -841,19 +839,20 @@ Post-merge private-server checks:
   (operator-confirmed).
 - [x] Confirm the router forwards only ports 80 and 443 and complete the other
   router-administration checks (operator-confirmed).
-- [ ] Deploy and verify that a deleted account's former username can be used by
-  a newly activated account.
-- [ ] Confirm from another LAN device that ports 8000 and 5432 are unreachable.
-- [ ] Run and schedule the coordinated backup and five-minute health check.
-- [ ] Exercise the backup-first container update script.
+- [x] Deploy and verify that a deleted account's former username can be used by
+  a newly activated account (operator-confirmed).
+- [x] Confirm from another LAN device that ports 8000 and 5432 are unreachable
+  (operator-confirmed; ports 80/443 reachable, 8000/5432 unreachable).
+- [x] Run and schedule the coordinated backup and five-minute health check
+  (operator-confirmed).
+- [x] Exercise the backup-first container update script (operator-confirmed).
 
 Password-reset replay, anonymous protected-file probes, off-host encrypted
 copies, external monitoring, CI review, and formal operator sign-off remain
 available as optional hardening rather than completion gates for this personal
 friends-and-family deployment.
 
-These deployment checks do not block merging the application changes. They
-close the operational roadmap after the merged revision is deployed.
+These checks close the private-server operational roadmap.
 
 ### Milestone 10 — Optional wider rollout
 
@@ -984,28 +983,18 @@ The minimum cross-cutting suite should cover:
 
 ## Current development slice
 
-After merging, the remaining work is the small private-server maintenance
-slice:
-
-1. Deploy and verify the deleted-username reuse fix.
-2. Confirm from another LAN device that PostgreSQL and application HTTP ports
-   are not reachable.
-3. Run and schedule the coordinated backup and health-check scripts, then
-   exercise the backup-first update script.
-4. Capture each issue reported during live use with reproduction steps,
-   expected and actual behavior, affected role, and relevant milestone.
-   The reported issues are tracked below.
-5. Prioritize authorization/privacy failures and data loss, then blocked core
-   workflows and usability defects. Verify each fix with a relevant regression
-   check and repeat the affected live smoke test after deployment.
+The current release work is to deploy and browser-verify LIVE-10, then commit,
+push, pass the pull-request checks, and merge. Future live issues should be
+recorded with reproduction steps, expected and actual behavior, and the
+affected role.
 
 
 ## Live testing fixes — 2026-09-08
 
-The operator reported the following issues after validating the initial hosted flows.
-These changes are implemented in the working tree. LIVE-04 and LIVE-06 have
-now passed authenticated API smoke tests after deployment; the remaining
-browser and administrator flows still need live validation. Implementation
+The operator reported the following issues after validating the initial hosted
+flows. LIVE-01 through LIVE-09 have been operator-confirmed after deployment.
+LIVE-10 is implemented in the working tree and still needs live browser
+validation. Implementation
 tests did not change production data. Subsequent live verification intentionally
 added the labeled test-campaign records described in the verification record.
 
@@ -1020,7 +1009,8 @@ added the labeled test-campaign records described in the verification record.
 | LIVE-07 | Refresh browsing views quietly. Preserve open forms and show remote-change notices only for the resource currently being edited; inventory item/purse events identify the edited resource. | 8 |
 | LIVE-08 | Clear active and assigned character state together after character or People deletion, and hydrate campaign permissions during session/login initialization, so direct navigation or a refresh still lets a member create a replacement character. | 3 / 4 |
 | LIVE-09 | Replace a deleted account's public identity with an internal tombstone so a newly invited account can reuse the former username without inheriting the deleted account's ID, access, or history. | 2 |
+| LIVE-10 | Load character notes and backstory with one resource request, fetch campaign members only when an editor opens, ignore stale responses, and avoid reloading the active character when the route adds a default note ID. | 8 |
 
 Verification covers backend service regressions, synchronization store tests,
-frontend type-check/build, and isolated browser smoke tests. LIVE-09 still
-needs post-deployment live validation.
+frontend type-check/build, and isolated browser smoke tests. LIVE-10 still
+needs post-deployment browser validation.

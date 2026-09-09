@@ -3,10 +3,9 @@
 Updated: 2026-09-09
 
 DnD Notes supports local single-user use and authenticated hosted use. Live
-operator testing with friends is underway. The completed milestones below
-describe implemented functionality, while the remaining hosted checklist is
-limited to practical maintenance and LAN exposure checks for the private
-server.
+operator testing with friends is underway. The implemented milestones and
+private-server operational checklist are complete; optional wider-rollout work
+remains documented for future use.
 
 ## Completed
 
@@ -99,7 +98,7 @@ storage; a third-party identity provider is not required.
 - [x] Campaign invitations and member management
 - [x] Shared and private visibility controls for character notes and backstory
 - [x] Concurrent editing and multi-client synchronization
-- [ ] Private-server operations
+- [x] Private-server operations
   - [x] Reproducible HTTPS/PostgreSQL/filesystem stack and operator controls
   - [x] Local hosted staging suite and disposable restore drill
   - [x] Live public-domain HTTPS page and liveness/readiness checks
@@ -108,15 +107,14 @@ storage; a third-party identity provider is not required.
   - [x] Live roles, private resources, invitations, and session-revocation smoke tests
   - [x] Invitation single-use behavior and post-fix browser validation
   - [x] Router forwards only public HTTP/HTTPS ports
-  - [ ] Reuse a deleted account's username after deploying the fix
-  - [ ] Confirm ports 8000 and 5432 are unreachable from another LAN device
-  - [ ] Schedule the health check and coordinated database/file backup
-  - [ ] Exercise the backup-first container update script
+  - [x] Reuse a deleted account's username after deploying the fix
+  - [x] Confirm ports 8000 and 5432 are unreachable from another LAN device
+  - [x] Schedule the health check and coordinated database/file backup
+  - [x] Exercise the backup-first container update script
 
 The [live verification record](docs/hosted-multi-user-plan.md#live-verification-record)
-records the evidence and limits of the live checks. The remaining items are
-post-merge deployment and maintenance checks for the private server; they do
-not block merging the application release.
+records the evidence and limits of the live checks. The private-server
+deployment and maintenance checklist is complete.
 
 The [live testing fixes](docs/hosted-multi-user-plan.md#live-testing-fixes--2026-09-08)
 track the reported bugs and usability changes through deployment verification.

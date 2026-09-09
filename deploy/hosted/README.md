@@ -271,13 +271,15 @@ For a small private server where local logging is sufficient, root's crontab
 can run both scripts without granting the login user direct Docker access:
 
 ```cron
-*/5 * * * * cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./check-health.sh >> /var/log/dnd-notes-health.log 2>&1
-15 4 * * * cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./backup.sh >> /var/log/dnd-notes-backup.log 2>&1
+*/5 * * * * /usr/bin/flock /run/lock/dnd-notes-maintenance.lock /bin/sh -c 'cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./check-health.sh' >> /var/log/dnd-notes-health.log 2>&1
+15 4 * * * /usr/bin/flock /run/lock/dnd-notes-maintenance.lock /bin/sh -c 'cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./backup.sh' >> /var/log/dnd-notes-backup.log 2>&1
 ```
 
 Install these with `sudo crontab -e`. Review or rotate the two log files
 periodically. The health check requires a completed backup no older than 26
 hours, so run `sudo ./backup.sh` once before enabling the five-minute check.
+The shared `flock` lock prevents a health check from running while a backup has
+temporarily stopped the application.
 
 The bundled Compose database is the default. A separately operated PostgreSQL
 service is supported through the normal `DND_NOTES_DATABASE_URL` runtime
