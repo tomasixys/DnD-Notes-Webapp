@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 import os
@@ -167,7 +166,10 @@ class ImageStorageTests(ProtectedFileTestCase):
         )
 
         self.assertEqual("private, no-store", response.headers["cache-control"])
-        asyncio.run(response.background())
+        response.background.func(
+            *response.background.args,
+            **response.background.kwargs,
+        )
         self.assertFalse(archive_path.exists())
 
 

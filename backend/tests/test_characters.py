@@ -1,5 +1,4 @@
 import asyncio
-import io
 import json
 import sqlite3
 import tempfile
@@ -409,8 +408,11 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 ):
                     export_campaign_backup(context)
 
+                upload_stream = tempfile.SpooledTemporaryFile()
+                upload_stream.write(archive_path.read_bytes())
+                upload_stream.seek(0)
                 upload = UploadFile(
-                    file=io.BytesIO(archive_path.read_bytes()),
+                    file=upload_stream,
                     filename="campaign.backup",
                 )
                 imported_response = asyncio.run(
@@ -420,6 +422,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                         db,
                     )
                 )
+                upload_stream.close()
                 imported_campaign = db.get(
                     Campaign, imported_response.id
                 )
@@ -521,7 +524,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                 )
 
     def test_version_two_backup_import_creates_default_inventory(self):
-        raw_archive = io.BytesIO()
+        raw_archive = tempfile.SpooledTemporaryFile()
         with ZipFile(
             raw_archive,
             "w",
@@ -550,6 +553,7 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     db,
                 )
             )
+            raw_archive.close()
             inventories = db.exec(
                 select(Inventory).where(
                     Inventory.campaign_id == imported_response.id

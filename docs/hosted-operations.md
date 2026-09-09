@@ -1,10 +1,13 @@
 # Hosted operations and incident response
 
-Updated: 2026-07-27
+Updated: 2026-09-09
 
 This runbook covers the supported single-server hosted deployment in
-[`deploy/hosted`](../deploy/hosted/README.md). It is suitable for controlled
-LAN testing and is the baseline before any internet port forwarding.
+[`deploy/hosted`](../deploy/hosted/README.md). For the current personal
+friends-and-family server, the practical baseline is limited to exposing only
+Caddy, running periodic health checks and coordinated backups, and using the
+backup-first update procedure. The additional monitoring, off-host recovery,
+and formal evidence below are optional hardening if the deployment grows.
 
 ## Operating boundary
 
@@ -17,9 +20,10 @@ LAN testing and is the baseline before any internet port forwarding.
 - The supported stack runs one application process. Its request limits and
   in-memory service metrics reset when that process restarts.
 
-## Preflight and hosted-alpha checklist
+## Optional wider-rollout checklist
 
-Before inviting another user:
+Use this checklist if the server later expands beyond its current private
+audience:
 
 1. Pin the deployment to a reviewed Git commit and save that revision.
 2. Generate unique PostgreSQL and application secrets.
@@ -35,9 +39,8 @@ Before inviting another user:
 10. Run `backup.sh`, copy the result to encrypted operator-controlled storage,
     and run `restore-drill.sh` against that exact backup.
 11. Record the tested commit, date, operator, backup location, and restore
-    result using the
-    [hosted-alpha sign-off template](hosted-alpha-signoff-template.md). Do not
-    mark the hosted milestone complete without this record.
+    result using the optional
+    [hosted-alpha sign-off template](hosted-alpha-signoff-template.md).
 
 ## Monitoring
 

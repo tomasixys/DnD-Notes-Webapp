@@ -1,4 +1,7 @@
-# Hosted alpha sign-off
+# Optional hosted alpha sign-off
+
+This template is optional reference material for operators who want a formal
+release record. It is not a gate for the personal friends-and-family server.
 
 Copy this template into the operator's private records for each environment.
 Do not commit addresses, usernames, backup locations, certificate details, or
@@ -33,7 +36,8 @@ Evidence or CI run:
 - [ ] A non-member cannot enumerate the campaign or retrieve its API records.
 - [ ] A member cannot read another member's private notes or backstory.
 - [ ] Protected campaign and character images cannot be fetched anonymously.
-- [ ] Campaign export contains only data visible to the exporting owner.
+- [ ] Owner and member campaign exports contain only data visible to the
+  exporting user; viewers cannot export.
 - [ ] Suspension and global session revocation invalidate active sessions.
 - [ ] Orphaned-campaign recovery records an administrative reason.
 

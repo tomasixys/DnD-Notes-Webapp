@@ -155,8 +155,8 @@ The workflow:
 1. requires recent authentication for self-service deletion or explicit
    elevated admin authority;
 2. revokes all sessions;
-3. disables the password credential and tombstones the normalized username so
-   ordinary activation cannot silently recreate a fresh account;
+3. disables the password credential and replaces the public username with an
+   internal tombstone outside the valid username namespace;
 4. revokes unaccepted invitations issued by that account;
 5. removes viewer/member memberships and unassigns their characters;
 6. removes owner memberships where another enabled human owner remains;
@@ -173,9 +173,9 @@ The initial hosted release preserves data. Legal erasure requirements,
 retention periods, and irreversible private-content deletion require a separate
 policy before broader public availability.
 
-Reactivating a previously deleted username requires an explicit admin restore.
-A normal account activation or campaign invitation cannot bypass the
-tombstone.
+A deleted account is never reactivated implicitly. A later invitation may use
+the former public username, but activation creates a distinct user ID and does
+not inherit the deleted account's memberships, private access, or authorship.
 
 ### Campaign deletion
 

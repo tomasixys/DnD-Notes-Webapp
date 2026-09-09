@@ -151,6 +151,22 @@ docker compose build --pull
 docker compose up -d
 ```
 
+For a routine application update, update the source checkout as the normal
+server user, then run the bundled update script with the same Docker privileges
+used for the rest of the stack:
+
+```bash
+git pull --ff-only
+cd deploy/hosted
+chmod +x update.sh
+sudo ./update.sh
+```
+
+The script creates a coordinated backup, pulls the pinned PostgreSQL and Caddy
+images, rebuilds the application from the current checkout, recreates the
+containers, and runs `check-health.sh`. It intentionally does not run
+`git pull`, allowing source changes to be reviewed before they are deployed.
+
 Do not use `docker compose down --volumes` or `docker volume prune`; those can
 delete PostgreSQL data and Caddy certificate state.
 
@@ -244,12 +260,24 @@ operator records a stricter one in the sign-off:
   that changes PostgreSQL, migrations, or storage behavior.
 
 On a Linux server, schedule `backup.sh` with a systemd timer or cron from the
-repository's `deploy/hosted` directory. Schedule `check-health.sh` at least
-every five minutes and configure cron mail, a systemd `OnFailure` handler, or
-an external monitor to alert on failure. Use an encrypted backup tool such as
-restic or Borg for the off-host copy and retention policy; do not place raw
-`database.dump` or `files.tar.gz` files in ordinary cloud-synchronized
-folders. Test decryption as part of the restore drill.
+repository's `deploy/hosted` directory, and schedule `check-health.sh` at least
+every five minutes. For higher-assurance deployments, cron mail, a systemd
+`OnFailure` handler, or an external monitor can alert on failure. An encrypted
+backup tool such as restic or Borg can provide off-host copies and retention;
+do not place raw `database.dump` or `files.tar.gz` files in ordinary
+cloud-synchronized folders.
+
+For a small private server where local logging is sufficient, root's crontab
+can run both scripts without granting the login user direct Docker access:
+
+```cron
+*/5 * * * * cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./check-health.sh >> /var/log/dnd-notes-health.log 2>&1
+15 4 * * * cd /home/trc/Projects/dndnotes/deploy/hosted && /bin/sh ./backup.sh >> /var/log/dnd-notes-backup.log 2>&1
+```
+
+Install these with `sudo crontab -e`. Review or rotate the two log files
+periodically. The health check requires a completed backup no older than 26
+hours, so run `sudo ./backup.sh` once before enabling the five-minute check.
 
 The bundled Compose database is the default. A separately operated PostgreSQL
 service is supported through the normal `DND_NOTES_DATABASE_URL` runtime

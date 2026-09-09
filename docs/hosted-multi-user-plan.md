@@ -1,10 +1,10 @@
 # Hosted multi-user development plan
 
-Status: Milestones 0-8 implemented; Milestone 9 operational baseline deployed
-with live operator testing underway. CI evidence and hosted-alpha operator
-sign-off remain pending where noted below.
+Status: Milestones 0-8 implemented; the Milestone 9 private-server baseline is
+deployed with live operator testing underway. Wider-rollout hardening remains
+optional where noted below.
 
-Updated: 2026-09-08
+Updated: 2026-09-09
 
 ## Goal
 
@@ -330,8 +330,8 @@ Progress:
 - [x] Add a PostgreSQL integration test and disposable PostgreSQL CI service.
 - [x] Add a separate offline maintenance command sharing the server's
   exclusive instance lock.
-- [ ] Observe the PostgreSQL integration test passing in CI before marking the
-  milestone complete.
+- CI can run the PostgreSQL integration test when the repository is published,
+  but hosted CI sign-off is not required for the private-server scope.
 
 Deliverables:
 
@@ -714,7 +714,7 @@ Implementation scope:
   restoration, and reconnect. A user-triggered view remount refreshes the
   affected data without reloading the application shell.
 
-### Milestone 9 — Production hosting and operations
+### Milestone 9 — Private-server hosting and operations
 
 **Status:** operational implementation completed on 2026-08-05. The local
 hosted staging stack passed the full PostgreSQL-enabled backend suite, HTTPS
@@ -723,12 +723,13 @@ operator testing is underway as of 2026-09-08, with verified public-domain TLS,
 health endpoints, and initial anonymous-access checks. The operator also
 confirmed mobile-data access without certificate warnings, administrator
 login/logout, and successful account and campaign invitations with a friend.
-Host/router exposure review, an encrypted off-host restore, the remaining
-two-account authorization smoke tests, and operator sign-off remain required
-gates. This milestone is not complete merely because the site is reachable.
+The remaining private-server work is a LAN exposure check, scheduling backups
+and health checks, and exercising the update procedure. Encrypted off-host
+restore, external monitoring, CI review, and formal sign-off are optional for
+this friends-and-family deployment.
 
-**Purpose:** make the system supportable, recoverable, and safe on the public
-internet.
+**Purpose:** keep the private server maintainable and recoverable while it is
+reachable from the public internet.
 
 Deliverables:
 
@@ -759,7 +760,7 @@ Deliverables:
 - [x] Document incident response, password/reset compromise, session revocation,
   data export, account deletion, and rollback.
 
-Exit criteria:
+Original wider-rollout exit criteria (optional for the current private server):
 
 - A staging environment passes the full authorization and migration suites.
 - Backup restoration is demonstrated, not merely configured.
@@ -793,13 +794,12 @@ On the same date, the operator confirmed these additional browser checks:
 | Session revocation | Operator-confirmed | The operator subsequently reported successful session-revocation checks. |
 
 These observations establish successful collaboration, role, privacy, and
-session-revocation smoke tests. They do not enumerate every route or establish
-activation/reset token single-use behavior. The complete operator health
-script, which also checks backups and disk capacity, has not been verified in
-this session. Earlier staging results above are historical evidence, not a fresh
-test or restore run against this live deployment. No new CI run was reviewed.
-Keep deployment identities, image IDs, and detailed operator evidence in the
-private record described by the [sign-off template](hosted-alpha-signoff-template.md).
+session-revocation smoke tests. Invitation single-use behavior was subsequently
+operator-confirmed. The complete operator health script, which also checks
+backups and disk capacity, has not been verified in this session. Earlier
+staging results above are historical evidence, not a fresh test or restore run
+against this live deployment. Detailed evidence may optionally be kept using
+the [sign-off template](hosted-alpha-signoff-template.md).
 
 Authenticated live verification on 2026-09-08 used the dedicated non-admin
 member test account and its assigned test campaign. Credentials remain in the
@@ -815,11 +815,12 @@ ignored operator-only specification file and are not recorded here.
 | Pending-invitation inbox read | Passed | The accepted member account could read the pending-invitation endpoint; it returned an empty list as expected after invitation acceptance. |
 
 The test campaign now intentionally contains records prefixed with
-`[Codex Test]`, including an active test character. The API checks establish
-the server behavior above. Browser-only layout and synchronization-notice
-behavior still require browser verification.
+`[Codex Test]`. The test character was removed while reproducing LIVE-08, and
+replacement-character creation was subsequently operator-confirmed. The API
+checks establish the server behavior above; the reported browser workflows
+have also been operator-confirmed where recorded below.
 
-Remaining live rollout checks:
+Post-merge private-server checks:
 
 - [x] Public-domain certificate validation and frontend response.
 - [x] Liveness and database-backed readiness through the HTTPS proxy.
@@ -832,26 +833,32 @@ Remaining live rollout checks:
   with a second user (operator-confirmed).
 - [x] Verify roles, private resources, invitations, and session revocation with
   live users (operator-confirmed).
-- [ ] Complete the remaining sign-off checks for activation/reset token replay,
-  anonymous protected-file access, and audited recovery.
+- [x] Confirm invitation links are single-use (operator-confirmed).
 - [x] Verify a member's access-filtered campaign export against the live server.
-- [ ] Repeat affected live checks after deploying the fixes below.
-- [ ] Exercise stale edits and remote updates with two browser sessions.
-- [ ] Confirm only intended ports are reachable and review host firewall,
-  router administration, and automatic security updates.
-- [ ] Create a coordinated live backup and demonstrate restore/decryption from
-  an encrypted off-host copy; record retention and recovery evidence.
-- [ ] Run the full operator health script and enable external availability,
-  container health, backup-age, and disk alerts.
-- [ ] Review CI results for the release revision, secret rotation, incident
-  response, and rollback; complete the private operator sign-off.
+- [x] Repeat the reported UI workflows after deploying the fixes, including
+  promotion/demotion, invitation actions, per-user character summaries,
+  filtered exports, edit conflicts, and replacement-character creation
+  (operator-confirmed).
+- [x] Confirm the router forwards only ports 80 and 443 and complete the other
+  router-administration checks (operator-confirmed).
+- [ ] Deploy and verify that a deleted account's former username can be used by
+  a newly activated account.
+- [ ] Confirm from another LAN device that ports 8000 and 5432 are unreachable.
+- [ ] Run and schedule the coordinated backup and five-minute health check.
+- [ ] Exercise the backup-first container update script.
 
-### Milestone 10 — Closed beta and staged rollout
+Password-reset replay, anonymous protected-file probes, off-host encrypted
+copies, external monitoring, CI review, and formal operator sign-off remain
+available as optional hardening rather than completion gates for this personal
+friends-and-family deployment.
 
-**Status:** live operator testing and initial collaboration with one invited
-friend are underway. Formal owner-only hosted alpha, internal collaboration,
-and closed-beta approvals are not yet recorded; the successful invitation flow
-does not close the remaining operational and authorization gates.
+These deployment checks do not block merging the application changes. They
+close the operational roadmap after the merged revision is deployed.
+
+### Milestone 10 — Optional wider rollout
+
+**Status:** outside the current personal friends-and-family project scope. The
+material below remains as reference if the deployment audience expands later.
 
 **Purpose:** expose risk gradually and use real collaboration patterns to guide
 later work.
@@ -977,22 +984,20 @@ The minimum cross-cutting suite should cover:
 
 ## Current development slice
 
-The next work is live validation and defect resolution for Milestone 9, followed
-by the staged rollout in Milestone 10:
+After merging, the remaining work is the small private-server maintenance
+slice:
 
-1. Complete and record the remaining live checks above. Keep the explicit CI
-   verification gates in Milestones 1 and 2 open until a passing run is reviewed.
-2. Capture each issue reported during live use with reproduction steps,
+1. Deploy and verify the deleted-username reuse fix.
+2. Confirm from another LAN device that PostgreSQL and application HTTP ports
+   are not reachable.
+3. Run and schedule the coordinated backup and health-check scripts, then
+   exercise the backup-first update script.
+4. Capture each issue reported during live use with reproduction steps,
    expected and actual behavior, affected role, and relevant milestone.
    The reported issues are tracked below.
-3. Prioritize authorization/privacy failures and data loss, then blocked core
+5. Prioritize authorization/privacy failures and data loss, then blocked core
    workflows and usability defects. Verify each fix with a relevant regression
    check and repeat the affected live smoke test after deployment.
-4. Complete off-host recovery, operational monitoring, and private operator
-   sign-off before approving internal collaboration or closed beta.
-
-Live availability alone does not close an implementation regression, prove
-multi-user permissions, or replace the staged rollout gates.
 
 
 ## Live testing fixes — 2026-09-08
@@ -1014,7 +1019,8 @@ added the labeled test-campaign records described in the verification record.
 | LIVE-06 | Allow members as well as owners to export backups filtered by the requester's existing resource visibility. Viewers remain unable to export. | 7 |
 | LIVE-07 | Refresh browsing views quietly. Preserve open forms and show remote-change notices only for the resource currently being edited; inventory item/purse events identify the edited resource. | 8 |
 | LIVE-08 | Clear active and assigned character state together after character or People deletion, and hydrate campaign permissions during session/login initialization, so direct navigation or a refresh still lets a member create a replacement character. | 3 / 4 |
+| LIVE-09 | Replace a deleted account's public identity with an internal tombstone so a newly invited account can reuse the former username without inheriting the deleted account's ID, access, or history. | 2 |
 
 Verification covers backend service regressions, synchronization store tests,
-frontend type-check/build, and isolated browser smoke tests. PostgreSQL
-integration checks and post-deployment live validation remain separate gates.
+frontend type-check/build, and isolated browser smoke tests. LIVE-09 still
+needs post-deployment live validation.

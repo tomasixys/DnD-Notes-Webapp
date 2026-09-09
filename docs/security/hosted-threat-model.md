@@ -104,7 +104,7 @@ control that risk.
 | Unknown user creates an account | No public registration; admin-created single-use activation | Direct-registration negative test |
 | Stolen activation/reset/invitation token is reused | Random token stored as digest; expiry; single use; atomic consumption | Replay and concurrency tests |
 | Bootstrap race creates unintended admins | OS-only command; exclusive lock; transaction; last-admin invariant | Concurrent bootstrap test |
-| Deleted user silently registers again | Tombstoned username/account; explicit admin restore required | Delete then activation/login tests |
+| Reused username inherits a deleted identity | Internal tombstone retains the old user ID; reuse creates a separate account without old access or history | Delete then activation/login tests |
 | Weak password reset bypasses authentication | Admin-issued or OS-assisted reset; no security questions; revoke sessions; audit | Reset authorization tests |
 
 Password hashing and verification use a mature library rather than custom

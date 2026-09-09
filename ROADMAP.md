@@ -1,11 +1,12 @@
 # DnD Notes roadmap
 
-Updated: 2026-09-08
+Updated: 2026-09-09
 
 DnD Notes supports local single-user use and authenticated hosted use. Live
-operator testing is underway; hosted release sign-off remains pending. The
-completed milestones below describe implemented functionality, while the
-hosted rollout checklist tracks the remaining verification and operations work.
+operator testing with friends is underway. The completed milestones below
+describe implemented functionality, while the remaining hosted checklist is
+limited to practical maintenance and LAN exposure checks for the private
+server.
 
 ## Completed
 
@@ -98,23 +99,24 @@ storage; a third-party identity provider is not required.
 - [x] Campaign invitations and member management
 - [x] Shared and private visibility controls for character notes and backstory
 - [x] Concurrent editing and multi-client synchronization
-- [ ] Production hosting, operations, and staged rollout
+- [ ] Private-server operations
   - [x] Reproducible HTTPS/PostgreSQL/filesystem stack and operator controls
   - [x] Local hosted staging suite and disposable restore drill
   - [x] Live public-domain HTTPS page and liveness/readiness checks
   - [x] Live anonymous campaign-list denial and proxy metrics denial
   - [x] Live off-LAN access, administrator login/logout, and account/campaign invitations
   - [x] Live roles, private resources, invitations, and session-revocation smoke tests
-  - [ ] Remaining recovery/token checks and post-fix browser validation
-  - [ ] Encrypted off-host restore and hosted-alpha operator sign-off
-  - [ ] Host/router exposure review
-  - [ ] Host security updates and external monitoring sign-off
+  - [x] Invitation single-use behavior and post-fix browser validation
+  - [x] Router forwards only public HTTP/HTTPS ports
+  - [ ] Reuse a deleted account's username after deploying the fix
+  - [ ] Confirm ports 8000 and 5432 are unreachable from another LAN device
+  - [ ] Schedule the health check and coordinated database/file backup
+  - [ ] Exercise the backup-first container update script
 
 The [live verification record](docs/hosted-multi-user-plan.md#live-verification-record)
-records the evidence and limits of the 2026-09-08 checks. Current work is to
-complete the manual alpha checks, capture issues found during live testing,
-and close the remaining operational gates before approving collaboration or
-closed beta.
+records the evidence and limits of the live checks. The remaining items are
+post-merge deployment and maintenance checks for the private server; they do
+not block merging the application release.
 
 The [live testing fixes](docs/hosted-multi-user-plan.md#live-testing-fixes--2026-09-08)
-track the seven reported bugs and usability changes through deployment verification.
+track the reported bugs and usability changes through deployment verification.

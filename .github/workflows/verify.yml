@@ -70,6 +70,7 @@ jobs:
           deploy/hosted/backup.sh
           deploy/hosted/restore-drill.sh
           deploy/hosted/check-health.sh
+          deploy/hosted/update.sh
       - name: Build hosted application image
         run: >-
           docker compose

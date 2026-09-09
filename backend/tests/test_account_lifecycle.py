@@ -207,7 +207,10 @@ class AccountLifecycleTests(unittest.TestCase):
                 )
 
     def test_deletion_tombstones_user_and_removes_credentials(self):
-        generated = iter(("activation-token",))
+        generated = iter((
+            "activation-token",
+            "replacement-activation-token",
+        ))
         with Session(self.engine) as db:
             admin = self._admin(db)
             service = AccountLifecycleService(
@@ -229,6 +232,30 @@ class AccountLifecycleTests(unittest.TestCase):
             self.assertFalse(deleted.can_login)
             self.assertIsNotNone(deleted.deleted_at)
             self.assertIsNone(db.get(PasswordCredential, deleted.id))
+            self.assertEqual(f"Deleted user {deleted.id}", deleted.username)
+            self.assertEqual(
+                f"_deleted_user_{deleted.id}",
+                deleted.normalized_username,
+            )
+
+            # Simulate a tombstone created by an older application version.
+            deleted.username = "player"
+            deleted.normalized_username = "player"
+            db.add(deleted)
+            db.commit()
+
+            replacement_invitation = service.invite_user(
+                admin,
+                lifetime_minutes=60,
+            )
+            replacement = service.activate(
+                replacement_invitation.token,
+                PASSWORD,
+                username="PLAYER",
+                display_name="Replacement player",
+            )
+            self.assertNotEqual(deleted.id, replacement.id)
+            self.assertEqual("player", replacement.normalized_username)
 
 
 class LoginThrottleTests(unittest.TestCase):

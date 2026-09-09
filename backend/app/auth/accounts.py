@@ -36,6 +36,7 @@ from app.auth.passwords import (
 
 
 ACCOUNT_TOKEN_BYTES = 32
+DELETED_USERNAME_PREFIX = "_deleted_user_"
 
 
 class AccountLifecycleError(RuntimeError):
@@ -93,7 +94,7 @@ class AccountLifecycleService:
             username = "invite-" + secrets.token_hex(16)
             display_name = "Pending invitation"
         normalized = normalize_username(username)
-        if self._find_user(normalized) is not None:
+        if self._find_username_conflict(normalized) is not None:
             raise AccountLifecycleError("That username is already in use.")
         now = self.clock()
         user = User(
@@ -141,7 +142,7 @@ class AccountLifecycleService:
             raise AccountLifecycleError("Choose a username to activate your account.")
         if username is not None:
             normalized = normalize_username(username)
-            existing = self._find_user(normalized)
+            existing = self._find_username_conflict(normalized)
             if existing is not None and existing.id != user.id:
                 raise AccountLifecycleError("That username is already in use.")
             user.username = username.strip()
@@ -267,6 +268,7 @@ class AccountLifecycleService:
         for token in active_tokens:
             token.consumed_at = now
             self.db.add(token)
+        self._tombstone_identity(user)
         user.status = UserStatus.DELETED
         user.can_login = False
         user.deleted_at = now
@@ -507,6 +509,31 @@ class AccountLifecycleService:
                 User.normalized_username == normalized_username
             )
         ).first()
+
+    def _find_username_conflict(
+        self,
+        normalized_username: str,
+    ) -> User | None:
+        existing = self._find_user(normalized_username)
+        if existing is None or existing.status is not UserStatus.DELETED:
+            return existing
+        # Release usernames held by accounts deleted before username reuse was
+        # introduced. The update and the new identity commit atomically.
+        self._tombstone_identity(existing)
+        self.db.flush()
+        return None
+
+    @staticmethod
+    def _tombstone_identity(user: User) -> None:
+        # Keep the row for foreign-key and audit history, but move its login
+        # identity into a namespace rejected by the public username policy.
+        user.username = f"Deleted user {user.id}"
+        user.normalized_username = (
+            f"{DELETED_USERNAME_PREFIX}{user.id}"
+        )
+        user.display_name = "Deleted user"
+        user.email = None
+        user.normalized_email = None
 
     @staticmethod
     def _require_admin(actor: User) -> None:

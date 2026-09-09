@@ -22,6 +22,11 @@ and this changelog follows the structure described by
 - Restored campaign authorization state on login and page reload so members
   can create a replacement after their assigned character or its People entry
   is deleted.
+- Released usernames when accounts are deleted while retaining an internal
+  user tombstone for historical ownership and audit references.
+- Added a backup-first hosted update script that refreshes pinned images,
+  rebuilds the application, restarts the stack, and runs its health check.
+- Updated audited frontend build dependencies to patched versions.
 
 ### Added
 
