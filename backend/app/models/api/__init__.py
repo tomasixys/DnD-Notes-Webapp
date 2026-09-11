@@ -70,6 +70,7 @@ from .issues import (
     UserIssueRead,
     AdminIssueRead,
 )
+from .notifications import AccountNotificationSummaryRead
 
 __all__ = [
     "ResourceType",
@@ -139,4 +140,5 @@ __all__ = [
     "KnownIssueRead",
     "UserIssueRead",
     "AdminIssueRead",
+    "AccountNotificationSummaryRead",
 ]

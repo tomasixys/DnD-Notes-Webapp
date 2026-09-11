@@ -3,7 +3,8 @@ import { after, before, beforeEach, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
-let server, store, campaignStore, authStore, useCampaignAuthorization
+let server, store, campaignStore, authStore, notificationStore
+let useCampaignAuthorization
 let compareByDateDescending
 const originalFetch = globalThis.fetch
 const key = Symbol('test-editor')
@@ -27,11 +28,20 @@ before(async () => {
     configFile: false,
     root: fileURLToPath(new URL('..', import.meta.url)),
     resolve: { alias: { '@': fileURLToPath(new URL('../src', import.meta.url)) } },
-    server: { middlewareMode: true, hmr: false, ws: false, watch: null },
+    server: {
+      middlewareMode: true,
+      hmr: false,
+      ws: false,
+      watch: null,
+      fs: { allow: [fileURLToPath(new URL('../..', import.meta.url))] },
+    },
   })
   store = (await server.ssrLoadModule('/src/stores/concurrencyStore.ts')).useConcurrencyStore()
   campaignStore = (await server.ssrLoadModule('/src/stores/campaignStore.ts')).useCampaignStore()
   authStore = (await server.ssrLoadModule('/src/stores/authStore.ts')).useAuthStore()
+  notificationStore = (
+    await server.ssrLoadModule('/src/stores/accountNotificationStore.ts')
+  ).useAccountNotificationStore()
   useCampaignAuthorization = (
     await server.ssrLoadModule('/src/composables/useCampaignAuthorization.ts')
   ).useCampaignAuthorization
@@ -190,4 +200,56 @@ test('login hydrates campaign permissions before opening a protected view', asyn
   assert.equal(campaignStore.selectedCampaign.value.id, 3)
   const { canCreateCharacter } = useCampaignAuthorization()
   assert.equal(canCreateCharacter.value, true)
+})
+
+test('account notifications combine live counts with per-user seen changes', async () => {
+  storage.clear()
+  let systemRole = 'user'
+  globalThis.fetch = async (url) => {
+    const pathname = new URL(String(url)).pathname
+    if (pathname === '/api/auth/login') {
+      return new Response(JSON.stringify({
+        user: {
+          id: 202,
+          username: 'notified-user',
+          display_name: 'Notified User',
+          status: 'active',
+          system_role: systemRole,
+        },
+        csrf_token: 'test-csrf',
+        authentication_required: true,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (pathname === '/api/campaigns') {
+      return new Response('[]', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    if (pathname === '/api/notifications') {
+      return new Response(JSON.stringify({
+        pending_campaign_invitations: 2,
+        pending_issue_reports: systemRole === 'admin' ? 1 : 0,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  await authStore.login('notified-user', 'test-password')
+  await notificationStore.refreshNotifications()
+  assert.equal(notificationStore.changelogUpdated.value, true)
+  assert.equal(notificationStore.systemRoleChanged.value, false)
+  assert.equal(notificationStore.notificationCount.value, 3)
+
+  notificationStore.markChangelogSeen()
+  assert.equal(notificationStore.notificationCount.value, 2)
+
+  systemRole = 'admin'
+  await authStore.login('notified-user', 'test-password')
+  await notificationStore.refreshNotifications()
+  assert.equal(notificationStore.systemRoleChanged.value, true)
+  assert.equal(notificationStore.notificationCount.value, 4)
+
+  notificationStore.markSystemRoleSeen()
+  assert.equal(notificationStore.notificationCount.value, 3)
 })

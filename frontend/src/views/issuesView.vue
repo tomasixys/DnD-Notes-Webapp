@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from "vue"
 
 import { GetAPI, isApiFailure, PostAPI, PutAPI } from "@/apihelpers"
+import IssueModerationCard from "@/components/IssueModerationCard.vue"
 import { useAuthStore } from "@/stores/authStore"
+import { useAccountNotificationStore } from "@/stores/accountNotificationStore"
 import type {
   AdminIssueDto,
   IssueStatus,
@@ -11,6 +13,7 @@ import type {
 } from "@/types/DataTransferObjects"
 
 const auth = useAuthStore()
+const accountNotifications = useAccountNotificationStore()
 const knownIssues = ref<KnownIssueDto[]>([])
 const myReports = ref<UserIssueDto[]>([])
 const adminReports = ref<AdminIssueDto[]>([])
@@ -24,6 +27,14 @@ const submitting = ref(false)
 const savingReportId = ref<number | null>(null)
 
 const isAdmin = computed(() => auth.user.value?.systemRole === "admin")
+const activeAdminReports = computed(() => adminReports.value.filter(
+  (report) => (
+    report.status === "pending" || report.status === "acknowledged"
+  ),
+))
+const closedAdminReports = computed(() => adminReports.value.filter(
+  (report) => report.status === "resolved" || report.status === "rejected",
+))
 
 const statusLabels: Record<IssueStatus, string> = {
   pending: "Pending review",
@@ -103,6 +114,7 @@ async function submitIssue() {
   description.value = ""
   message.value = "Issue submitted for administrator review."
   await Promise.all([loadMyReports(), loadAdminReports()])
+  void accountNotifications.refreshNotifications()
 }
 
 async function saveModeration(report: AdminIssueDto) {
@@ -127,6 +139,7 @@ async function saveModeration(report: AdminIssueDto) {
     loadMyReports(),
     loadAdminReports(),
   ])
+  void accountNotifications.refreshNotifications()
 }
 
 onMounted(loadIssues)
@@ -244,61 +257,61 @@ onMounted(loadIssues)
         <div>
           <p class="eyebrow">Administrator</p>
           <h2>Issue moderation</h2>
-          <p>Acknowledged reports become visible to every signed-in user.</p>
+          <p>
+            Pending reports need review. Acknowledged reports remain public
+            until they are resolved.
+          </p>
         </div>
-        <span class="count-badge">{{ adminReports.length }}</span>
+        <span class="count-badge">{{ activeAdminReports.length }}</span>
       </div>
 
-      <div v-if="adminReports.length" class="moderation-list">
-        <article
-          v-for="report in adminReports"
+      <div v-if="activeAdminReports.length" class="moderation-list">
+        <IssueModerationCard
+          v-for="report in activeAdminReports"
           :key="report.id"
-          class="moderation-card"
-        >
-          <div class="issue-card-heading">
-            <div>
-              <h3>{{ report.title }}</h3>
-              <span>
-                {{ report.reporterDisplayName }}
-                · @{{ report.reporterUsername }}
-                · {{ formatDate(report.createdAt) }}
-              </span>
-            </div>
-            <span class="status-badge" :data-status="report.status">
-              {{ statusLabels[report.status] }}
-            </span>
-          </div>
-          <p>{{ report.description }}</p>
-          <div class="moderation-controls">
-            <label>
-              Status
-              <select v-model="moderationStatuses[report.id]">
-                <option value="pending">Pending (private)</option>
-                <option value="acknowledged">Acknowledged (public)</option>
-                <option value="resolved">Resolved</option>
-                <option value="rejected">Not accepted</option>
-              </select>
-            </label>
-            <label class="moderation-note">
-              Note to reporter
-              <textarea
-                v-model="moderationNotes[report.id]"
-                maxlength="1000"
-                rows="2"
-                placeholder="Optional review or resolution note"
-              />
-            </label>
-            <button
-              type="button"
-              :disabled="savingReportId !== null"
-              @click="saveModeration(report)"
-            >
-              {{ savingReportId === report.id ? "Saving…" : "Save review" }}
-            </button>
-          </div>
-        </article>
+          :report="report"
+          :status="moderationStatuses[report.id]"
+          :note="moderationNotes[report.id] ?? ''"
+          :disabled="savingReportId !== null"
+          :saving="savingReportId === report.id"
+          @update:status="moderationStatuses[report.id] = $event"
+          @update:note="moderationNotes[report.id] = $event"
+          @save="saveModeration(report)"
+        />
       </div>
-      <p v-else class="empty-text">No issue reports require moderation.</p>
+      <p v-else class="empty-text">There are no open issue reports.</p>
+    </section>
+
+    <section
+      v-if="!loading && isAdmin && closedAdminReports.length"
+      class="issue-section information-card closed-issues-section"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Administrator history</p>
+          <h2>Closed reports</h2>
+          <p>
+            Resolved and rejected reports are kept here for reference and can
+            be reopened by changing their status.
+          </p>
+        </div>
+        <span class="count-badge">{{ closedAdminReports.length }}</span>
+      </div>
+
+      <div class="moderation-list">
+        <IssueModerationCard
+          v-for="report in closedAdminReports"
+          :key="report.id"
+          :report="report"
+          :status="moderationStatuses[report.id]"
+          :note="moderationNotes[report.id] ?? ''"
+          :disabled="savingReportId !== null"
+          :saving="savingReportId === report.id"
+          @update:status="moderationStatuses[report.id] = $event"
+          @update:note="moderationNotes[report.id] = $event"
+          @save="saveModeration(report)"
+        />
+      </div>
     </section>
   </section>
 </template>
@@ -401,16 +414,14 @@ onMounted(loadIssues)
   margin-top: 1rem;
 }
 
-.issue-card,
-.moderation-card {
+.issue-card {
   padding: 1rem;
   border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   background: rgba(0, 0, 0, 0.14);
 }
 
-.issue-card p,
-.moderation-card > p {
+.issue-card p {
   margin: 0.65rem 0 0;
   line-height: 1.55;
   white-space: pre-wrap;
@@ -426,8 +437,7 @@ onMounted(loadIssues)
   background: rgba(201, 137, 63, 0.08);
 }
 
-.issue-form label,
-.moderation-controls label {
+.issue-form label {
   display: grid;
   gap: 0.35rem;
 }
@@ -436,26 +446,9 @@ onMounted(loadIssues)
   justify-self: start;
 }
 
-.moderation-controls {
-  display: grid;
-  grid-template-columns: minmax(11rem, 0.35fr) minmax(16rem, 1fr) auto;
-  gap: 0.75rem;
-  align-items: end;
-  margin-top: 1rem;
-}
-
-.moderation-controls button {
-  white-space: nowrap;
-}
-
 @media (max-width: 850px) {
-  .issues-overview,
-  .moderation-controls {
+  .issues-overview {
     grid-template-columns: 1fr;
-  }
-
-  .moderation-controls button {
-    justify-self: start;
   }
 }
 

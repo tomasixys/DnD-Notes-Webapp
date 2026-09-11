@@ -14,9 +14,14 @@ and this changelog follows the structure described by
 - Users can report issues from inside the application and track their status.
   Reports remain private until an administrator acknowledges and publishes
   them as known issues.
+- Added an account-menu notification badge for pending campaign invitations,
+  changelog updates, server-role changes, and issue reports awaiting
+  administrator review.
 
 ### Changed
 
+- Resolved and rejected issue reports now move out of the active administrator
+  queue into a separate closed-report history, where they can still be reopened.
 - Sessions are now sorted and numbered by their played date. New sessions
   default to today's date, and adding an older session places it correctly in
   the timeline without renumbering stored records.

@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { onMounted } from "vue"
+
 import changelogSource from "../../../CHANGELOG.md?raw"
+import { useAccountNotificationStore } from "@/stores/accountNotificationStore"
 
 type ChangeGroup = {
   heading: string
@@ -57,6 +60,9 @@ function parseChangelog(source: string): Release[] {
 }
 
 const releases = parseChangelog(changelogSource)
+const accountNotifications = useAccountNotificationStore()
+
+onMounted(accountNotifications.markChangelogSeen)
 </script>
 
 <template>

@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
 import { useCampaignStore } from "@/stores/campaignStore"
 import { useAuthStore } from "@/stores/authStore"
+import { useAccountNotificationStore } from "@/stores/accountNotificationStore"
 import { useConcurrencyStore } from "@/stores/concurrencyStore"
 import { GetAPI, isApiFailure } from "@/apihelpers"
 import { useSearchStore } from "@/stores/searchStore"
@@ -12,6 +13,7 @@ import bannerImageDefault from "./assets/banner.png"
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const accountNotifications = useAccountNotificationStore()
 const concurrency = useConcurrencyStore()
 const draftCopyStatus = ref("")
 const accountMenuOpen = ref(false)
@@ -32,6 +34,20 @@ const hasHostedAccounts = computed(() => (
 const canAdministerServer = computed(() => (
   auth.authenticationRequired.value
   && auth.user.value?.systemRole === "admin"
+))
+const notificationCount = accountNotifications.notificationCount
+const pendingInvitationCount = accountNotifications.pendingInvitationCount
+const pendingIssueCount = accountNotifications.pendingIssueCount
+const changelogUpdated = accountNotifications.changelogUpdated
+const systemRoleChanged = accountNotifications.systemRoleChanged
+const accountMenuLabel = computed(() => {
+  const base = `Open account menu for ${accountName.value}`
+  if (notificationCount.value === 0) return base
+  const noun = notificationCount.value === 1 ? "notification" : "notifications"
+  return `${base}, ${notificationCount.value} ${noun}`
+})
+const notificationBadgeLabel = computed(() => (
+  notificationCount.value > 99 ? "99+" : String(notificationCount.value)
 ))
 
 const {
@@ -208,6 +224,7 @@ async function copyVisibleDraft() {
 function pollOnFocus() {
   if (document.visibilityState === "visible") {
     void pollCampaignChanges()
+    void accountNotifications.refreshNotifications()
   }
 }
 
@@ -224,6 +241,9 @@ function closeAccountMenu({ restoreFocus = false } = {}) {
 
 function toggleAccountMenu() {
   accountMenuOpen.value = !accountMenuOpen.value
+  if (accountMenuOpen.value) {
+    void accountNotifications.refreshNotifications()
+  }
 }
 
 function closeAccountMenuOnOutsideClick(event) {
@@ -252,11 +272,15 @@ onMounted(() => {
   document.addEventListener("pointerdown", closeAccountMenuOnOutsideClick)
   document.addEventListener("keydown", closeAccountMenuOnEscape)
   changePollTimer = window.setInterval(
-    () => void pollCampaignChanges(),
+    () => {
+      void pollCampaignChanges()
+      void accountNotifications.refreshNotifications()
+    },
     15_000,
   )
   scheduleSubmenuPositionUpdate()
   void pollCampaignChanges()
+  void accountNotifications.refreshNotifications()
 })
 
 onBeforeUnmount(() => {
@@ -277,6 +301,15 @@ watch(
     concurrency.dismissNotice()
     void pollCampaignChanges()
   },
+)
+
+watch(
+  () => [
+    auth.isAuthenticated.value,
+    auth.user.value?.id,
+    auth.user.value?.systemRole,
+  ],
+  () => void accountNotifications.refreshNotifications(),
 )
 
 watch(
@@ -427,11 +460,18 @@ async function logout() {
               aria-haspopup="menu"
               :aria-expanded="accountMenuOpen"
               aria-controls="account-menu-popover"
-              :aria-label="`Open account menu for ${accountName}`"
+              :aria-label="accountMenuLabel"
               :title="accountName"
               @click="toggleAccountMenu"
             >
               <span aria-hidden="true">{{ accountInitial }}</span>
+              <span
+                v-if="notificationCount"
+                class="account-notification-badge"
+                aria-hidden="true"
+              >
+                {{ notificationBadgeLabel }}
+              </span>
             </button>
 
             <div
@@ -451,25 +491,45 @@ async function logout() {
                 </span>
               </div>
 
-              <RouterLink role="menuitem" to="/profile">
-                Account
+              <RouterLink class="account-menu-link" role="menuitem" to="/profile">
+                <span>Account</span>
+                <span v-if="systemRoleChanged" class="account-menu-notification">
+                  Role changed
+                </span>
               </RouterLink>
               <RouterLink
                 v-if="hasHostedAccounts"
+                class="account-menu-link"
                 role="menuitem"
                 to="/invitations"
               >
-                Invitations
+                <span>Invitations</span>
+                <span
+                  v-if="pendingInvitationCount"
+                  class="account-menu-notification account-menu-notification-count"
+                >
+                  {{ pendingInvitationCount }}
+                </span>
               </RouterLink>
-              <RouterLink role="menuitem" to="/changelog">
-                Changelog
+              <RouterLink class="account-menu-link" role="menuitem" to="/changelog">
+                <span>Changelog</span>
+                <span v-if="changelogUpdated" class="account-menu-notification">
+                  New
+                </span>
               </RouterLink>
               <RouterLink
                 v-if="hasHostedAccounts"
+                class="account-menu-link"
                 role="menuitem"
                 to="/issues"
               >
-                Known issues
+                <span>Known issues</span>
+                <span
+                  v-if="pendingIssueCount"
+                  class="account-menu-notification account-menu-notification-count"
+                >
+                  {{ pendingIssueCount }}
+                </span>
               </RouterLink>
               <RouterLink
                 v-if="canAdministerServer"

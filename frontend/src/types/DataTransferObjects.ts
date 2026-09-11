@@ -115,6 +115,11 @@ export type AdminIssueDto = UserIssueDto & {
   reporterDisplayName: string
 }
 
+export type AccountNotificationSummaryDto = {
+  pendingCampaignInvitations: number
+  pendingIssueReports: number
+}
+
 export type CampaignMembershipDto = {
   id: number
   userId: number

@@ -3,6 +3,7 @@ import { onBeforeMount, onMounted, onBeforeUnmount, ref } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 import { GetAPI, isApiFailure, PostAPI } from "@/apihelpers"
 import { useCampaignStore } from "@/stores/campaignStore"
+import { useAccountNotificationStore } from "@/stores/accountNotificationStore"
 import type {
   CampaignInvitationAcceptanceDto,
   CampaignInvitationDto,
@@ -12,6 +13,7 @@ import type {
 const route = useRoute()
 const router = useRouter()
 const { setCampaigns, selectCampaign } = useCampaignStore()
+const accountNotifications = useAccountNotificationStore()
 const pendingInvitationKey = "pendingCampaignInvitationToken"
 
 const token = ref("")
@@ -70,6 +72,7 @@ async function acceptInvitation(invitationId?: number) {
   token.value = ""
   message.value = `You joined ${response.invitation.campaignName} as ${response.membership.role}.`
   await loadPending()
+  void accountNotifications.refreshNotifications()
 }
 
 async function declineInvitation(invitationId: number) {
@@ -85,6 +88,7 @@ async function declineInvitation(invitationId: number) {
   }
   message.value = `Invitation to ${response.campaignName} declined.`
   await loadPending()
+  void accountNotifications.refreshNotifications()
 }
 
 onBeforeMount(() => {
