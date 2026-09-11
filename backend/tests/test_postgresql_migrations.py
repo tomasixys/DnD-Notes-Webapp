@@ -23,7 +23,7 @@ from app.authorization.invitations import (
 )
 from app.authorization.models import CampaignMembership
 from app.migrations import (
-    PORTABLE_BASELINE_REVISION,
+    PORTABLE_HEAD_REVISION,
     run_database_migrations,
 )
 from app.models.database import Campaign, Installation
@@ -79,13 +79,14 @@ class PostgreSQLMigrationIntegrationTests(unittest.TestCase):
         self.assertIn("login_throttle", table_names)
         self.assertIn("security_event", table_names)
         self.assertIn("campaign_invitation", table_names)
+        self.assertIn("issue_report", table_names)
         self.assertIn("alembic_version", table_names)
 
         with self.engine.begin() as connection:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        self.assertEqual(PORTABLE_BASELINE_REVISION, revision)
+        self.assertEqual(PORTABLE_HEAD_REVISION, revision)
 
         with Session(self.engine) as db:
             db.add(

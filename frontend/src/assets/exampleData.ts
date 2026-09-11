@@ -40,7 +40,6 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     ...exampleRevision,
     id: 1,
     campaignId: 1,
-    sessionNumber: 1,
     date: "2026-01-12",
     title: "New Year, Old Trouble",
     description:
@@ -51,7 +50,6 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     ...exampleRevision,
     id: 2,
     campaignId: 1,
-    sessionNumber: 2,
     date: "2026-01-19",
     title: "Bones Beneath the City",
     description:
@@ -62,7 +60,6 @@ export const sessionListExample: dto.SessionListItemDto[] = [
     ...exampleRevision,
     id: 3,
     campaignId: 1,
-    sessionNumber: 3,
     date: "2026-01-26",
     title: "The Thieves' Hideout",
     description:
@@ -81,30 +78,33 @@ export const campaignRollStatsExample: dto.CampaignRollDto = {
 export const sessionRollsExample: dto.SessionRollDto[] = [
   {
     revision: 1,
-    id: 1,
+    sessionId: 1,
     campaignId: 1,
-    sessionNumber: 1,
+    userId: 1,
     rolls: [12, 4, 16, 7, 11],
     average: 10,
     rollLuck: 0.5,
+    otherContributors: [],
   },
   {
     revision: 1,
-    id: 2,
+    sessionId: 2,
     campaignId: 1,
-    sessionNumber: 2,
+    userId: 1,
     rolls: [3, 8, 14, 19, 9, 6],
     average: 9.83,
     rollLuck: 0.42,
+    otherContributors: [],
   },
   {
     revision: 1,
-    id: 3,
+    sessionId: 3,
     campaignId: 1,
-    sessionNumber: 3,
+    userId: 1,
     rolls: [18, 15, 2, 13, 11, 20, 5],
     average: 12,
     rollLuck: 0.66,
+    otherContributors: [],
   }
 ]
 

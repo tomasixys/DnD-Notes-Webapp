@@ -22,7 +22,6 @@ class Episode(NoteBase, MutableAggregate, table=True):
     )
 
     date: str
-    session_number: int = Field(index=True)
 
     rolls: list["RollEntry"] = Relationship(
         back_populates="episode",

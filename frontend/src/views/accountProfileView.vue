@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { isApiFailure, PostAPI } from "@/apihelpers"
 import { useAuthStore } from "@/stores/authStore"
+import { useAccountNotificationStore } from "@/stores/accountNotificationStore"
 import type { IssuedAccountTokenDto } from "@/types/DataTransferObjects"
 
 const router = useRouter()
 const auth = useAuthStore()
+const accountNotifications = useAccountNotificationStore()
 const inviting = ref(false)
 const activationLink = ref("")
 const accountMessage = ref("")
@@ -16,6 +18,8 @@ const canInviteAccounts = computed(
     && auth.user.value?.systemRole === "admin"
   ),
 )
+
+onMounted(accountNotifications.markSystemRoleSeen)
 
 function buildActivationLink(token: string): string {
   const url = new URL("/activate", window.location.origin)

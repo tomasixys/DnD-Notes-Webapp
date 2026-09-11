@@ -148,7 +148,7 @@ campaign-wide shared data:
 | Update shared resource | No | Yes | Yes |
 | Delete shared resource | No | Yes | Yes |
 | Create a roll | No | Yes | Yes |
-| Delete a session's rolls | No | Yes | Yes |
+| Delete own rolls from a session | No | Yes | Yes |
 | Change inventory metadata or purse | No | Yes | Yes |
 | Create/update/delete inventory item | No | Yes | Yes |
 

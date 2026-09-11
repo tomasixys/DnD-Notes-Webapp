@@ -44,6 +44,7 @@ from .search import (
 from .parsed_tag import ParsedTag
 from .rolls import (
     RollCreate,
+    RollContributorStats,
     EpisodeRollStats,
     CampaignRollStats,
     RollMutationResponse,
@@ -62,6 +63,14 @@ from .inventory import (
     InventoryUpdate,
     InventoryRead,
 )
+from .issues import (
+    IssueReportCreate,
+    IssueModerationUpdate,
+    KnownIssueRead,
+    UserIssueRead,
+    AdminIssueRead,
+)
+from .notifications import AccountNotificationSummaryRead
 
 __all__ = [
     "ResourceType",
@@ -109,6 +118,7 @@ __all__ = [
     "SearchResultDto",
     "SearchResponseDto",
     "RollCreate",
+    "RollContributorStats",
     "EpisodeRollStats",
     "CampaignRollStats",
     "RollMutationResponse",
@@ -125,4 +135,10 @@ __all__ = [
     "InventoryItemRead",
     "InventoryUpdate",
     "InventoryRead",
+    "IssueReportCreate",
+    "IssueModerationUpdate",
+    "KnownIssueRead",
+    "UserIssueRead",
+    "AdminIssueRead",
+    "AccountNotificationSummaryRead",
 ]

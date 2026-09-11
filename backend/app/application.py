@@ -47,11 +47,13 @@ from app.routers import (
     health,
     inventory,
     invitations,
+    issues,
     locations,
     people,
     rolls,
     search,
     memberships,
+    notifications,
 )
 from app.services.installations import InstallationService
 
@@ -158,6 +160,8 @@ def create_app(
     application.include_router(characters.router)
     application.include_router(changes.router)
     application.include_router(inventory.router)
+    application.include_router(issues.router)
+    application.include_router(notifications.router)
     audit_campaign_route_authorization(application)
 
     # Keep this after every API router. It contains the catch-all SPA route.

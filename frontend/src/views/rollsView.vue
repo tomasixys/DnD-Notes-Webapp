@@ -20,7 +20,11 @@ import type {
 import { withExpectedRevision } from "@/utils/concurrency"
 
 const { selectedCampaignId } = useCampaignStore()
-const { selectedSession, upsertSession } = useSessionContext()
+const {
+  selectedSession,
+  selectedSessionNumber,
+  upsertSession,
+} = useSessionContext()
 const { canWriteSharedResources } = useCampaignAuthorization()
 
 const rollInput = ref<number | null>(null)
@@ -133,14 +137,14 @@ useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [
     <section v-if="selectedSession" class="rolls-section">
       <header class="resource-detail-header">
         <p class="resource-detail-kicker">
-          Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
+          Session {{ selectedSessionNumber }} · {{ selectedSession.date }}
         </p>
         <h3>{{ selectedSession.title }}</h3>
       </header>
 
       <dl v-if="sessionRolls" class="resource-facts">
         <div>
-          <dt>Rolls</dt>
+          <dt>Your rolls</dt>
           <dd>{{ sessionRolls.rolls.length }}</dd>
         </div>
         <div>
@@ -176,7 +180,7 @@ useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [
           class="danger"
           @click="deleteRolls"
         >
-          Delete rolls
+          Delete your rolls
         </button>
       </form>
 
@@ -190,8 +194,42 @@ useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [
         </span>
       </div>
       <p v-else class="empty-text">
-        No rolls have been registered for this session yet.
+        You have not registered any rolls for this session yet.
       </p>
+
+      <section
+        v-if="sessionRolls?.otherContributors.length"
+        class="roll-contributors"
+      >
+        <header class="resource-detail-header">
+          <p class="resource-detail-kicker">Other players</p>
+          <h3>Session statistics</h3>
+        </header>
+
+        <div class="roll-contributor-list">
+          <article
+            v-for="contributor in sessionRolls.otherContributors"
+            :key="contributor.userId ?? 'legacy'"
+            class="roll-contributor-card"
+          >
+            <h4>{{ contributor.displayName }}</h4>
+            <dl class="resource-facts compact">
+              <div>
+                <dt>Rolls</dt>
+                <dd>{{ contributor.numRolls }}</dd>
+              </div>
+              <div>
+                <dt>Average</dt>
+                <dd>{{ contributor.average.toFixed(2) }}</dd>
+              </div>
+              <div>
+                <dt>Roll luck</dt>
+                <dd>{{ formatRollLuck(contributor.rollLuck) }}</dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+      </section>
     </section>
 
     <p v-else class="empty-text">
@@ -200,8 +238,8 @@ useResourceEditor(() => selectedCampaignId.value && rollInput.value !== null ? [
 
     <section class="rolls-section">
       <header class="resource-detail-header">
-        <p class="resource-detail-kicker">Overall statistics</p>
-        <h3>Campaign rolls</h3>
+        <p class="resource-detail-kicker">Your overall statistics</p>
+        <h3>Your campaign rolls</h3>
       </header>
 
       <dl class="resource-facts">
