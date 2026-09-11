@@ -26,7 +26,7 @@ const accountName = computed(() => (
 const accountInitial = computed(() => (
   Array.from(accountName.value)[0]?.toLocaleUpperCase() ?? "?"
 ))
-const canViewInvitations = computed(() => (
+const hasHostedAccounts = computed(() => (
   auth.authenticationRequired.value
 ))
 const canAdministerServer = computed(() => (
@@ -455,11 +455,21 @@ async function logout() {
                 Account
               </RouterLink>
               <RouterLink
-                v-if="canViewInvitations"
+                v-if="hasHostedAccounts"
                 role="menuitem"
                 to="/invitations"
               >
                 Invitations
+              </RouterLink>
+              <RouterLink role="menuitem" to="/changelog">
+                Changelog
+              </RouterLink>
+              <RouterLink
+                v-if="hasHostedAccounts"
+                role="menuitem"
+                to="/issues"
+              >
+                Known issues
               </RouterLink>
               <RouterLink
                 v-if="canAdministerServer"

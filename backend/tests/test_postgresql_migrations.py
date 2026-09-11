@@ -79,6 +79,7 @@ class PostgreSQLMigrationIntegrationTests(unittest.TestCase):
         self.assertIn("login_throttle", table_names)
         self.assertIn("security_event", table_names)
         self.assertIn("campaign_invitation", table_names)
+        self.assertIn("issue_report", table_names)
         self.assertIn("alembic_version", table_names)
 
         with self.engine.begin() as connection:

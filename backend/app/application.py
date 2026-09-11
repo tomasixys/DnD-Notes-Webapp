@@ -47,6 +47,7 @@ from app.routers import (
     health,
     inventory,
     invitations,
+    issues,
     locations,
     people,
     rolls,
@@ -158,6 +159,7 @@ def create_app(
     application.include_router(characters.router)
     application.include_router(changes.router)
     application.include_router(inventory.router)
+    application.include_router(issues.router)
     audit_campaign_route_authorization(application)
 
     # Keep this after every API router. It contains the catch-all SPA route.

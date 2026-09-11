@@ -14,11 +14,12 @@ from .v3 import migrate_to_v3
 from .v4 import migrate_to_v4
 from .v5 import migrate_to_v5
 from .v6 import migrate_to_v6
+from .v7 import migrate_to_v7
 
 
-CURRENT_DATABASE_VERSION = 6
+CURRENT_DATABASE_VERSION = 7
 PORTABLE_BASELINE_REVISION = "0001_current_schema"
-PORTABLE_HEAD_REVISION = "0003_add_roll_user"
+PORTABLE_HEAD_REVISION = "0004_add_issue_reports"
 PORTABLE_MIGRATION_DIR = Path(__file__).resolve().parent / "portable"
 
 MIGRATIONS = {
@@ -28,6 +29,7 @@ MIGRATIONS = {
     4: migrate_to_v4,
     5: migrate_to_v5,
     6: migrate_to_v6,
+    7: migrate_to_v7,
 }
 
 

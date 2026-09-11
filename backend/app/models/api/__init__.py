@@ -63,6 +63,13 @@ from .inventory import (
     InventoryUpdate,
     InventoryRead,
 )
+from .issues import (
+    IssueReportCreate,
+    IssueModerationUpdate,
+    KnownIssueRead,
+    UserIssueRead,
+    AdminIssueRead,
+)
 
 __all__ = [
     "ResourceType",
@@ -127,4 +134,9 @@ __all__ = [
     "InventoryItemRead",
     "InventoryUpdate",
     "InventoryRead",
+    "IssueReportCreate",
+    "IssueModerationUpdate",
+    "KnownIssueRead",
+    "UserIssueRead",
+    "AdminIssueRead",
 ]

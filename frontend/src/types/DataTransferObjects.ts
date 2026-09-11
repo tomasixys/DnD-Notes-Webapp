@@ -85,6 +85,36 @@ export type IssuedAccountTokenDto = {
   expiresAt: string
 }
 
+export type IssueStatus =
+  | "pending"
+  | "acknowledged"
+  | "resolved"
+  | "rejected"
+
+export type KnownIssueDto = {
+  id: number
+  title: string
+  description: string
+  createdAt: string
+  acknowledgedAt: string
+}
+
+export type UserIssueDto = {
+  id: number
+  title: string
+  description: string
+  status: IssueStatus
+  reviewNote: string
+  createdAt: string
+  updatedAt: string
+  reviewedAt: string | null
+}
+
+export type AdminIssueDto = UserIssueDto & {
+  reporterUsername: string
+  reporterDisplayName: string
+}
+
 export type CampaignMembershipDto = {
   id: number
   userId: number
