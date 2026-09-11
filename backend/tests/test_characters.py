@@ -143,7 +143,6 @@ class CharacterApiIntegrationTests(unittest.TestCase):
                     date="2026-07-21",
                     title="Arrival",
                     description="Reached the city",
-                    session_number=1,
                 ),
                 context,
             )
@@ -572,6 +571,128 @@ class CharacterApiIntegrationTests(unittest.TestCase):
 
 
 class CharacterMigrationTests(unittest.TestCase):
+    def test_v6_assigns_existing_rolls_to_the_campaign_owner(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "version-five.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE campaign (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL
+                    );
+                    CREATE TABLE sessionnote (
+                        id INTEGER PRIMARY KEY,
+                        campaign_id INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        date TEXT NOT NULL
+                    );
+                    CREATE TABLE app_user (
+                        id INTEGER PRIMARY KEY
+                    );
+                    CREATE TABLE campaign_membership (
+                        id INTEGER PRIMARY KEY,
+                        campaign_id INTEGER NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        role TEXT NOT NULL,
+                        is_custodial BOOLEAN NOT NULL
+                    );
+                    CREATE TABLE rollentry (
+                        id INTEGER PRIMARY KEY,
+                        session_id INTEGER NOT NULL,
+                        roll INTEGER NOT NULL
+                    );
+                    INSERT INTO campaign VALUES (1, 'Test');
+                    INSERT INTO sessionnote VALUES
+                        (20, 1, 'Arrival', 'Reached the city', '2026-01-05');
+                    INSERT INTO app_user VALUES (3);
+                    INSERT INTO campaign_membership VALUES
+                        (4, 1, 3, 'owner', FALSE);
+                    INSERT INTO rollentry VALUES (30, 20, 18);
+                    PRAGMA user_version = 5;
+                    """
+                )
+                connection.commit()
+
+            engine = create_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+            with engine.connect() as connection:
+                version = connection.exec_driver_sql(
+                    "PRAGMA user_version"
+                ).scalar_one()
+                roll = connection.exec_driver_sql(
+                    "SELECT id, session_id, user_id, roll FROM rollentry"
+                ).one()
+                indexes = {
+                    index["name"]
+                    for index in inspect(connection).get_indexes("rollentry")
+                }
+            engine.dispose()
+
+            self.assertEqual(CURRENT_DATABASE_VERSION, version)
+            self.assertEqual((30, 20, 3, 18), roll)
+            self.assertIn("ix_rollentry_user_id", indexes)
+
+    def test_v5_removes_session_number_without_losing_episode_data(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "version-four.db"
+            with closing(sqlite3.connect(database_path)) as connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE campaign (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL
+                    );
+                    CREATE TABLE sessionnote (
+                        id INTEGER PRIMARY KEY,
+                        campaign_id INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        session_number INTEGER NOT NULL
+                    );
+                    CREATE INDEX ix_sessionnote_session_number
+                        ON sessionnote (session_number);
+                    INSERT INTO campaign VALUES (1, 'Test');
+                    INSERT INTO sessionnote VALUES
+                        (20, 1, 'Arrival', 'Reached the city',
+                         '2026-01-05', 12);
+                    PRAGMA user_version = 4;
+                    """
+                )
+                connection.commit()
+
+            engine = create_engine(
+                f"sqlite:///{database_path}",
+                poolclass=NullPool,
+            )
+            run_database_migrations(engine)
+            with engine.connect() as connection:
+                version = connection.exec_driver_sql(
+                    "PRAGMA user_version"
+                ).scalar_one()
+                episode = connection.exec_driver_sql(
+                    "SELECT id, date, title, content FROM sessionnote"
+                ).one()
+                columns = {
+                    column["name"]
+                    for column in inspect(connection).get_columns(
+                        "sessionnote"
+                    )
+                }
+            engine.dispose()
+
+            self.assertEqual(CURRENT_DATABASE_VERSION, version)
+            self.assertEqual(
+                (20, "2026-01-05", "Arrival", "Reached the city"),
+                episode,
+            )
+            self.assertNotIn("session_number", columns)
+
     def test_v3_migration_adds_character_schema_to_version_two_database(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "version-two.db"
@@ -728,6 +849,7 @@ class CharacterMigrationTests(unittest.TestCase):
             )
             self.assertEqual(session_content, "Reached the city")
             self.assertNotIn("description", session_columns)
+            self.assertNotIn("session_number", session_columns)
             self.assertNotIn("characterentry", tables)
 
 

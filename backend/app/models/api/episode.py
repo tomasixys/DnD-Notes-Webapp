@@ -8,7 +8,6 @@ class EpisodeData(SQLModel):
     date: str
     title: str
     description: str = ""
-    session_number: int
     tags: list[str] = Field(default_factory=list)
 
 

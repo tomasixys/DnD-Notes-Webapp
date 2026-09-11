@@ -44,6 +44,7 @@ from .search import (
 from .parsed_tag import ParsedTag
 from .rolls import (
     RollCreate,
+    RollContributorStats,
     EpisodeRollStats,
     CampaignRollStats,
     RollMutationResponse,
@@ -109,6 +110,7 @@ __all__ = [
     "SearchResultDto",
     "SearchResponseDto",
     "RollCreate",
+    "RollContributorStats",
     "EpisodeRollStats",
     "CampaignRollStats",
     "RollMutationResponse",

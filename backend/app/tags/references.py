@@ -36,12 +36,7 @@ def resource_model(resource_type: ResourceType):
 
 def candidate_labels(resource_type: ResourceType, resource) -> list[str]:
     if resource_type == ResourceType.EPISODE:
-        return [
-            resource.title,
-            str(resource.session_number),
-            f"session {resource.session_number}",
-            f"episode {resource.session_number}",
-        ]
+        return [resource.title]
     if resource_type in {
         ResourceType.CHARACTER_NOTE,
         ResourceType.BACKSTORY_NOTE,

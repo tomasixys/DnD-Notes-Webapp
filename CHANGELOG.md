@@ -135,6 +135,10 @@ and this changelog follows the structure described by
 
 ### Changed
 
+- Made session numbers date-derived presentation values, with session records
+  stored and returned by stable ID and session views sorted chronologically.
+- Scoped raw rolls, roll deletion, and session/campaign roll statistics to the
+  account that recorded them, with read-only aggregates for other players.
 - Changed downloadable campaign exports to exclude private or restricted
   character entries the requesting owner cannot read; imported private data is
   re-owned by the importer without restoring source-server user identifiers.

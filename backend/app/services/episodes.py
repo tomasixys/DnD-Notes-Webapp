@@ -37,7 +37,6 @@ class EpisodeService:
             date=episode.date,
             title=episode.title,
             description=episode.content,
-            session_number=episode.session_number,
             tags=self.tags.list_tag_reads(
                 ResourceType.EPISODE,
                 episode.id,
@@ -56,21 +55,11 @@ class EpisodeService:
             raise HTTPException(status_code=404, detail="Episode not found")
         return episode
 
-    def get_by_number(
-        self,
-        session_number: int,
-    ) -> Episode | None:
-        statement = select(Episode).where(
-            Episode.campaign_id == self.context.campaign_id,
-            Episode.session_number == session_number,
-        )
-        return self.db.exec(statement).first()
-
     def list_for_campaign(self) -> list[EpisodeRead]:
         statement = (
             select(Episode)
             .where(Episode.campaign_id == self.context.campaign_id)
-            .order_by(Episode.session_number.desc())
+            .order_by(Episode.id)
         )
         return [
             self.to_read(episode)
@@ -83,24 +72,13 @@ class EpisodeService:
         date: str,
         title: str,
         description: str,
-        session_number: int,
         tags: list[str],
     ) -> Episode:
-        if self.get_by_number(session_number) is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "An episode with this number already exists "
-                    "for this campaign"
-                ),
-            )
-
         episode = Episode(
             campaign_id=self.context.campaign_id,
             date=date,
             title=title,
             content=description,
-            session_number=session_number,
         )
         self.db.add(episode)
         self.db.flush()
@@ -130,7 +108,6 @@ class EpisodeService:
             date=episode_data.date,
             title=episode_data.title,
             description=episode_data.description,
-            session_number=episode_data.session_number,
             tags=episode_data.tags,
         )
 
@@ -160,26 +137,7 @@ class EpisodeService:
             expected_revision or episode.revision,
             resource_type=ResourceType.EPISODE.value,
         )
-        previous_labels = [
-            episode.title,
-            str(episode.session_number),
-            f"session {episode.session_number}",
-            f"episode {episode.session_number}",
-        ]
-        existing = self.get_by_number(
-            episode_data.session_number,
-        )
-        if existing is not None and existing.id != episode.id:
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "A different episode with this number already "
-                    "exists for this campaign "
-                    f"(Episode ID: {existing.id})"
-                ),
-            )
-
-        episode.session_number = episode_data.session_number
+        previous_labels = [episode.title]
         episode.date = episode_data.date
         episode.title = episode_data.title
         episode.content = episode_data.description
@@ -268,7 +226,6 @@ class EpisodeService:
             date=episode.date,
             title=episode.title,
             description=episode.content,
-            session_number=episode.session_number,
             tags=self.tags.list_values(
                 ResourceType.EPISODE,
                 episode.id,
@@ -282,7 +239,7 @@ class EpisodeService:
             .where(
                 Episode.campaign_id == self.context.campaign_id
             )
-            .order_by(Episode.session_number, Episode.id)
+            .order_by(Episode.id)
         ).all()
         return [
             self.to_backup(episode)
@@ -297,7 +254,6 @@ class EpisodeService:
             date=episode_backup.date,
             title=episode_backup.title,
             description=episode_backup.description,
-            session_number=episode_backup.session_number,
             tags=episode_backup.tags,
         )
         self.rolls.stage_restore_for_episode(

@@ -4,7 +4,7 @@ from app.auth.administration import LOCAL_USER_USERNAME
 from app.auth.models import User
 from app.authorization.enums import CampaignRole
 from app.authorization.models import CampaignMembership
-from app.models.database import Campaign
+from app.models.database import Campaign, Episode, RollEntry
 
 
 class MembershipBootstrapService:
@@ -51,5 +51,15 @@ class MembershipBootstrapService:
             )
             self.db.add(membership)
             created += 1
+
+        legacy_rolls = self.db.exec(
+            select(RollEntry)
+            .join(Episode, RollEntry.session_id == Episode.id)
+            .where(RollEntry.user_id.is_(None))
+            .order_by(RollEntry.id)
+        ).all()
+        for roll in legacy_rolls:
+            roll.user_id = local_user.id
+            self.db.add(roll)
         self.db.commit()
         return created

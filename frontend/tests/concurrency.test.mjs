@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
 let server, store, campaignStore, authStore, useCampaignAuthorization
+let compareByDateDescending
 const originalFetch = globalThis.fetch
 const key = Symbol('test-editor')
 const change = { sequence: 1, resourceType: 'person', resourceId: 10, action: 'updated', revision: 2, createdAt: '' }
@@ -34,6 +35,9 @@ before(async () => {
   useCampaignAuthorization = (
     await server.ssrLoadModule('/src/composables/useCampaignAuthorization.ts')
   ).useCampaignAuthorization
+  compareByDateDescending = (
+    await server.ssrLoadModule('/src/utils/resourceCollections.ts')
+  ).compareByDateDescending
 })
 after(async () => { globalThis.fetch = originalFetch; await server?.close() })
 beforeEach(() => { store.resetConcurrencyState(); respond() })
@@ -92,6 +96,22 @@ test('session reset discards an in-flight change response', async () => {
   finish(new Response(JSON.stringify({ cursor: 1, changes: [change] })))
   assert.equal(await request, false)
   assert.equal(store.hasNotice.value, false)
+})
+
+test('sessions sort by date with newest same-day IDs first', () => {
+  const sessions = [
+    { id: 3, date: '2026-01-10' },
+    { id: 1, date: '2026-01-20' },
+    { id: 2, date: '2026-01-20' },
+  ]
+
+  sessions.sort(compareByDateDescending)
+
+  assert.deepEqual(sessions.map(session => session.id), [2, 1, 3])
+  assert.deepEqual(
+    sessions.map((session, index) => sessions.length - index),
+    [3, 2, 1],
+  )
 })
 
 test('deleting the assigned character restores member character creation', () => {

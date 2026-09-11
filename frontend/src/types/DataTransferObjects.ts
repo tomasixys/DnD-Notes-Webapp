@@ -146,7 +146,6 @@ export type ResourceTagDto = {
 export type SessionListItemDto = RevisionDto & {
   id: number
   campaignId: number
-  sessionNumber: number
   date: string
   title: string
   description: string
@@ -161,13 +160,22 @@ export type SessionDataDto = Omit<
 }
   
 export type SessionRollDto = {
-  id: number
+  sessionId: number
   campaignId: number
-  sessionNumber: number
+  userId: number
   rolls: number[]
   average: number
   rollLuck: number
   revision: number
+  otherContributors: RollContributorStatsDto[]
+}
+
+export type RollContributorStatsDto = {
+  userId: number | null
+  displayName: string
+  numRolls: number
+  average: number
+  rollLuck: number
 }
   
 export type CampaignRollDto = {

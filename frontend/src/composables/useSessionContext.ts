@@ -5,6 +5,7 @@ import type { SessionListItemDto } from "@/types/DataTransferObjects"
 export type SessionContext = {
   sessions: Ref<SessionListItemDto[]>
   selectedSession: ComputedRef<SessionListItemDto | null>
+  selectedSessionNumber: ComputedRef<number | null>
   selectedSessionId: ComputedRef<number | null>
   selectionRevision: Ref<number>
   loadSessions: () => Promise<void>
