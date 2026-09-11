@@ -613,7 +613,6 @@ select {
   top: 1rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
