@@ -14,7 +14,7 @@ from app.database import (
     resolve_database_url,
 )
 from app.migrations import (
-    PORTABLE_BASELINE_REVISION,
+    PORTABLE_HEAD_REVISION,
     run_database_migrations,
 )
 
@@ -149,7 +149,7 @@ class DatabaseConfigurationTests(unittest.TestCase):
                         text("SELECT version_num FROM alembic_version")
                     ).scalar_one()
                 self.assertEqual("installation", table)
-                self.assertEqual(PORTABLE_BASELINE_REVISION, revision)
+                self.assertEqual(PORTABLE_HEAD_REVISION, revision)
             finally:
                 engine.dispose()
                 database_module._engine = previous_engine
@@ -166,9 +166,135 @@ class DatabaseConfigurationTests(unittest.TestCase):
                 revision = connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar_one()
-            self.assertEqual(PORTABLE_BASELINE_REVISION, revision)
+            self.assertEqual(PORTABLE_HEAD_REVISION, revision)
         finally:
             engine.dispose()
+
+    def test_portable_migration_removes_legacy_session_number(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "portable.db"
+            settings = ApplicationSettings.model_validate(
+                {
+                    "database": {
+                        "url": f"sqlite:///{database_path.as_posix()}"
+                    }
+                }
+            )
+            engine = create_database_engine(settings)
+            try:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "CREATE TABLE campaign ("
+                            "id INTEGER PRIMARY KEY, name VARCHAR NOT NULL)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE TABLE sessionnote ("
+                            "id INTEGER PRIMARY KEY, "
+                            "campaign_id INTEGER NOT NULL, "
+                            "title VARCHAR NOT NULL, "
+                            "content VARCHAR NOT NULL, "
+                            "date VARCHAR NOT NULL, "
+                            "session_number INTEGER NOT NULL)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE INDEX ix_sessionnote_session_number "
+                            "ON sessionnote (session_number)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO sessionnote VALUES "
+                            "(7, 1, 'Arrival', 'Notes', '2026-01-05', 12)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE TABLE app_user ("
+                            "id INTEGER PRIMARY KEY)"
+                        )
+                    )
+                    connection.execute(
+                        text("INSERT INTO app_user VALUES (3)")
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE TABLE campaign_membership ("
+                            "id INTEGER PRIMARY KEY, "
+                            "campaign_id INTEGER NOT NULL, "
+                            "user_id INTEGER NOT NULL, "
+                            "role VARCHAR NOT NULL, "
+                            "is_custodial BOOLEAN NOT NULL)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO campaign_membership VALUES "
+                            "(4, 1, 3, 'owner', FALSE)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE TABLE rollentry ("
+                            "id INTEGER PRIMARY KEY, "
+                            "session_id INTEGER NOT NULL, "
+                            "roll INTEGER NOT NULL)"
+                        )
+                    )
+                    connection.execute(
+                        text("INSERT INTO rollentry VALUES (8, 7, 18)")
+                    )
+                    connection.execute(
+                        text(
+                            "CREATE TABLE alembic_version ("
+                            "version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
+                        )
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO alembic_version VALUES "
+                            "('0001_current_schema')"
+                        )
+                    )
+
+                run_database_migrations(engine)
+
+                with engine.connect() as connection:
+                    columns = {
+                        row[1]
+                        for row in connection.execute(
+                            text("PRAGMA table_info(sessionnote)")
+                        )
+                    }
+                    episode = connection.execute(
+                        text(
+                            "SELECT id, date, title, content "
+                            "FROM sessionnote"
+                        )
+                    ).one()
+                    roll = connection.execute(
+                        text(
+                            "SELECT id, session_id, user_id, roll "
+                            "FROM rollentry"
+                        )
+                    ).one()
+                    revision = connection.execute(
+                        text("SELECT version_num FROM alembic_version")
+                    ).scalar_one()
+
+                self.assertNotIn("session_number", columns)
+                self.assertEqual(
+                    (7, "2026-01-05", "Arrival", "Notes"),
+                    episode,
+                )
+                self.assertEqual((8, 7, 3, 18), roll)
+                self.assertEqual(PORTABLE_HEAD_REVISION, revision)
+            finally:
+                engine.dispose()
 
 
 if __name__ == "__main__":

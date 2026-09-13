@@ -1,12 +1,15 @@
 from fastapi import HTTPException
 from scipy.stats import norm
+from sqlalchemy import or_
 from sqlmodel import select
 
+from app.auth.models import User
 from app.authorization.enums import CampaignCapability
 from app.models.api import (
     CampaignRollStats,
     EpisodeRollStats,
     RollCreate,
+    RollContributorStats,
     RollMutationResponse,
 )
 from app.models.database import Episode, RollEntry
@@ -64,17 +67,27 @@ class RollService:
         episode_id: int,
     ) -> list[RollEntry]:
         self._get_episode(episode_id)
-        statement = select(RollEntry).where(
-            RollEntry.session_id == episode_id
+        statement = (
+            select(RollEntry)
+            .where(
+                RollEntry.session_id == episode_id,
+                RollEntry.user_id == self.context.user.id,
+            )
+            .order_by(RollEntry.id)
         )
         return list(self.db.exec(statement).all())
 
     def get_values_for_episode(self, episode_id: int) -> list[int]:
         self.context.require(CampaignCapability.SHARED_RESOURCE_READ)
+        statement = select(RollEntry).where(
+            RollEntry.session_id == episode_id
+        )
+        if not self.context.elevated:
+            statement = statement.where(
+                RollEntry.user_id == self.context.user.id
+            )
         entries = self.db.exec(
-            select(RollEntry)
-            .where(RollEntry.session_id == episode_id)
-            .order_by(RollEntry.id)
+            statement.order_by(RollEntry.id)
         ).all()
         return [entry.roll for entry in entries]
 
@@ -83,7 +96,10 @@ class RollService:
         statement = (
             select(RollEntry)
             .join(Episode, RollEntry.session_id == Episode.id)
-            .where(Episode.campaign_id == self.context.campaign_id)
+            .where(
+                Episode.campaign_id == self.context.campaign_id,
+                RollEntry.user_id == self.context.user.id,
+            )
         )
         rolls = [entry.roll for entry in self.db.exec(statement).all()]
         return CampaignRollStats(
@@ -107,10 +123,71 @@ class RollService:
         return EpisodeRollStats(
             campaign_id=self.context.campaign_id,
             session_id=episode_id,
+            user_id=self.context.user.id,
             rolls=rolls,
             average=self.calculate_average(rolls),
             roll_luck=self.calculate_luck(rolls),
             revision=episode.revision,
+            other_contributors=self._other_contributor_stats(
+                episode_id
+            ),
+        )
+
+    def _other_contributor_stats(
+        self,
+        episode_id: int,
+    ) -> list[RollContributorStats]:
+        entries = self.db.exec(
+            select(RollEntry)
+            .where(
+                RollEntry.session_id == episode_id,
+                or_(
+                    RollEntry.user_id != self.context.user.id,
+                    RollEntry.user_id.is_(None),
+                ),
+            )
+            .order_by(RollEntry.id)
+        ).all()
+        grouped_rolls: dict[int | None, list[int]] = {}
+        for entry in entries:
+            grouped_rolls.setdefault(entry.user_id, []).append(entry.roll)
+
+        user_ids = [
+            user_id
+            for user_id in grouped_rolls
+            if user_id is not None
+        ]
+        users = (
+            self.db.exec(
+                select(User).where(User.id.in_(user_ids))
+            ).all()
+            if user_ids
+            else []
+        )
+        users_by_id = {user.id: user for user in users}
+        contributors: list[RollContributorStats] = []
+        for user_id, rolls in grouped_rolls.items():
+            user = users_by_id.get(user_id)
+            display_name = (
+                (user.display_name.strip() or user.username)
+                if user is not None
+                else "Legacy rolls"
+            )
+            contributors.append(
+                RollContributorStats(
+                    user_id=user_id,
+                    display_name=display_name,
+                    num_rolls=len(rolls),
+                    average=self.calculate_average(rolls),
+                    roll_luck=self.calculate_luck(rolls),
+                )
+            )
+        return sorted(
+            contributors,
+            key=lambda contributor: (
+                contributor.display_name.casefold(),
+                contributor.user_id or 0,
+            ),
         )
 
     def stage_create(
@@ -134,6 +211,7 @@ class RollService:
 
         roll_entry = RollEntry(
             session_id=roll_create.session_id,
+            user_id=self.context.user.id,
             roll=roll_create.roll,
         )
         self.db.add(roll_entry)
@@ -222,6 +300,7 @@ class RollService:
             self.db.add(
                 RollEntry(
                     session_id=episode.id,
+                    user_id=self.context.user.id,
                     roll=roll,
                 )
             )

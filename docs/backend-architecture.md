@@ -146,11 +146,16 @@ Existing compatibility boundaries deliberately keep their released names:
 
 - the database table remains `sessionnote`, with `session_id` roll foreign keys;
 - HTTP routes remain under `/api/campaigns/{campaign_id}/sessions`;
-- request/response fields retain `session_number`, `session_id`,
-  `session_stats`, and `session_count`;
+- request/response fields retain `session_id`, `session_stats`, and
+  `session_count`;
 - tag resources continue to serialize as `"session"`; and
 - campaign backups continue to serialize their episode collection as
   `sessions`.
+
+Session numbers are presentation-only chronological positions inferred by the
+frontend from the active session list. Episode storage and API responses use
+stable IDs and remain ordered by ID; session views sort by date and use ID as a
+deterministic tie-breaker for sessions on the same date.
 
 Those names may change only through an explicit API, database, or backup-schema
 migration. New internal backend code should otherwise use `Episode`.
@@ -202,6 +207,12 @@ Every API operation must declare an explicit success-response schema. Frontend
 API failures consistently expose `error` and `message`, including validation
 errors.
 
+Roll entries belong to the authenticated user who recorded them, independently
+of character assignment. Raw session rolls, deletion, and campaign/session
+statistics are scoped to that user. Session responses may additionally expose
+aggregate counts, averages, and luck for other contributors, but never their
+editable raw roll list.
+
 ## Campaign backups
 
 Campaign backup is an orchestration feature. `CampaignBackupService` owns
@@ -216,6 +227,11 @@ Resource rules remain in their domain services. Those services provide:
 
 Backup import must be atomic. Invalid archives return a client error without
 leaving a partially created campaign or orphaned imported files.
+
+Ordinary downloadable campaign backups contain only the exporter's raw rolls;
+elevated offline-maintenance exports remain complete. On import, serialized
+rolls belong to the importing user. Infrastructure backups preserve the
+original roll ownership directly in the database.
 
 Changing the backup schema or archive layout requires explicit compatibility
 planning and migration tests.
@@ -304,4 +320,3 @@ Cross-cutting API or architecture changes should additionally verify:
 
 Run the backend tests and frontend type-check using the commands in the root
 [README](../README.md).
-

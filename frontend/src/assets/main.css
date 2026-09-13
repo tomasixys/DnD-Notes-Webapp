@@ -152,6 +152,7 @@ button {
 }
 
 .account-avatar {
+  position: relative;
   width: 2.35rem;
   height: 2.35rem;
   display: grid;
@@ -164,6 +165,25 @@ button {
   font-weight: 800;
   line-height: 1;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.account-notification-badge {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.55rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: grid;
+  place-items: center;
+  padding: 0 0.25rem;
+  border: 2px solid var(--color-bg-panel);
+  border-radius: 999px;
+  background: #b8473d;
+  color: #fff8ed;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .account-avatar:hover,
@@ -223,6 +243,29 @@ button {
 .account-menu-popover a.router-link-active {
   background: rgba(255, 255, 255, 0.07);
   color: var(--color-accent-soft);
+}
+
+.account-menu-popover .account-menu-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-menu-notification {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #b8473d;
+  color: #fff8ed;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.account-menu-notification-count {
+  min-width: 1.35rem;
+  text-align: center;
 }
 
 .account-menu-signout {
@@ -613,7 +656,6 @@ select {
   top: 1rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
-  overscroll-behavior: contain;
   scrollbar-width: none;
 }
 
@@ -862,6 +904,37 @@ select {
   color: var(--color-text);
   text-align: center;
   font-weight: 700;
+}
+
+.roll-contributors {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.roll-contributor-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+}
+
+.roll-contributor-card {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.roll-contributor-card h4 {
+  margin: 0 0 1rem;
+}
+
+.resource-facts.compact {
+  margin-bottom: 0;
+}
+
+.resource-facts.compact div {
+  grid-template-columns: 5rem minmax(0, 1fr);
 }
 
 /* Character views */

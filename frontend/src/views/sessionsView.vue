@@ -7,7 +7,7 @@ import { sessionContextKey } from "@/composables/useSessionContext"
 import { useCampaignStore } from "@/stores/campaignStore"
 import type { SessionListItemDto } from "@/types/DataTransferObjects"
 import {
-  compareBySessionNumberDescending,
+  compareByDateDescending,
   removeById,
   upsertById,
 } from "@/utils/resourceCollections"
@@ -30,6 +30,12 @@ const selectedSessionId = computed(() => {
 const selectedSession = computed(() =>
   sessions.value.find((session) => session.id === selectedSessionId.value) ?? null,
 )
+const selectedSessionNumber = computed(() => {
+  const index = sessions.value.findIndex(
+    (session) => session.id === selectedSessionId.value,
+  )
+  return index === -1 ? null : sessions.value.length - index
+})
 
 const showingRolls = computed(() => route.name === "SessionRolls")
 
@@ -56,14 +62,14 @@ async function loadSessions() {
     console.error("Failed to fetch sessions: Response is not an array")
     return
   }
-  sessions.value = response
+  sessions.value = [...response].sort(compareByDateDescending)
 }
 
 function upsertSession(session: SessionListItemDto) {
   sessions.value = upsertById(
     sessions.value,
     session,
-    compareBySessionNumberDescending,
+    compareByDateDescending,
   )
 }
 
@@ -100,6 +106,7 @@ async function replaceWithFirstSession() {
 provide(sessionContextKey, {
   sessions,
   selectedSession,
+  selectedSessionNumber,
   selectedSessionId,
   selectionRevision,
   loadSessions,
@@ -140,7 +147,7 @@ watch(
         </div>
 
         <ul v-if="sessions.length" class="resource-list">
-          <li v-for="session in sessions" :key="session.id">
+          <li v-for="(session, index) in sessions" :key="session.id">
             <button
               type="button"
               class="resource-list-item"
@@ -148,7 +155,7 @@ watch(
               @click="openSession(session.id)"
             >
               <span class="resource-list-kicker">
-                Session #{{ session.sessionNumber }}
+                Session #{{ sessions.length - index }}
               </span>
               <span class="resource-list-meta">{{ session.date }}</span>
               <span class="resource-list-title">{{ session.title }}</span>

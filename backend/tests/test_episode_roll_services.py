@@ -14,7 +14,8 @@ from app.models.database import (
 )
 from app.models.enums import ResourceType
 from app.authorization.context import CampaignContext
-from tests.authorization_helpers import campaign_context
+from app.authorization.enums import CampaignRole
+from tests.authorization_helpers import campaign_context, create_user
 from app.services.episodes import EpisodeService
 from app.services.rolls import RollService
 
@@ -60,7 +61,6 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
                 EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
-                    session_number=1,
                     tags=["city"],
                 ),
             )
@@ -89,7 +89,6 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
                 EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
-                    session_number=1,
                 ),
             )
             episode_id = created.id
@@ -110,10 +109,9 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
                 EpisodeData(
                     date="2026-07-24",
                     title="The City",
-                    session_number=2,
                 ),
             )
-            self.assertEqual(2, updated.session_number)
+            self.assertEqual("2026-07-24", updated.date)
 
             deleted_rolls = rolls.delete_for_episode(episode_id)
             self.assertEqual(
@@ -134,6 +132,123 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
             )
             self.assertIsNone(db.get(Episode, episode_id))
 
+    def test_episode_reads_use_id_order_without_stored_session_numbers(self):
+        with Session(self.engine) as db:
+            campaign = self._create_campaign(db)
+            episodes = EpisodeService(campaign_context(db, campaign))
+            first = episodes.create(
+                EpisodeData(
+                    date="2026-07-24",
+                    title="Played second",
+                )
+            )
+            second = episodes.create(
+                EpisodeData(
+                    date="2026-07-23",
+                    title="Added later",
+                )
+            )
+
+            listed = episodes.list_for_campaign()
+
+            self.assertEqual(
+                [first.id, second.id],
+                [item.id for item in listed],
+            )
+            self.assertTrue(
+                all(
+                    "session_number" not in item.model_dump()
+                    for item in listed
+                )
+            )
+
+    def test_rolls_and_statistics_are_isolated_per_user(self):
+        with Session(self.engine) as db:
+            campaign = self._create_campaign(db)
+            owner_context = campaign_context(db, campaign)
+            owner_context.user.display_name = "Owner"
+            member = create_user(db)
+            member.display_name = "Player"
+            member_context = campaign_context(
+                db,
+                campaign,
+                role=CampaignRole.MEMBER,
+                user=member,
+            )
+            episode = EpisodeService(owner_context).create(
+                EpisodeData(
+                    date="2026-07-23",
+                    title="Arrival",
+                )
+            )
+            owner_rolls = RollService(owner_context)
+            member_rolls = RollService(member_context)
+
+            owner_rolls.create(
+                RollCreate(session_id=episode.id, roll=20)
+            )
+            member_rolls.create(
+                RollCreate(session_id=episode.id, roll=5)
+            )
+
+            owner_stats = owner_rolls.get_episode_stats(episode.id)
+            member_stats = member_rolls.get_episode_stats(episode.id)
+            self.assertEqual([20], owner_stats.rolls)
+            self.assertEqual([5], member_stats.rolls)
+            self.assertEqual(1, owner_rolls.get_campaign_stats().num_rolls)
+            self.assertEqual(1, member_rolls.get_campaign_stats().num_rolls)
+            self.assertEqual(
+                ["Player"],
+                [
+                    contributor.display_name
+                    for contributor in owner_stats.other_contributors
+                ],
+            )
+            self.assertEqual(
+                ["Owner"],
+                [
+                    contributor.display_name
+                    for contributor in member_stats.other_contributors
+                ],
+            )
+            self.assertEqual(
+                [20],
+                EpisodeService(owner_context).list_backup_entries()[0].rolls,
+            )
+            self.assertEqual(
+                [5],
+                EpisodeService(member_context).list_backup_entries()[0].rolls,
+            )
+            maintenance_context = CampaignContext(
+                db,
+                campaign,
+                owner_context.user,
+                owner_context.membership,
+                elevated=True,
+            )
+            self.assertEqual(
+                [20, 5],
+                EpisodeService(
+                    maintenance_context
+                ).list_backup_entries()[0].rolls,
+            )
+
+            member_rolls.delete_for_episode(episode.id)
+
+            self.assertEqual(
+                [],
+                member_rolls.get_episode_stats(episode.id).rolls,
+            )
+            self.assertEqual(
+                [20],
+                owner_rolls.get_episode_stats(episode.id).rolls,
+            )
+            remaining = db.exec(select(RollEntry)).all()
+            self.assertEqual(
+                [owner_context.user.id],
+                [roll.user_id for roll in remaining],
+            )
+
     def test_roll_mutations_reject_an_episode_from_another_campaign(self):
         with Session(self.engine) as db:
             first_campaign = self._create_campaign(db, "First")
@@ -143,7 +258,6 @@ class EpisodeAndRollServiceTests(unittest.TestCase):
                 EpisodeData(
                     date="2026-07-23",
                     title="Arrival",
-                    session_number=1,
                 ),
             )
 

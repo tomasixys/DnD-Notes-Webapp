@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useResourceEditor } from "@/composables/useResourceEditor"
-import { computed, reactive, ref, watch } from "vue"
+import { reactive, ref, watch } from "vue"
 
 import {
   DeleteAPI,
@@ -25,8 +25,8 @@ const {
   adjustCampaignSessionCount,
 } = useCampaignStore()
 const {
-  sessions,
   selectedSession,
+  selectedSessionNumber,
   selectionRevision,
   upsertSession,
   removeSession,
@@ -39,18 +39,22 @@ const requestError = ref("")
 const { canWriteSharedResources } = useCampaignAuthorization()
 
 const sessionForm = reactive({
-  date: new Date().toISOString().slice(0, 10),
+  date: currentLocalDate(),
   title: "",
   description: "",
   tags: "",
 })
 
-const nextSessionNumber = computed(() =>
-  Math.max(0, ...sessions.value.map((session) => session.sessionNumber)) + 1,
-)
+function currentLocalDate() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
 
 function resetSessionForm() {
-  sessionForm.date = new Date().toISOString().slice(0, 10)
+  sessionForm.date = currentLocalDate()
   sessionForm.title = ""
   sessionForm.description = ""
   sessionForm.tags = ""
@@ -77,9 +81,8 @@ function cancelSessionForm() {
   viewMode.value = ViewModes.Details
 }
 
-function sessionPayload(sessionNumber: number): SessionDataDto {
+function sessionPayload(): SessionDataDto {
   return {
-    sessionNumber,
     date: sessionForm.date,
     title: sessionForm.title.trim(),
     description: sessionForm.description.trim(),
@@ -95,7 +98,7 @@ async function createSession() {
   const campaignId = selectedCampaignId.value
   const response = await PostAPI<SessionListItemDto>(
     `campaigns/${campaignId}/sessions`,
-    sessionPayload(nextSessionNumber.value),
+    sessionPayload(),
   )
   if (isApiFailure(response)) {
     requestError.value = "The session could not be created."
@@ -118,7 +121,7 @@ async function updateSession() {
       `campaigns/${selectedCampaignId.value}/sessions/${sessionId}`,
       selectedSession.value.revision,
     ),
-    sessionPayload(selectedSession.value.sessionNumber),
+    sessionPayload(),
   )
   if (isApiFailure(response)) {
     requestError.value = "The session could not be updated."
@@ -176,9 +179,9 @@ useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewMode
           {{ viewMode === ViewModes.Create ? "New session" : "Edit session notes" }}
         </p>
         <h3>
-          Session {{ viewMode === ViewModes.Create
-            ? nextSessionNumber
-            : selectedSession?.sessionNumber }}
+          {{ viewMode === ViewModes.Create
+            ? "New session"
+            : `Session ${selectedSessionNumber}` }}
         </h3>
       </header>
 
@@ -224,7 +227,7 @@ useResourceEditor(() => selectedCampaignId.value && (viewMode.value === ViewMode
       <header class="resource-detail-header with-actions">
         <div class="resource-detail-title">
           <p class="resource-detail-kicker">
-            Session {{ selectedSession.sessionNumber }} · {{ selectedSession.date }}
+            Session {{ selectedSessionNumber }} · {{ selectedSession.date }}
           </p>
           <h3>{{ selectedSession.title }}</h3>
         </div>

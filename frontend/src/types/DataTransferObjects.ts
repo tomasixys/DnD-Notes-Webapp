@@ -85,6 +85,41 @@ export type IssuedAccountTokenDto = {
   expiresAt: string
 }
 
+export type IssueStatus =
+  | "pending"
+  | "acknowledged"
+  | "resolved"
+  | "rejected"
+
+export type KnownIssueDto = {
+  id: number
+  title: string
+  description: string
+  createdAt: string
+  acknowledgedAt: string
+}
+
+export type UserIssueDto = {
+  id: number
+  title: string
+  description: string
+  status: IssueStatus
+  reviewNote: string
+  createdAt: string
+  updatedAt: string
+  reviewedAt: string | null
+}
+
+export type AdminIssueDto = UserIssueDto & {
+  reporterUsername: string
+  reporterDisplayName: string
+}
+
+export type AccountNotificationSummaryDto = {
+  pendingCampaignInvitations: number
+  pendingIssueReports: number
+}
+
 export type CampaignMembershipDto = {
   id: number
   userId: number
@@ -146,7 +181,6 @@ export type ResourceTagDto = {
 export type SessionListItemDto = RevisionDto & {
   id: number
   campaignId: number
-  sessionNumber: number
   date: string
   title: string
   description: string
@@ -161,13 +195,22 @@ export type SessionDataDto = Omit<
 }
   
 export type SessionRollDto = {
-  id: number
+  sessionId: number
   campaignId: number
-  sessionNumber: number
+  userId: number
   rolls: number[]
   average: number
   rollLuck: number
   revision: number
+  otherContributors: RollContributorStatsDto[]
+}
+
+export type RollContributorStatsDto = {
+  userId: number | null
+  displayName: string
+  numRolls: number
+  average: number
+  rollLuck: number
 }
   
 export type CampaignRollDto = {

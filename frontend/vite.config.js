@@ -10,6 +10,14 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  server: {
+    fs: {
+      allow: [
+        fileURLToPath(new URL('.', import.meta.url)),
+        fileURLToPath(new URL('../CHANGELOG.md', import.meta.url)),
+      ],
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

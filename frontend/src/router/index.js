@@ -62,6 +62,18 @@ const router = createRouter({
       meta: { requiresAuth: true, accountPage: true },
     },
     {
+      path: '/changelog',
+      name: 'Changelog',
+      component: () => import('../views/changelogView.vue'),
+      meta: { requiresAuth: true, accountPage: true },
+    },
+    {
+      path: '/issues',
+      name: 'KnownIssues',
+      component: () => import('../views/issuesView.vue'),
+      meta: { requiresAuth: true, hostedOnly: true, accountPage: true },
+    },
+    {
       path: '/admin',
       name: 'SystemAdministration',
       component: () => import('../views/adminView.vue'),

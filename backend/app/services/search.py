@@ -1,7 +1,7 @@
 import re
 
 from fastapi import HTTPException
-from sqlalchemy import String, cast, or_
+from sqlalchemy import or_
 from sqlmodel import select
 
 from app.models.api import (
@@ -252,10 +252,6 @@ class SearchService:
         conditions = [
             Episode.title.ilike(pattern, escape="\\"),
             Episode.date.ilike(pattern, escape="\\"),
-            cast(Episode.session_number, String).ilike(
-                pattern,
-                escape="\\",
-            ),
             Episode.content.ilike(pattern, escape="\\"),
         ]
         tag_owner_ids = self._tag_owner_ids(
@@ -486,11 +482,6 @@ class SearchService:
                     episode.content,
                     0.55,
                 ),
-                SearchField(
-                    "session_number",
-                    str(episode.session_number),
-                    0.65,
-                ),
             ],
         )
         return SearchResultDto(
@@ -498,7 +489,7 @@ class SearchService:
             resource_type=ResourceType.EPISODE,
             resource_id=episode.id,
             title=episode.title,
-            context=f"Episode {episode.session_number}",
+            context=episode.date,
             snippet=episode.content or "",
             matched_fields=matched_fields,
             relevance=relevance,

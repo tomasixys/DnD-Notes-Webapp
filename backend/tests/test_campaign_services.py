@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.models.api import CampaignRead
-from app.models.database import Campaign, Inventory
+from app.models.database import Campaign, Episode, Inventory
 from app.services.campaign_backups import (
     CampaignBackupArchive,
     CampaignBackupService,
@@ -196,6 +196,46 @@ class CampaignServiceTests(unittest.TestCase):
                 error.exception.detail,
             )
             self.assertEqual([], db.exec(select(Campaign)).all())
+
+    def test_version_four_backup_ignores_stored_session_numbers(self):
+        archive_data = io.BytesIO()
+        with ZipFile(
+            archive_data,
+            "w",
+            compression=ZIP_DEFLATED,
+        ) as archive:
+            archive.writestr(
+                "backup.json",
+                json.dumps(
+                    {
+                        "schema_version": 4,
+                        "campaign": {"name": "Legacy campaign"},
+                        "sessions": [
+                            {
+                                "date": "2026-01-05",
+                                "title": "Arrival",
+                                "description": "Reached the city",
+                                "session_number": 12,
+                            }
+                        ],
+                    }
+                ),
+            )
+
+        with Session(self.engine) as db:
+            user = create_user(db)
+            imported = CampaignBackupService(db, user).import_archive(
+                archive_data.getvalue()
+            )
+            episode = db.exec(
+                select(Episode).where(
+                    Episode.campaign_id == imported.id
+                )
+            ).one()
+
+            self.assertEqual("2026-01-05", episode.date)
+            self.assertEqual("Arrival", episode.title)
+            self.assertFalse(hasattr(episode, "session_number"))
 
 
 if __name__ == "__main__":

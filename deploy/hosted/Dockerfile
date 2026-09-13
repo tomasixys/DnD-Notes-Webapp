@@ -5,6 +5,7 @@ FROM node:24.12.0-bookworm-slim AS frontend-build
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+COPY CHANGELOG.md /build/CHANGELOG.md
 COPY frontend/ ./
 RUN npm run type-check && npm run build
 

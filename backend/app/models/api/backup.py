@@ -9,7 +9,7 @@ from app.models.enums import (
 )
 from app.authorization.enums import ResourceVisibility
 
-CAMPAIGN_BACKUP_SCHEMA_VERSION = 4
+CAMPAIGN_BACKUP_SCHEMA_VERSION = 5
 
 
 class CampaignBackupCampaign(SQLModel):
@@ -25,7 +25,6 @@ class CampaignBackupEpisode(SQLModel):
     date: str
     title: str
     description: str = ""
-    session_number: int
     tags: list[str] = Field(default_factory=list)
     rolls: list[int] = Field(default_factory=list)
 

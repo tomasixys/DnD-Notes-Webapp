@@ -8,6 +8,7 @@ from .currency_denomination import (
 from .inventory_access_role import InventoryAccessRole
 from .item_category import ItemCategory
 from .item_rarity import ItemRarity
+from .issue_status import IssueStatus
 
 __all__ = [
     "ResourceType",
@@ -18,4 +19,5 @@ __all__ = [
     "InventoryAccessRole",
     "ItemCategory",
     "ItemRarity",
+    "IssueStatus",
 ]

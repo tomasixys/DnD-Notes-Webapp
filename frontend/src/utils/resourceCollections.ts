@@ -6,8 +6,8 @@ type NamedResource = ResourceWithId & {
   name: string
 }
 
-type NumberedSession = ResourceWithId & {
-  sessionNumber: number
+type DatedResource = ResourceWithId & {
+  date: string
 }
 
 type UpdatedResource = ResourceWithId & {
@@ -61,11 +61,11 @@ export function compareByName(
   )
 }
 
-export function compareBySessionNumberDescending(
-  left: NumberedSession,
-  right: NumberedSession,
+export function compareByDateDescending(
+  left: DatedResource,
+  right: DatedResource,
 ): number {
-  return right.sessionNumber - left.sessionNumber || right.id - left.id
+  return right.date.localeCompare(left.date) || right.id - left.id
 }
 
 export function compareByUpdatedAtDescending(

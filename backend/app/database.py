@@ -133,6 +133,7 @@ def _load_database_models() -> None:
         Inventory,
         InventoryAccess,
         InventoryItem,
+        IssueReport,
         Location,
         Person,
         Purse,

@@ -6,13 +6,23 @@ class RollCreate(SQLModel):
     roll: int
 
 
+class RollContributorStats(SQLModel):
+    user_id: int | None
+    display_name: str
+    num_rolls: int
+    average: float
+    roll_luck: float
+
+
 class EpisodeRollStats(SQLModel):
     campaign_id: int
     session_id: int
+    user_id: int
     rolls: list[int]
     average: float
     roll_luck: float
     revision: int
+    other_contributors: list[RollContributorStats]
 
 
 class CampaignRollStats(SQLModel):
